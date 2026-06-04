@@ -1,0 +1,71 @@
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+/* ── Nav sidebar ── */
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 64px;
+  min-width: 64px;
+  padding: 12px 8px;
+  background: var(--color-bg-deeper);
+  border-right: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.nav-brand {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: var(--color-accent);
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--color-border);
+  width: 100%;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
+  }
+
+  &.active {
+    background: rgba(var(--color-accent-rgb), 0.1);
+    color: var(--color-accent);
+  }
+}
+
+.nav-icon  { font-size: 18px; line-height: 1; }
+.nav-label { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* ── Content ── */
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

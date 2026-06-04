@@ -1,0 +1,68 @@
+.feed {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.feed-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.feed-empty-icon {
+  font-size: 24px;
+  opacity: 0.3;
+}
+
+.feed-item {
+  display: grid;
+  grid-template-columns: 56px 52px 1fr;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-family: monospace;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background 0.1s;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: var(--color-bg-hover); }
+
+  // Animate in new entries
+  &:first-child {
+    animation: feed-in 0.2s ease;
+  }
+}
+
+@keyframes feed-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.feed-time {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.feed-tag {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.feed-msg {
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

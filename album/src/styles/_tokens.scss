@@ -1,0 +1,67 @@
+:root {
+  /* ===== BACKGROUNDS & SURFACES ===== */
+
+  --color-bg-base: #070a0e;
+  --color-bg-surface: #0f141a;
+  --color-bg-elevated: #141c25;
+  --color-bg-skeleton: #0d1219;
+  --color-bg-deeper: #060810;
+  --color-bg-deepest: #05070a;
+  --color-bg-panel: #0a0d12;
+  --color-bg-input: #080d14;
+  --color-bg-hover: #141c27;
+  --color-bg-card: #0f141a;
+  --color-bg-footer: #0c1015;
+  --color-bg-container: #0a0e15;
+  --color-bg-section: #0c1117;
+  --color-modal-bg: #090c11;
+  --color-modal-panel-left: #05070a;
+  --color-modal-panel-right: #0a0d12;
+  --color-bg-glass: rgba(7, 10, 14, 0.9);
+
+  /* ===== TEXT ===== */
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #2d3d50;
+  --color-text-bright: #e2e8f0;
+  --color-text-error: #f87171;
+
+  /* ===== BORDERS ===== */
+
+  --color-border: #1a232c;
+  --color-border-subtle: #141c24;
+  --color-border-hover: #334155;
+  --color-modal-border: #1e2a38;
+
+  /* ===== ACCENT ===== */
+
+  --color-accent: #ffcc4d;
+  --color-accent-rgb: 255, 204, 77;
+  --color-accent-primary: #ffcc4d;
+  --color-accent-secondary: #06b6d4;
+  --color-accent-tertiary: #8b5cf6;
+
+  /* ===== STATUS ===== */
+
+  --color-status-success: #10b981;
+  --color-status-warning: #f59e0b;
+  --color-status-error: #dc3c3c;
+  --color-status-info: #3b82f6;
+  --color-cyan: #2dd4bf;
+  --color-purple: #a78bfa;
+
+  /* ===== LOG TAG COLORS ===== */
+
+  --color-log-err: #f87171;
+  --color-log-warn: #fbbf24;
+  --color-log-user: #60a5fa;
+  --color-log-pop: #2dd4bf;
+  --color-log-sync: #2dd4bf;
+  --color-log-default: #475569;
+
+  /* ===== MISC ===== */
+
+  --color-scrollbar: #222d3a;
+  --color-overlay-dark: rgba(0, 0, 0, 0.5);
+}

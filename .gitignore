@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+target/
+
+# Tauri
+apps/*/src-tauri/target/
+apps/*/src-tauri/WixTools/
+apps/*/src-tauri/gen/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Markdown
+*.md
+!README.md
+!CLAUDE.md

@@ -1,0 +1,83 @@
+.stat-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+
+  // Top accent line
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--card-color, var(--color-border));
+    opacity: 0.7;
+  }
+
+  // Subtle inner glow at top
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40%;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--card-color, transparent) 6%, transparent), transparent);
+    pointer-events: none;
+  }
+
+  &:hover {
+    background: var(--color-bg-surface);
+    border-color: color-mix(in srgb, var(--card-color, var(--color-border-hover)) 40%, var(--color-border));
+    transform: translateY(-1px);
+  }
+}
+
+.stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.stat-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--card-color, var(--color-bg-surface)) 12%, var(--color-bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--card-color, var(--color-border)) 20%, var(--color-border));
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--card-color, var(--color-text-primary));
+  line-height: 1;
+  letter-spacing: -0.02em;
+  position: relative;
+}
+
+.stat-sub {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,36 @@
+{
+  "app": {
+    "title": "BDO Dashboard"
+  },
+  "scrapper": {
+    "title": "Scrapping",
+    "status": {
+      "idle": "Idle",
+      "running": "Running...",
+      "stopping": "Stopping...",
+      "done": "Done",
+      "error": "Error",
+      "cancelled": "Cancelled"
+    },
+    "progress": {
+      "label": "Progress",
+      "of": "of",
+      "class": "Class",
+      "preset": "Preset"
+    },
+    "actions": {
+      "start": "Start scrapping",
+      "stop": "Stop",
+      "stopping": "Stopping..."
+    },
+    "token": {
+      "label": "CF Token",
+      "placeholder": "cf_clearance=..."
+    }
+  },
+  "logs": {
+    "title": "Logs",
+    "empty": "No logs yet",
+    "clear": "Clear"
+  }
+}

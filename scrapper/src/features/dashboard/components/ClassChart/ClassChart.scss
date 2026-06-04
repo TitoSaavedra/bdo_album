@@ -1,0 +1,70 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 96px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-radius: 4px;
+  transition: background 0.1s;
+
+  &:hover { background: var(--color-bg-hover); }
+
+  &.active .chart-bar {
+    box-shadow: 0 0 8px rgba(var(--color-accent-rgb), .4);
+  }
+}
+
+.chart-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  padding-right: 4px;
+}
+
+.chart-bar-wrap {
+  height: 10px;
+  background: var(--color-bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.chart-bar {
+  position: relative;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(var(--color-accent-rgb), .5), rgba(var(--color-accent-rgb), .25));
+  border-radius: 3px;
+  transition: width 0.6s ease;
+  min-width: 2px;
+}
+
+.chart-bar-images {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--color-status-success);
+  opacity: 0.6;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.chart-val {
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-align: right;
+  opacity: 0.8;
+}
