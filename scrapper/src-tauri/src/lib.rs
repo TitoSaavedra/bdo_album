@@ -36,10 +36,14 @@ pub fn run() {
                 match db::pool::init(&db_url).await {
                     Ok(pool) => {
                         eprintln!("[startup] DB connected OK");
-                        // Save startup log before moving pool into AppState
+                        let recovered = db::repositories::session_repo::SessionRepository::recover_interrupted(&pool).await.unwrap_or(0);
                         db::repositories::log_repo::LogRepository::insert(
                             &app_h, &pool, None, "INFO", "startup",
-                            "Database connected. Ready to scrape.",
+                            &if recovered > 0 {
+                                format!("Database connected. {} interrupted session(s) recovered.", recovered)
+                            } else {
+                                "Database connected. Ready to scrape.".to_string()
+                            },
                         ).await.ok();
                         app_h.manage(AppState::new(pool));
                         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
@@ -63,6 +67,7 @@ pub fn run() {
             scraper::commands::cancel_scraper,
             scraper::commands::get_sessions,
             scraper::commands::get_class_stats_cmd,
+            scraper::commands::get_preset_stats,
             scraper::commands::get_logs,
         ])
         .run(tauri::generate_context!())

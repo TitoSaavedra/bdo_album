@@ -58,13 +58,18 @@ export interface ClassStatsUpdated {
   fetched:   number;
   images:    number;
   errors:    number;
+  skipped:   number;
 }
 
 export interface PresetSynced {
-  preset_id:   string;
-  class_id:    number;
-  image_1_url: string | null;
-  image_2_url: string | null;
+  preset_id:      string;
+  class_id:       number;
+  image_1_url:    string | null;
+  image_2_url:    string | null;
+  downloads:      number | null;
+  views:          number | null;
+  likes:          number | null;
+  character_name: string | null;
 }
 
 export interface LogEntry {

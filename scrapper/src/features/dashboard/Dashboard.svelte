@@ -2,14 +2,13 @@
   import './Dashboard.scss';
   import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { Button } from '$ui/index';
-  import StatCard      from './components/StatCard/StatCard.svelte';
-  import ClassGrid     from './components/ClassGrid/ClassGrid.svelte';
-  import ClassChart    from './components/ClassChart/ClassChart.svelte';
-  import ActivityFeed  from './components/ActivityFeed/ActivityFeed.svelte';
+  import { Button, Sidebar, MultiPill } from '$ui/index';
+  import StatCard       from './components/StatCard/StatCard.svelte';
+  import Overview       from './components/Overview/Overview.svelte';
+  import PresetStats    from './components/PresetStats/PresetStats.svelte';
   import SessionHistory from './components/SessionHistory/SessionHistory.svelte';
 
-  type MainTab = 'overview' | 'classes' | 'sessions';
+  type MainTab = 'overview' | 'presets' | 'sessions';
   let mainTab = $state<MainTab>('overview');
   import {
     getStatus, getPhase,
@@ -20,8 +19,19 @@
     requestStop, getDbReady,
   } from '../scrapper/state/scrapper.svelte';
 
-  let parallelism = $state(3);
-  let sidebarOpen = $state(true);
+  const ALL_DAYS    = ['20', '30', '60', '90', '180', '365', 'ever'];
+  const ALL_REGIONS = ['all', 'eu', 'na', 'ru', 'jp', 'kr', 'tw', 'sa', 'sea', 'asia', 'mena'];
+
+  let dbClasses       = $state<{id: number, name: string}[]>([]);
+  const ALL_CLASSES   = $derived(['all', ...dbClasses.map(c => c.name)]);
+
+  let parallelism     = $state(3);
+  let sidebarOpen     = $state(false);
+  let sidebarTab      = $state<'config' | 'status'>('config');
+  let selectedDays    = $state<string[]>([ALL_DAYS[0]]);
+  let selectedRegions = $state<string[]>(['all']);
+  let selectedClasses = $state<string[]>(['all']);
+
 
   const status   = $derived(getStatus());
   const phase    = $derived(getPhase());
@@ -40,6 +50,15 @@
   const dbReady = $derived(getDbReady());
   const isBusy  = $derived(status === 'running' || status === 'stopping');
 
+  $effect(() => {
+    if (dbReady === true) {
+      invoke<{id: number, name: string}[]>('get_classes').then(cls => {
+        dbClasses = cls;
+      });
+    }
+  });
+
+
   const PHASES = [
     { id: 'fetch',    label: 'Fetch JSON', color: 'var(--color-accent)'          },
     { id: 'download', label: 'Download',   color: 'var(--color-accent-secondary)' },
@@ -51,7 +70,17 @@
     return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
   };
 
-  async function start()  { await invoke('run_scraper', { parallelism }); }
+  async function start()  {
+    const classIds = selectedClasses.map(name =>
+      name === 'all' ? 'all' : dbClasses.find(c => c.name === name)!.id
+    );
+    await invoke('run_scraper', {
+      parallelism,
+      days:    selectedDays,
+      regions: selectedRegions,
+      classes: classIds,
+    });
+  }
   async function stop()   { requestStop(); await invoke('cancel_scraper'); }
 </script>
 
@@ -67,7 +96,7 @@
     <!-- Phase pipeline -->
     <div class="phase-pipeline">
       {#each PHASES as p, i}
-        <div class="pipe-step" class:active={phase === p.id} class:done={['fetch','download','upload'].indexOf(phase) > i} style="--c: {p.color}">
+        <div class="pipe-step" class:active={status !== 'idle' && phase === p.id} class:done={status !== 'idle' && ['fetch','download','upload'].indexOf(phase) > i} style="--c: {p.color}">
           <span class="pipe-dot"></span>
           <span class="pipe-label">{p.label}</span>
         </div>
@@ -89,77 +118,105 @@
   <!-- ── Body ── -->
   <div class="dash-body">
 
-    <!-- Left: sidebar -->
-    <aside class="dash-sidebar" class:collapsed={!sidebarOpen}>
-      <!-- Config -->
-      <div class="sidebar-section">
-        <span class="sidebar-label">Parallelism — <strong>{parallelism}</strong></span>
-        <input class="range" type="range" min="1" max="10" bind:value={parallelism} disabled={isBusy} />
-        <span class="range-hint">{parallelism * 2} concurrent downloads</span>
+    <Sidebar bind:open={sidebarOpen} width={220}>
+      <!-- Sidebar tabs -->
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab" class:active={sidebarTab === 'config'} onclick={() => sidebarTab = 'config'}>Config</button>
+        <button class="sidebar-tab" class:active={sidebarTab === 'status'} onclick={() => sidebarTab = 'status'}>Status</button>
       </div>
 
-      <div class="sidebar-divider"></div>
-
-      <!-- Progress bars -->
-      {#if status === 'running' || fetched > 0}
+      {#if sidebarTab === 'config'}
         <div class="sidebar-section">
-          <div class="prog-row">
-            <span class="prog-label">Fetch</span>
-            <span class="prog-val">{current}/{total}</span>
-          </div>
-          <div class="prog-track"><div class="prog-fill fetch" style="width:{pct}%"></div></div>
+          <span class="sidebar-label">Parallelism — <strong>{parallelism}</strong></span>
+          <input class="range" type="range" min="1" max="10" bind:value={parallelism} disabled={isBusy} />
+          <span class="range-hint">{parallelism * 2} concurrent downloads</span>
         </div>
 
-        {#if imgTotal > 0}
-          <div class="sidebar-section">
-            <div class="prog-row">
-              <span class="prog-label">Download</span>
-              <span class="prog-val">{imgDone}/{imgTotal}</span>
-            </div>
-            <div class="prog-track"><div class="prog-fill download" style="width:{imgPct}%"></div></div>
-          </div>
-        {/if}
+        <div class="sidebar-section">
+          <span class="sidebar-label">Days <span class="sidebar-count">{selectedDays.length}/{ALL_DAYS.length}</span></span>
+          <MultiPill
+            options={ALL_DAYS}
+            selected={selectedDays}
+            onchange={(v) => selectedDays = v}
+            disabled={isBusy}
+            selectAll
+            reset
+          />
+        </div>
 
-        {#if upDone > 0}
-          <div class="sidebar-section">
-            <div class="prog-row">
-              <span class="prog-label">Upload R2</span>
-              <span class="prog-val">{upDone}</span>
-            </div>
-            <div class="prog-track"><div class="prog-fill upload" style="width:{upPct}%"></div></div>
-          </div>
-        {/if}
+        <div class="sidebar-section">
+          <span class="sidebar-label">Regions <span class="sidebar-count">{selectedRegions.length}/{ALL_REGIONS.length}</span></span>
+          <MultiPill
+            options={ALL_REGIONS}
+            selected={selectedRegions}
+            onchange={(v) => selectedRegions = v}
+            disabled={isBusy}
+            selectAll
+            reset
+          />
+        </div>
+
+        <div class="sidebar-section">
+          <span class="sidebar-label">Classes <span class="sidebar-count">{selectedClasses.length}/{ALL_CLASSES.length}</span></span>
+          <MultiPill
+            options={ALL_CLASSES}
+            selected={selectedClasses}
+            onchange={(v) => selectedClasses = v}
+            disabled={isBusy}
+            selectAll
+            reset
+          />
+          <span class="range-hint">
+            ~{selectedDays.length * selectedRegions.length * selectedClasses.length} requests
+          </span>
+        </div>
+
       {:else}
-        <span class="sidebar-idle">No active session</span>
-      {/if}
+        <!-- Progress bars -->
+        {#if status === 'running' || fetched > 0}
+          <div class="sidebar-section">
+            <div class="prog-row">
+              <span class="prog-label">Fetch</span>
+              <span class="prog-val">{current}/{total}</span>
+            </div>
+            <div class="prog-track"><div class="prog-fill fetch" style="width:{pct}%"></div></div>
+          </div>
 
-      {#if errors > 0}
-        <div class="sidebar-errors">⚠ {errors} error{errors > 1 ? 's' : ''}</div>
-      {/if}
-    </aside>
+          {#if imgTotal > 0}
+            <div class="sidebar-section">
+              <div class="prog-row">
+                <span class="prog-label">Download</span>
+                <span class="prog-val">{imgDone}/{imgTotal}</span>
+              </div>
+              <div class="prog-track"><div class="prog-fill download" style="width:{imgPct}%"></div></div>
+            </div>
+          {/if}
 
-    <!-- Collapser — outside sidebar so it stays visible when collapsed -->
-    <button class="sidebar-collapser" onclick={() => sidebarOpen = !sidebarOpen}>
-      {sidebarOpen ? '‹' : '›'}
-    </button>
+          {#if upDone > 0}
+            <div class="sidebar-section">
+              <div class="prog-row">
+                <span class="prog-label">Upload R2</span>
+                <span class="prog-val">{upDone}</span>
+              </div>
+              <div class="prog-track"><div class="prog-fill upload" style="width:{upPct}%"></div></div>
+            </div>
+          {/if}
+        {:else}
+          <span class="sidebar-idle">No active session</span>
+        {/if}
+
+        {#if errors > 0}
+          <div class="sidebar-errors">⚠ {errors} error{errors > 1 ? 's' : ''}</div>
+        {/if}
+      {/if}
+    </Sidebar>
 
     <!-- Main content -->
     <div class="dash-main">
 
-      <!-- Stat cards -->
-      <div class="stats-row">
-        <StatCard label="Presets"  value={fetched}  color="var(--color-accent)"           icon="⬇" />
-        <StatCard label="Images"   value={imgDone}  color="var(--color-accent-secondary)" icon="🖼" sub={imgTotal > 0 ? `of ${imgTotal}` : undefined} />
-        <StatCard label="Uploaded" value={upDone}   color="var(--color-accent-tertiary)"  icon="☁" />
-        <StatCard label="Errors"   value={errors}   color={errors > 0 ? 'var(--color-status-error)' : undefined} icon="⚠" />
-        {#if secs > 0}
-          <StatCard label="Elapsed"  value={fmtTime(secs)} color="var(--color-cyan)" icon="⏱" />
-        {/if}
-      </div>
-
       <!-- Main tabs -->
       <div class="main-tabs">
-        {#each ([['overview','Overview'],['classes','Classes'],['sessions','Sessions']] as const) as [id, label]}
+        {#each ([['overview','Overview'],['presets','Presets'],['sessions','Sessions']] as const) as [id, label]}
           <button class="main-tab" class:active={mainTab === id} onclick={() => mainTab = id}>
             {label}
           </button>
@@ -168,27 +225,12 @@
 
       <!-- Tab content -->
       {#if mainTab === 'overview'}
-        <div class="dash-grid-row">
-          <div class="class-section">
-            <span class="section-label">Classes <span class="section-count">31</span></span>
-            <ClassGrid />
-          </div>
-          <div class="feed-section">
-            <span class="section-label">Live Activity</span>
-            <ActivityFeed />
-          </div>
-        </div>
+        <Overview />
 
-      {:else if mainTab === 'classes'}
+      {:else if mainTab === 'presets'}
         <div class="chart-section">
-          <span class="section-label">
-            Presets per class
-            <span class="chart-legend">
-              <span class="legend-dot fetched"></span> Fetched
-              <span class="legend-dot images"></span> Images
-            </span>
-          </span>
-          <ClassChart />
+          <span class="section-label">Preset Database</span>
+          <PresetStats />
         </div>
 
       {:else}

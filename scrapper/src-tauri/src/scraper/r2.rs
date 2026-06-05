@@ -4,6 +4,7 @@ use aws_sdk_s3::primitives::ByteStream;
 
 use crate::core::errors::{AppError, Result};
 
+#[derive(Clone)]
 pub struct R2Client {
     client:     Client,
     bucket:     String,

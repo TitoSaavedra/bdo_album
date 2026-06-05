@@ -1,8 +1,9 @@
 <script lang="ts">
   import './Logs.scss';
   import { onMount } from 'svelte';
+  import { fly } from 'svelte/transition';
   import { invoke } from '@tauri-apps/api/core';
-  import { Input, Button } from '$ui/index';
+  import { Button, Sidebar } from '$ui/index';
   import { getLogs, clearLogs, prependLogs } from '../scrapper/state/scrapper.svelte';
   import type { LogEntry } from '$lib/events/types';
 
@@ -20,6 +21,7 @@
     { value: '1',   label: 'Last 1m'  },
   ];
 
+  let sidebarOpen  = $state(false);
   let filterTag    = $state('ALL');
   let filterTime   = $state('all');
   let filterSource = $state('all');
@@ -62,7 +64,8 @@
 <div class="logs-view">
 
   <!-- ── Left nav sidebar ── -->
-  <aside class="logs-nav">
+  <Sidebar bind:open={sidebarOpen} width={200}>
+  <div class="logs-nav">
 
     <div class="nav-section">
       <span class="nav-label">Search</span>
@@ -129,7 +132,8 @@
       {/if}
     </div>
 
-  </aside>
+  </div>
+  </Sidebar>
 
   <!-- ── Main: header + entries ── -->
   <div class="logs-main">
@@ -151,12 +155,14 @@
           <span>{logs.length === 0 ? 'No logs yet' : 'No logs match the filters'}</span>
         </div>
       {:else}
-        {#each filtered() as log (log.ts + log.tag + log.msg)}
-          <div class="log-row" data-tag={log.tag}>
+        {#each filtered() as log (log._uid)}
+          <div class="log-row" data-tag={log.tag} title={new Date(log.ts * 1000).toLocaleString('es')}
+            in:fly={{ y: -6, duration: 180, opacity: 0 }}>
             <span class="log-ts">{fmt(log.ts)}</span>
-            <span class="log-tag" style="color:{TAG_COLORS[log.tag] ?? '#475569'}">{log.tag}</span>
+            <span class="log-tag-badge" style="--tc:{TAG_COLORS[log.tag] ?? '#475569'}">{log.tag}</span>
             <span class="log-source">{log.source}</span>
             <span class="log-msg">{log.msg}</span>
+            <button class="log-copy" onclick={() => navigator.clipboard.writeText(log.msg)} title="Copy">⎘</button>
           </div>
         {/each}
       {/if}

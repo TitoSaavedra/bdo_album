@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS scrapper_presets (
     downloads      BIGINT      NOT NULL DEFAULT 0,
     views          BIGINT      NOT NULL DEFAULT 0,
     likes          BIGINT      NOT NULL DEFAULT 0,
+    image_1        TEXT,
+    image_2        TEXT,
     image_1_url    TEXT,
     image_2_url    TEXT,
     pab_url        TEXT,

@@ -17,8 +17,6 @@ pub enum AppError {
     #[error("Env: {0}")]
     Env(String),
 
-    #[error("Cloudflare blocked — provide a valid cf_clearance token")]
-    CfBlocked,
 }
 
 // Tauri commands require serializable errors

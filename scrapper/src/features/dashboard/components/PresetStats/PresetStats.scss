@@ -1,0 +1,189 @@
+.preset-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ps-loading {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-family: monospace;
+  padding: 20px;
+}
+
+/* ── KPIs ── */
+
+.ps-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.ps-kpi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 16px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--kc, var(--color-border));
+    opacity: 0.7;
+  }
+}
+
+.ps-kpi-val {
+  font-size: 29px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--kc, var(--color-text-primary));
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.ps-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.ps-kpi-sub {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--kc, var(--color-text-muted));
+  opacity: 0.7;
+}
+
+/* ── Global progress bar ── */
+
+.ps-global-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ps-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.ps-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-status-success), rgba(16 185 129 / .5));
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.ps-bar-label {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--color-status-success);
+  white-space: nowrap;
+}
+
+/* ── Per-class list ── */
+
+.ps-class-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.ps-class-row {
+  display: grid;
+  grid-template-columns: 22px 100px 1fr 52px 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-radius: 4px;
+  transition: background 0.1s;
+
+  &:hover { background: var(--color-bg-hover); }
+}
+
+.ps-class-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+
+  svg {
+    width: 16px;
+    height: 16px;
+    opacity: 0.6;
+  }
+}
+
+.ps-class-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ps-class-bar-wrap {
+  height: 8px;
+  background: var(--color-bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.ps-class-bar {
+  position: relative;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(var(--color-accent-rgb), .4), rgba(var(--color-accent-rgb), .2));
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+.ps-class-bar-img {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-status-success);
+  opacity: 0.7;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.ps-class-total {
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-align: right;
+}
+
+.ps-class-img {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--color-status-success);
+  text-align: right;
+
+  &.zero { color: var(--color-text-muted); opacity: 0.4; }
+}

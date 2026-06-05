@@ -1,0 +1,1 @@
+ALTER TABLE scrapper_sessions ADD COLUMN IF NOT EXISTS skipped INT NOT NULL DEFAULT 0;

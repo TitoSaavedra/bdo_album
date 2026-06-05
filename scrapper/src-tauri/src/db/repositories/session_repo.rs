@@ -12,6 +12,7 @@ pub struct SessionRow {
     pub total_images:   i32,
     pub total_uploaded: i32,
     pub errors:         i32,
+    pub skipped:        i32,
     pub elapsed_secs:   Option<i32>,
     pub cf_used:        bool,
 }
@@ -27,6 +28,17 @@ pub struct ClassStatRow {
 pub struct SessionRepository;
 
 impl SessionRepository {
+    pub async fn recover_interrupted(pool: &PgPool) -> Result<u64> {
+        let result = sqlx::query(
+            "UPDATE scrapper_sessions
+             SET status = 'interrupted', finished_at = NOW()
+             WHERE status = 'running'",
+        )
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     pub async fn create(pool: &PgPool, cf_used: bool) -> Result<i64> {
         let id = sqlx::query_scalar::<_, i64>(
             "INSERT INTO scrapper_sessions (cf_used) VALUES ($1) RETURNING id",
@@ -45,6 +57,7 @@ impl SessionRepository {
         total_images: i32,
         total_uploaded: i32,
         errors: i32,
+        skipped: i32,
         elapsed_secs: i32,
     ) -> Result<()> {
         sqlx::query(
@@ -55,14 +68,16 @@ impl SessionRepository {
                 total_images   = $3,
                 total_uploaded = $4,
                 errors         = $5,
-                elapsed_secs   = $6
-             WHERE id = $7",
+                skipped        = $6,
+                elapsed_secs   = $7
+             WHERE id = $8",
         )
         .bind(status)
         .bind(total_fetched)
         .bind(total_images)
         .bind(total_uploaded)
         .bind(errors)
+        .bind(skipped)
         .bind(elapsed_secs)
         .bind(id)
         .execute(pool)
@@ -74,7 +89,7 @@ impl SessionRepository {
         let rows = sqlx::query_as::<_, SessionRow>(
             "SELECT id, started_at, finished_at, status,
                     total_fetched, total_images, total_uploaded,
-                    errors, elapsed_secs, cf_used
+                    errors, skipped, elapsed_secs, cf_used
              FROM scrapper_sessions
              ORDER BY started_at DESC
              LIMIT $1",

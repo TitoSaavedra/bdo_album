@@ -3,8 +3,7 @@ use serde::Deserialize;
 
 use crate::core::errors::{AppError, Result};
 
-const API_BASE:   &str = "https://api.garmoth.com";
-const IMAGE_BASE: &str = "https://assets.garmoth.com/beauty-album/images";
+const API_BASE: &str = "https://api.garmoth.com";
 
 pub struct GarmothPreset {
     pub id:             i64,
@@ -15,10 +14,8 @@ pub struct GarmothPreset {
     pub downloads:      i64,
     pub views:          i64,
     pub likes:          i64,
-    pub image_1:        Option<String>,   // raw filename e.g. "42137_1.png"
+    pub image_1:        Option<String>,
     pub image_2:        Option<String>,
-    pub image_1_url:    Option<String>,   // full Garmoth CDN URL (for browser download)
-    pub image_2_url:    Option<String>,
     pub creation_at:    Option<i64>,
     pub customizing_id: Option<i64>,
     pub region:         Option<String>,
@@ -49,10 +46,6 @@ struct RawPreset {
 
 impl From<RawPreset> for GarmothPreset {
     fn from(r: RawPreset) -> Self {
-        let image_1_url = r.image_1.as_deref()
-            .map(|f| format!("{}/{}/{}", IMAGE_BASE, r.class, f));
-        let image_2_url = r.image_2.as_deref()
-            .map(|f| format!("{}/{}/{}", IMAGE_BASE, r.class, f));
         Self {
             id:             r.id,
             class_id:       r.class,
@@ -64,8 +57,6 @@ impl From<RawPreset> for GarmothPreset {
             likes:          r.likes,
             image_1:        r.image_1,
             image_2:        r.image_2,
-            image_1_url,
-            image_2_url,
             creation_at:    r.creation_at,
             customizing_id: r.customizing_id,
             region:         r.region,
@@ -102,13 +93,14 @@ impl GarmothClient {
 
     pub async fn fetch_popular(
         &self,
-        class_id: u32,
+        class_id: Option<u32>,
         days: &str,
         region: &str,
     ) -> Result<Vec<GarmothPreset>> {
+        let class_param = class_id.map_or_else(|| "all".to_string(), |id| id.to_string());
         let url = format!(
             "{}/api/beauty-album/search-advanced?class={}&past={}&region={}&sort=popular&limit=100",
-            API_BASE, class_id, days, region
+            API_BASE, class_param, days, region
         );
         let bytes = self
             .client

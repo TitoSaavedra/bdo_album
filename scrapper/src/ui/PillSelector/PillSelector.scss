@@ -13,7 +13,7 @@
   border: 1px solid var(--color-border);
   border-radius: 20px;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   font-family: monospace;
   letter-spacing: 0.06em;
@@ -21,7 +21,7 @@
   transition: border-color 0.15s, color 0.15s, background 0.15s;
   user-select: none;
 
-  span { font-size: 12px; line-height: 1; }
+  span { font-size: 13px; line-height: 1; }
 
   &:hover {
     border-color: var(--pill-color, var(--color-accent));

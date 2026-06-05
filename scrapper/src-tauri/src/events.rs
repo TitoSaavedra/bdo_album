@@ -88,14 +88,19 @@ pub struct ClassStatsUpdated {
     pub fetched:  usize,
     pub images:   usize,
     pub errors:   usize,
+    pub skipped:  usize,
 }
 
 #[derive(Serialize, Clone)]
 pub struct PresetSynced {
-    pub preset_id:   String,
-    pub class_id:    u32,
-    pub image_1_url: Option<String>,
-    pub image_2_url: Option<String>,
+    pub preset_id:      String,
+    pub class_id:       u32,
+    pub image_1_url:    Option<String>,
+    pub image_2_url:    Option<String>,
+    pub downloads:      Option<i64>,
+    pub views:          Option<i64>,
+    pub likes:          Option<i64>,
+    pub character_name: Option<String>,
 }
 
 #[derive(Serialize, Clone)]

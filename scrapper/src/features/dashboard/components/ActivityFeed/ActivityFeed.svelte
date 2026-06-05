@@ -1,8 +1,8 @@
 <script lang="ts">
   import './ActivityFeed.scss';
-  import { getLogs } from '../../../scrapper/state/scrapper.svelte';
+  import { getSessionLogs } from '../../../scrapper/state/scrapper.svelte';
 
-  const recent = $derived(getLogs().slice(0, 30));
+  const recent = $derived(getSessionLogs().slice(0, 30));
 
   const TAG_COLOR: Record<string, string> = {
     ERR:      '#f87171',
@@ -26,7 +26,7 @@
       <span>Waiting for activity...</span>
     </div>
   {:else}
-    {#each recent as entry (entry.ts + entry.tag + entry.msg)}
+    {#each recent as entry (entry._uid)}
       <div class="feed-item">
         <span class="feed-time">{fmt(entry.ts)}</span>
         <span class="feed-tag" style="color: {TAG_COLOR[entry.tag] ?? '#475569'}">{entry.tag}</span>

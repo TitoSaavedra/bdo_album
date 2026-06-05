@@ -50,7 +50,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-text-secondary);
   overflow: hidden;
@@ -71,7 +71,7 @@
 }
 
 .class-name {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--color-text-secondary);
   text-align: center;
@@ -85,14 +85,14 @@
 }
 
 .class-fetched {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-family: monospace;
   color: var(--color-text-primary);
 }
 
 .class-images {
-  font-size: 10px;
+  font-size: 11px;
   font-family: monospace;
   color: var(--color-status-success);
 }

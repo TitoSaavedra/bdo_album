@@ -36,9 +36,9 @@ class ScrapperEventBus {
 
       // Lifecycle
       this.on('scrapper_started',   ()  => { setStatus('running'); setPhase('fetch'); }),
-      this.on('scrapper_done',      (p) => { setStatus('done'); pushLog({ ts: now(), tag: 'ORCH', source: 'scrapper', msg: `Done — ${p.total_fetched} presets, ${p.total_images} images, ${p.errors} errors (${p.elapsed_secs}s)` }); }),
+      this.on('scrapper_done',      ()  => { setStatus('done'); }),
       this.on('scrapper_cancelled', ()  => setStatus('cancelled')),
-      this.on('scrapper_error',     (p) => { setStatus('error'); pushLog({ ts: now(), tag: 'ERR', source: p.phase, msg: p.message }); }),
+      this.on('scrapper_error',     ()  => { setStatus('error'); }),
 
       // Progress
       this.on('scrapper_progress',  (p) => onProgress(p)),

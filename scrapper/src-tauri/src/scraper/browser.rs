@@ -88,23 +88,6 @@ impl BrowserSession {
         .await
         .map_err(|e| AppError::Scrape(format!("warmup navigate: {:?}", e)))?;
 
-        // Also warm up the assets CDN so CF sets clearance for image downloads
-        let page2 = context
-            .new_page()
-            .await
-            .map_err(|e| AppError::Scrape(format!("warmup2 page: {:?}", e)))?;
-
-        page2.goto(
-            "https://assets.garmoth.com/",
-            Some(GotoOptions {
-                wait_until: Some(WaitUntil::Load),
-                timeout:    Some(Duration::from_secs(30)),
-                ..Default::default()
-            }),
-        )
-        .await
-        .ok(); // non-fatal — CDN root may 404
-
         Ok(Self { _playwright: playwright, _browser: browser, context })
     }
 
@@ -130,28 +113,94 @@ impl BrowserSession {
         }
     }
 
-    pub async fn download(&self, url: &str) -> Result<Vec<u8>, AppError> {
-        let page = self
-            .context
-            .new_page()
-            .await
-            .map_err(|e| AppError::Scrape(format!("download page: {:?}", e)))?;
+    /// Opens the Garmoth preset page, captures image URLs via route interception,
+    /// then downloads each image through the browser's Chromium network stack.
+    /// Using route.continue_() avoids route.fetch() which goes through APIRequestContext
+    /// (a separate HTTP client that CF may reject with a challenge page instead of the image).
+    pub async fn fetch_preset_images(
+        &self,
+        preset_id: i64,
+        image_1:   Option<&str>,
+        image_2:   Option<&str>,
+    ) -> Result<(Option<(String, Vec<u8>)>, Option<(String, Vec<u8>)>), AppError> {
+        use std::collections::HashMap;
+        use std::sync::{Arc, Mutex};
 
-        let response = page
-            .goto(url, None)
-            .await
-            .map_err(|e| AppError::Scrape(format!("download goto: {:?}", e)))?;
+        let expected: std::collections::HashSet<String> = [image_1, image_2]
+            .iter()
+            .filter_map(|s| s.map(String::from))
+            .collect();
 
-        match response {
-            Some(resp) => {
-                if resp.status() == 403 {
-                    return Err(AppError::CfBlocked);
+        // Maps filename → full CDN URL, populated by route interception
+        let captured: Arc<Mutex<HashMap<String, String>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+
+        let page = self.context.new_page().await
+            .map_err(|e| AppError::Scrape(format!("page: {:?}", e)))?;
+
+        // Intercept before navigation — record the full URL, then let browser load normally
+        {
+            let cap = Arc::clone(&captured);
+            let exp = expected.clone();
+            page.route("**/beauty-album/images/**", move |route| {
+                let cap = Arc::clone(&cap);
+                let exp = exp.clone();
+                async move {
+                    let url      = route.request().url().to_string();
+                    let filename = url.rsplit('/').next().unwrap_or("").to_string();
+                    if exp.contains(&filename) {
+                        cap.lock().unwrap().entry(filename).or_insert(url);
+                    }
+                    route.continue_(None).await?;
+                    Ok(())
                 }
-                resp.body()
-                    .await
-                    .map_err(|e| AppError::Scrape(format!("download body: {:?}", e)))
-            }
-            None => Err(AppError::Scrape(format!("no response for {}", url))),
+            }).await.map_err(|e| AppError::Scrape(format!("route preset {}: {:?}", preset_id, e)))?;
         }
+
+        let preset_url = format!("https://garmoth.com/beauty-album/preset/{}", preset_id);
+        page.goto(
+            &preset_url,
+            Some(GotoOptions {
+                wait_until: Some(WaitUntil::DomContentLoaded),
+                timeout:    Some(Duration::from_secs(60)),
+                ..Default::default()
+            }),
+        ).await.map_err(|e| AppError::Scrape(format!("goto preset {}: {:?}", preset_id, e)))?;
+
+        // Wait up to 5s for both image URLs to be captured
+        for _ in 0..5 {
+            {
+                let data = captured.lock().unwrap();
+                let got1 = image_1.map_or(true, |n| data.contains_key(n));
+                let got2 = image_2.map_or(true, |n| data.contains_key(n));
+                if got1 && got2 { break; }
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+        let urls = captured.lock().unwrap().clone();
+
+        let get_url = |name: Option<&str>| -> Option<(String, String)> {
+            let n = name?;
+            urls.get(n).map(|u| (n.to_string(), u.clone()))
+        };
+
+        let img1 = self.download_image(get_url(image_1)).await;
+        let img2 = self.download_image(get_url(image_2)).await;
+
+        Ok((img1, img2))
     }
+
+    async fn download_image(&self, pair: Option<(String, String)>) -> Option<(String, Vec<u8>)> {
+        let (name, url) = pair?;
+        let page = self.context.new_page().await.ok()?;
+        let resp = match page.goto(&url, None).await {
+            Ok(Some(r)) => r,
+            _ => return None,
+        };
+        if resp.status() >= 400 { return None; }
+        let bytes = resp.body().await.ok()?;
+        if bytes.is_empty() { None } else { Some((name, bytes)) }
+    }
+
 }

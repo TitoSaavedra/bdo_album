@@ -14,6 +14,8 @@ import type {
 // Re-export types consumed by components
 export type { ScrapperStatus, ScrapperPhase, LogEntry };
 
+type LogEntryTagged = LogEntry & { _uid: number };
+
 interface ClassState {
   id:      number;
   name:    string;
@@ -24,7 +26,8 @@ interface ClassState {
 
 // ── State ────────────────────────────────────────────────────
 
-let classIcons = $state<Record<number, string>>({});
+let classIcons        = $state<Record<number, string>>({});
+let lastPresetSynced  = $state<PresetSynced | null>(null);
 
 let dbReady  = $state<boolean | null>(null); // null = pending, true = ok, false = error
 let dbError  = $state<string | null>(null);
@@ -40,8 +43,13 @@ let imagesTotal  = $state(0);
 let uploadsDone  = $state(0);
 let uploadsTotal = $state(0);
 let errors       = $state(0);
+let discarded    = $state(0);
 let startedAt    = $state<number | null>(null);
-let logs         = $state<LogEntry[]>([]);
+let _logUid      = 0;
+let logs         = $state<LogEntryTagged[]>([]);
+let sessionLogs  = $state<LogEntryTagged[]>([]);
+let _ticker: ReturnType<typeof setInterval> | null = null;
+let _now         = $state(Date.now());
 
 const classMap = $state<Record<number, ClassState>>(
   Object.fromEntries(
@@ -54,16 +62,17 @@ const classMap = $state<Record<number, ClassState>>(
 const _progress     = $derived(total > 0        ? Math.round((current     / total)        * 100) : 0);
 const _imgProgress  = $derived(imagesTotal > 0  ? Math.round((imagesDone  / imagesTotal)  * 100) : 0);
 const _upProgress   = $derived(uploadsTotal > 0 ? Math.round((uploadsDone / uploadsTotal) * 100) : 0);
-const _elapsed      = $derived(startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0);
+const _elapsed      = $derived(startedAt ? Math.floor((_now - startedAt) / 1000) : 0);
 const _totalFetched = $derived(Object.values(classMap).reduce((s, c: ClassState) => s + c.fetched, 0));
 const _totalImages  = $derived(Object.values(classMap).reduce((s, c: ClassState) => s + c.images,  0));
 
 // ── Getters ──────────────────────────────────────────────────
 
 // DB state
-export const getDbReady    = () => dbReady;
-export const getDbError    = () => dbError;
-export const getClassIcons = () => classIcons;
+export const getDbReady          = () => dbReady;
+export const getDbError          = () => dbError;
+export const getClassIcons       = () => classIcons;
+export const getLastPresetSynced = () => lastPresetSynced;
 
 // Raw state
 export const getStatus       = () => status;
@@ -77,8 +86,10 @@ export const getImagesTotal  = () => imagesTotal;
 export const getUploadsDone  = () => uploadsDone;
 export const getUploadsTotal = () => uploadsTotal;
 export const getErrors       = () => errors;
+export const getDiscarded    = () => discarded;
 export const getClassMap     = () => classMap;
 export const getLogs         = () => logs;
+export const getSessionLogs  = () => sessionLogs;
 
 // Computed
 export const getProgress     = () => _progress;
@@ -101,8 +112,14 @@ export function setDbReady(success: boolean, error?: string | null): void {
 
 export function setStatus(s: ScrapperStatus): void {
   status = s;
-  if (s === 'running')  startedAt = Date.now();
-  if (s === 'done' || s === 'idle' || s === 'cancelled') {
+  if (s === 'running') {
+    startedAt   = Date.now();
+    _now        = startedAt;
+    sessionLogs = [];
+    _ticker = setInterval(() => { _now = Date.now(); }, 1000);
+  }
+  if (s === 'done' || s === 'idle' || s === 'cancelled' || s === 'error') {
+    if (_ticker) { clearInterval(_ticker); _ticker = null; }
     Object.values(classMap).forEach(c => (c.active = false));
   }
 }
@@ -134,8 +151,6 @@ export function onFetchProgress(p: FetchProgress): void {
   currentClass = p.class_name;
   current      = p.fetched;
   total        = p.total;
-  const cls    = classMap[p.class_id];
-  if (cls) cls.fetched = p.fetched;
 }
 
 export function onImageProgress(p: ImageProgress): void {
@@ -156,14 +171,18 @@ export function onClassStatsUpdated(p: ClassStatsUpdated): void {
   if (!cls) return;
   cls.fetched = p.fetched;
   cls.images  = p.images;
-  if (p.errors > 0) errors += p.errors;
+  if (p.errors  > 0) errors    += p.errors;
+  if (p.skipped > 0) discarded += p.skipped;
 }
 
 export function onPresetSynced(p: PresetSynced): void {
-  const msg = p.image_1_url
-    ? `Preset ${p.preset_id} images uploaded`
-    : `Preset ${p.preset_id} saved`;
-  pushLog({ ts: Math.floor(Date.now() / 1000), tag: 'SYNC', source: `class_${p.class_id}`, msg });
+  if (p.image_1_url || p.image_2_url) {
+    const count = (p.image_1_url ? 1 : 0) + (p.image_2_url ? 1 : 0);
+    currentMsg = `Preset ${p.preset_id} — ${count} image(s) synced to R2`;
+    const cls = classMap[p.class_id];
+    if (cls) cls.images += count;
+  }
+  lastPresetSynced = p;
 }
 
 export function onSyncLoading(msg: string): void {
@@ -171,12 +190,15 @@ export function onSyncLoading(msg: string): void {
 }
 
 export function pushLog(entry: LogEntry): void {
-  logs.unshift(entry);
+  const tagged = { ...entry, _uid: _logUid++ };
+  logs.unshift(tagged);
   if (logs.length > 2000) logs.pop();
+  sessionLogs.unshift(tagged);
+  if (sessionLogs.length > 500) sessionLogs.pop();
 }
 
 export function prependLogs(entries: LogEntry[]): void {
-  logs = [...logs, ...entries];
+  logs = [...logs, ...entries.map(e => ({ ...e, _uid: _logUid++ }))];
 }
 
 export function clearLogs(): void {
@@ -195,6 +217,7 @@ export function reset(): void {
   uploadsDone  = 0;
   uploadsTotal = 0;
   errors       = 0;
+  discarded    = 0;
   startedAt    = null;
   CLASSES.forEach(c => {
     classMap[c.id].fetched = 0;
