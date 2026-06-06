@@ -1,24 +1,26 @@
 <script lang="ts">
   import './PresetStats.scss';
-  import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { CLASSES } from '$lib/classes';
-  import { getClassIcons, getStatus } from '../../../scrapper/state/scrapper.svelte';
+  import { getClassIcons, getStatus, getDbReady } from '../../../scrapper/state/scrapper.svelte';
 
   interface Stats {
     total:       number;
     with_images: number;
     not_found:   number;
     pending:     number;
-    by_class:    { class_id: number; total: number; with_images: number }[];
+    by_class:    { class_id: number; total: number; with_images: number; not_found: number }[];
   }
 
   let stats = $state<Stats | null>(null);
 
   const classIcons = $derived(getClassIcons());
   const status     = $derived(getStatus());
+  const dbReady    = $derived(getDbReady());
 
   const classMap = Object.fromEntries(CLASSES.map(c => [c.id, c.name]));
+
+  let _poll: ReturnType<typeof setInterval> | null = null;
 
   async function load() {
     try {
@@ -26,11 +28,26 @@
     } catch {}
   }
 
-  onMount(load);
+  function stopPoll() {
+    if (_poll) { clearInterval(_poll); _poll = null; }
+  }
 
-  // Refresh when scraper finishes
+  // Initial load once DB is ready
   $effect(() => {
-    if (status === 'done' || status === 'cancelled') load();
+    if (dbReady === true) load();
+  });
+
+  // Poll while running; final reload when done/cancelled; cleanup on unmount
+  $effect(() => {
+    const s = status;
+    if (s === 'running') {
+      stopPoll();
+      _poll = setInterval(load, 2000);
+    } else {
+      stopPoll();
+      if (s === 'done' || s === 'cancelled') load();
+    }
+    return stopPoll;
   });
 
   const pct = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
@@ -65,16 +82,16 @@
     <!-- ── Progress bar global ── -->
     <div class="ps-global-bar">
       <div class="ps-bar-track">
-        <div class="ps-bar-fill" style="width: {pct(stats.with_images, stats.total)}%"></div>
+        <div class="ps-bar-fill" style="width: {pct(stats.with_images, stats.total - stats.not_found)}%"></div>
       </div>
-      <span class="ps-bar-label">{pct(stats.with_images, stats.total)}% images ready</span>
+      <span class="ps-bar-label">{pct(stats.with_images, stats.total - stats.not_found)}% images ready</span>
     </div>
 
     <!-- ── Per class ── -->
     <div class="ps-class-list">
       {#each stats.by_class as row (row.class_id)}
-        {@const name = classMap[row.class_id] ?? `Class ${row.class_id}`}
-        {@const imgPct = pct(row.with_images, row.total)}
+        {@const name   = classMap[row.class_id] ?? `Class ${row.class_id}`}
+        {@const imgPct = pct(row.with_images, row.total - row.not_found)}
         <div class="ps-class-row">
           <div class="ps-class-icon">
             {#if classIcons[row.class_id]}

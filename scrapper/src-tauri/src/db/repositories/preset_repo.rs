@@ -135,11 +135,18 @@ impl PresetRepository {
         ).fetch_one(pool).await?;
 
         let not_found: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM scrapper_presets WHERE image_1 = 'not_found'",
+            "SELECT COUNT(*) FROM scrapper_presets \
+             WHERE image_1 = 'not_found' AND COALESCE(image_2, 'not_found') = 'not_found'",
         ).fetch_one(pool).await?;
 
-        let by_class: Vec<(i32, i64, i64)> = sqlx::query_as(
-            "SELECT class_id, COUNT(*) AS total, COUNT(image_1_url) AS with_images
+        let by_class: Vec<(i32, i64, i64, i64)> = sqlx::query_as(
+            "SELECT class_id,
+                    COUNT(*) AS total,
+                    COUNT(image_1_url) AS with_images,
+                    COUNT(*) FILTER (
+                        WHERE image_1 = 'not_found'
+                          AND COALESCE(image_2, 'not_found') = 'not_found'
+                    ) AS not_found
              FROM scrapper_presets GROUP BY class_id ORDER BY total DESC",
         ).fetch_all(pool).await?;
 
@@ -148,10 +155,11 @@ impl PresetRepository {
             "with_images": with_images,
             "not_found":   not_found,
             "pending":     total - with_images - not_found,
-            "by_class":    by_class.into_iter().map(|(class_id, t, img)| serde_json::json!({
+            "by_class":    by_class.into_iter().map(|(class_id, t, img, nf)| serde_json::json!({
                 "class_id":    class_id,
                 "total":       t,
                 "with_images": img,
+                "not_found":   nf,
             })).collect::<Vec<_>>(),
         }))
     }

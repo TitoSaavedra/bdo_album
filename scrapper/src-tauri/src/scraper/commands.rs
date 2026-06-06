@@ -45,6 +45,7 @@ pub async fn run_scraper(
     let cancel      = state.cancel.clone();
     cancel.store(false, Ordering::Relaxed);
 
+    SessionRepository::cancel_stale(&pool).await.ok();
     let session_id = SessionRepository::create(&pool, true).await?;
     *state.current_session.lock().unwrap() = Some(session_id);
 

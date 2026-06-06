@@ -1,6 +1,7 @@
 <script lang="ts">
   import './Overview.scss';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
   import { invoke } from '@tauri-apps/api/core';
@@ -35,48 +36,142 @@
   const discarded = $derived(getDiscarded());
   const isActive  = $derived(status === 'running' || status === 'stopping' || status === 'done' || status === 'cancelled');
 
-  // ── Preset card ──────────────────────────────────────────────
-  let cardData    = $state<PresetSynced | null>(null);
-  let cardVisible = $state(false);
-  let cardLeaving = $state(false);
-  let imgIndex    = $state(0);
-  let imgErrors   = $state([false, false]);
-  let _cardTimer: ReturnType<typeof setTimeout> | null = null;
-  let _imgTimer:  ReturnType<typeof setInterval> | null = null;
+  // ── Preset card queue ────────────────────────────────────────
+  const DISPLAY_MS    = 2000;
+  const TRANSITION_MS = 250;
+
+  let cardQueue    = $state<PresetSynced[]>([]);
+  let cardData     = $state<PresetSynced | null>(null);
+  let cardVisible  = $state(false);
+  let hasHadPreset = $state(false);
+  let transitioning = false;
+  let waiting       = false;
+  let imgIndex     = $state(0);
+  let imgErrors    = $state<boolean[]>([false, false]);
+
+  const cardClassName  = $derived(cardData ? classNameById(cardData.class_id) : '');
+  const cardIconSvg    = $derived(cardData ? (getClassIcons()[cardData.class_id] ?? null) : null);
+  const cardImages     = $derived(cardData ? [cardData.image_1_url, cardData.image_2_url].filter(Boolean) as string[] : []);
+  const cardAllErrored = $derived(cardImages.length > 0 && cardImages.every((_, i) => imgErrors[i]));
+
+  function openPresetPage() {
+    if (cardData) {
+      invoke('open_url', { url: `https://garmoth.com/beauty-album/preset/${cardData.preset_id}` });
+    }
+  }
+  let _displayTimer: ReturnType<typeof setTimeout> | null = null;
+  let _imgTimer:    ReturnType<typeof setInterval> | null = null;
 
   function classNameById(id: number) {
     return CLASSES.find(c => c.id === id)?.name ?? '';
   }
 
-  function showCard(p: NonNullable<ReturnType<typeof getLastPresetSynced>>) {
-    cardData    = p;
-    cardLeaving = false;
-    cardVisible = true;
-    imgIndex    = 0;
-    imgErrors   = [false, false];
+  function stopImgTimer() {
+    if (_imgTimer) { clearInterval(_imgTimer); _imgTimer = null; }
+  }
 
-    if (_cardTimer) clearTimeout(_cardTimer);
-    if (_imgTimer)  clearInterval(_imgTimer);
+  function stopDisplayTimer() {
+    if (_displayTimer) { clearTimeout(_displayTimer); _displayTimer = null; }
+  }
 
+  function startImgCycle(p: PresetSynced) {
+    stopImgTimer();
+    imgIndex  = 0;
+    imgErrors = [false, false];
     if (p.image_1_url && p.image_2_url) {
       _imgTimer = setInterval(() => {
         imgIndex = imgIndex === 0 ? 1 : 0;
-      }, 1800);
+      }, 1000);
     }
+  }
 
-    _cardTimer = setTimeout(() => {
-      cardLeaving = true;
-      setTimeout(() => {
-        cardVisible = false;
-        cardLeaving = false;
-        if (_imgTimer) { clearInterval(_imgTimer); _imgTimer = null; }
-      }, 250);
-    }, 2000);
+  function startDisplayTimer() {
+    stopDisplayTimer();
+    waiting       = false;
+    _displayTimer = setTimeout(() => {
+      _displayTimer = null;
+      if (cardQueue.length > 0) advance();
+      else waiting = true;
+    }, DISPLAY_MS);
+  }
+
+  function preloadPreset(p: PresetSynced): Promise<void> {
+    const urls = [p.image_1_url, p.image_2_url].filter(Boolean) as string[];
+    if (urls.length === 0) return Promise.resolve();
+    return Promise.race([
+      Promise.all(urls.map(url => new Promise<void>(resolve => {
+        const img = new Image();
+        img.onload  = () => resolve();
+        img.onerror = () => resolve();
+        img.src = url;
+      }))),
+      new Promise<void>(resolve => setTimeout(resolve, 3000)),
+    ]) as Promise<void>;
+  }
+
+  async function advance() {
+    if (transitioning || cardQueue.length === 0) return;
+    waiting       = false;
+    const next    = cardQueue[0];
+    cardQueue     = cardQueue.slice(1);
+    transitioning = true;
+
+    await preloadPreset(next);
+
+    cardData = next;
+    startImgCycle(next);
+    startDisplayTimer();
+    setTimeout(() => { transitioning = false; }, TRANSITION_MS);
+  }
+
+  function enqueuePreset(p: PresetSynced) {
+    if (!p.image_1_url && !p.image_2_url) return;
+    hasHadPreset = true;
+
+    if (!cardVisible) {
+      cardData    = p;
+      cardVisible = true;
+      startImgCycle(p);
+      startDisplayTimer();
+    } else if (waiting) {
+      // Timer ya venció y no había cola — avanzar de inmediato
+      cardQueue = [p];
+      advance();
+    } else {
+      // Timer corriendo — encolar para cuando venza
+      cardQueue = [...cardQueue, p];
+    }
   }
 
   $effect(() => {
     const p = getLastPresetSynced();
-    if (p) showCard(p);
+    if (p) untrack(() => enqueuePreset(p));
+  });
+
+  $effect(() => {
+    cardQueue.slice(0, 2).forEach(p => {
+      if (p.image_1_url) { const img = new Image(); img.src = p.image_1_url; }
+      if (p.image_2_url) { const img = new Image(); img.src = p.image_2_url; }
+    });
+  });
+
+  // Full reset only when status TRANSITIONS to 'running' (new session), not on initial mount
+  let _prevStatus = getStatus();
+  $effect(() => {
+    const s = getStatus();
+    if (s === 'running' && _prevStatus !== 'running') {
+      cardQueue     = [];
+      cardData      = null;
+      cardVisible   = false;
+      hasHadPreset  = false;
+      transitioning = false;
+      waiting       = false;
+      imgIndex      = 0;
+      imgErrors     = [false, false];
+      stopDisplayTimer();
+      stopImgTimer();
+    }
+    _prevStatus = s;
   });
 
   $effect(() => { tPresets.set(dbPresets   + fetched);    });
@@ -191,68 +286,78 @@
 
       <div class="ov-class-panel">
         {#if cardVisible && cardData}
-          {@const icons      = getClassIcons()}
-          {@const className  = classNameById(cardData.class_id)}
-          {@const iconSvg    = icons[cardData.class_id]}
-          {@const images     = [cardData.image_1_url, cardData.image_2_url].filter(Boolean) as string[]}
-          {@const allErrored = images.length > 0 && images.every((_, i) => imgErrors[i])}
-          <div class="preset-card" class:card-out={cardLeaving}>
+          <div class="preset-card">
+            {#key cardData.preset_id}
+              <div class="preset-card-content" in:fade={{ duration: 250 }} out:fade={{ duration: 250 }}>
 
-            <div class="preset-card-header">
-              {#if iconSvg}
-                <div class="preset-card-icon">{@html iconSvg}</div>
-              {/if}
-              <div class="preset-card-names">
-                <span class="preset-card-class">{className}</span>
-                {#if cardData.character_name}
-                  <span class="preset-card-char">{cardData.character_name}</span>
-                {/if}
-              </div>
-            </div>
-
-            <div class="preset-card-img-wrap">
-              {#each images as url, i}
-                <img
-                  class="preset-card-img"
-                  class:img-visible={imgIndex === i && !imgErrors[i]}
-                  class:img-hidden={imgIndex !== i || imgErrors[i]}
-                  src={url}
-                  alt=""
-                  onerror={() => { imgErrors[i] = true; }}
-                />
-              {/each}
-              {#if allErrored}
-                <div class="preset-card-img-placeholder">
-                  <span style="font-size: 26px">🖼</span>
-                  <span>No preview</span>
+                <div class="preset-card-header">
+                  {#if cardIconSvg}
+                    <div class="preset-card-icon">{@html cardIconSvg}</div>
+                  {/if}
+                  <div class="preset-card-names">
+                    <span class="preset-card-class">{cardClassName}</span>
+                    {#if cardData.character_name}
+                      <span class="preset-card-char">{cardData.character_name}</span>
+                    {/if}
+                    <span class="preset-card-id">#{cardData.preset_id}</span>
+                  </div>
                 </div>
-              {/if}
-              {#if images.length > 1 && !allErrored}
-                <div class="preset-card-dot-row">
-                  {#each images as _, i}
-                    <div class="preset-card-dot" class:dot-active={imgIndex === i}></div>
+
+                <div class="preset-card-img-wrap" onclick={openPresetPage} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openPresetPage()} role="button" tabindex="0" title="Ver en Garmoth">
+                  {#each cardImages as url, i}
+                    <img
+                      class="preset-card-img"
+                      class:img-visible={imgIndex === i && !imgErrors[i]}
+                      class:img-hidden={imgIndex !== i || imgErrors[i]}
+                      src={url}
+                      alt=""
+                      onerror={() => { imgErrors[i] = true; }}
+                    />
                   {/each}
+                  {#if cardAllErrored}
+                    <div class="preset-card-img-placeholder">
+                      <span style="font-size: 26px">🖼</span>
+                      <span>No preview</span>
+                    </div>
+                  {/if}
+                  {#if cardImages.length > 1 && !cardAllErrored}
+                    <div class="preset-card-dot-row">
+                      {#each cardImages as _, i}
+                        <div class="preset-card-dot" class:dot-active={imgIndex === i}></div>
+                      {/each}
+                    </div>
+                  {/if}
                 </div>
-              {/if}
-            </div>
 
-            <div class="preset-card-stats">
-              <div class="preset-card-stat">
-                <span class="stat-val">{(cardData.downloads ?? 0).toLocaleString('es')}</span>
-                <span class="stat-label">DL</span>
-              </div>
-              <div class="preset-card-stat">
-                <span class="stat-val">{(cardData.views ?? 0).toLocaleString('es')}</span>
-                <span class="stat-label">Views</span>
-              </div>
-              <div class="preset-card-stat">
-                <span class="stat-val">{(cardData.likes ?? 0).toLocaleString('es')}</span>
-                <span class="stat-label">Likes</span>
-              </div>
-            </div>
+                <div class="preset-card-stats">
+                  <div class="stat-item">
+                    <svg class="stat-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M8 2v7M5 6.5l3 3 3-3"/>
+                      <path d="M3 13h10"/>
+                    </svg>
+                    <span class="stat-num">{(cardData.downloads ?? 0).toLocaleString('es')}</span>
+                  </div>
+                  <div class="stat-sep"></div>
+                  <div class="stat-item">
+                    <svg class="stat-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+                      <circle cx="8" cy="8" r="2"/>
+                    </svg>
+                    <span class="stat-num">{(cardData.views ?? 0).toLocaleString('es')}</span>
+                  </div>
+                  <div class="stat-sep"></div>
+                  <div class="stat-item stat-item--likes">
+                    <svg class="stat-icon" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 13.5c-.2 0-.4-.1-.6-.2C4.5 11 1 8.2 1 5c0-2 1.6-3.5 3.5-3.5 1 0 2 .5 2.7 1.3L8 3.7l.8-.9C9.5 2 10.5 1.5 11.5 1.5 13.4 1.5 15 3 15 5c0 3.2-3.5 6-6.4 8.3-.2.1-.4.2-.6.2z"/>
+                    </svg>
+                    <span class="stat-num">{(cardData.likes ?? 0).toLocaleString('es')}</span>
+                  </div>
+                </div>
 
+              </div>
+            {/key}
           </div>
-        {:else}
+        {:else if !hasHadPreset}
           <div class="preset-card-empty">
             <span style="font-size: 24px">🖼</span>
             <span>Waiting for images...</span>

@@ -70,16 +70,16 @@ pub async fn run_session(
         Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
     };
 
-    Events::sync_loading(&app, "Starting browser...");
-    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser...").await.ok();
-    let browser = match BrowserSession::new().await {
+    Events::sync_loading(&app, "Starting browser");
+    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser").await.ok();
+    let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
         Ok(b) => b,
         Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
-    };
+    });
     LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Browser ready").await.ok();
 
-    Events::sync_loading(&app, "Waiting for CF clearance...");
-    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)...").await.ok();
+    Events::sync_loading(&app, "Waiting for CF clearance");
+    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)").await.ok();
     let cf_token = browser.wait_for_cf_clearance(30).await.unwrap_or_default();
     LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser",
         if cf_token.is_empty() { "CF clearance not found — proceeding without it" } else { "CF clearance obtained" },
@@ -97,7 +97,7 @@ pub async fn run_session(
     // Fetch sends new presets; pending loop sends DB presets awaiting images; download consumes both.
     let (fetch_result, dl, _) = tokio::join!(
         run_fetch(&app, &pool, cf_token, session_id, cancel.clone(), parallelism, days, regions, classes, tx, img_total.clone()),
-        run_download_pipeline(&app, &browser, &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx),
+        run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
         run_pending_loop(&app, &pool, session_id, cancel.clone(), tx_pending, img_total),
     );
 
@@ -251,19 +251,24 @@ pub async fn run_fetch(
         total_errors  += class_errors;
         total_skipped += class_skipped;
 
+        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch", &format!(
+            "{}: {} new | {} skipped (DB) | {} errors",
+            class.name, class_fetched, class_skipped, class_errors,
+        )).await.ok();
+
         if class.db_id >= 0 {
             SessionRepository::upsert_class_stats(
                 pool, session_id, class.db_id, class_fetched as i32, 0, class_errors as i32,
             ).await.ok();
-
-            Events::class_stats_updated(app, ClassStatsUpdated {
-                class_id: class.db_id as u32,
-                fetched:  class_fetched,
-                images:   0,
-                errors:   class_errors,
-                skipped:  class_skipped,
-            });
         }
+
+        Events::class_stats_updated(app, ClassStatsUpdated {
+            class_id: class.db_id.max(0) as u32,
+            fetched:  class_fetched,
+            images:   0,
+            errors:   class_errors,
+            skipped:  class_skipped,
+        });
 
         Events::fetch_progress(app, FetchProgress {
             class_id:   class.db_id.max(0) as u32,
@@ -279,15 +284,16 @@ pub async fn run_fetch(
 // ── Phase: Download pipeline ──────────────────────────────────
 
 pub async fn run_download_pipeline(
-    app:        &AppHandle,
-    browser:    &BrowserSession,
-    r2:         &R2Client,
-    pool:       &PgPool,
-    session_id: i64,
-    cancel:     Arc<AtomicBool>,
-    img_done:   Arc<AtomicUsize>,
-    img_total:  Arc<AtomicUsize>,
-    mut rx:     mpsc::Receiver<ImageTask>,
+    app:         &AppHandle,
+    browser:     Arc<BrowserSession>,
+    r2:          &R2Client,
+    pool:        &PgPool,
+    session_id:  i64,
+    cancel:      Arc<AtomicBool>,
+    img_done:    Arc<AtomicUsize>,
+    img_total:   Arc<AtomicUsize>,
+    mut rx:      mpsc::Receiver<ImageTask>,
+    parallelism: usize,
 ) -> DownloadResult {
     let mut total_uploaded = 0usize;
     let mut total_errors   = 0usize;
@@ -295,13 +301,11 @@ pub async fn run_download_pipeline(
 
     let upload_done = Arc::new(AtomicUsize::new(0));
 
-    // Process up to 3 presets concurrently
-    let sem = Arc::new(Semaphore::new(3));
+    let sem = Arc::new(Semaphore::new(parallelism));
     let mut set: JoinSet<(usize, usize, usize)> = JoinSet::new();
 
     while let Some(task) = rx.recv().await {
-        // Drain completed tasks before spawning more
-        while set.len() >= 3 {
+        while set.len() >= parallelism {
             if let Some(Ok((done, uploaded, errors))) = set.join_next().await {
                 total_done     += done;
                 total_uploaded += uploaded;
@@ -311,41 +315,39 @@ pub async fn run_download_pipeline(
 
         if cancel.load(Ordering::Relaxed) { continue; }
 
-        let permit    = Arc::clone(&sem).acquire_owned().await.unwrap();
-        let app_h     = app.clone();
-        let pool_h    = pool.clone();
-        let r2_h      = r2.clone();
-        let cancel_h  = Arc::clone(&cancel);
+        let permit        = Arc::clone(&sem).acquire_owned().await.unwrap();
+        let app_h         = app.clone();
+        let pool_h        = pool.clone();
+        let r2_h          = r2.clone();
+        let browser_h     = Arc::clone(&browser);
+        let cancel_h      = Arc::clone(&cancel);
         let img_done_h    = Arc::clone(&img_done);
         let img_total_h   = Arc::clone(&img_total);
         let upload_done_h = Arc::clone(&upload_done);
 
-        // Emit scrapper_progress so the UI marks the class as active
-        Events::scrapper_progress(app, ScrapperProgress {
-            preset_id:     task.preset_id.to_string(),
-            class_id:      task.class_id as u32,
-            class_name:    task.class_name.clone(),
-            current:       img_done.load(Ordering::Relaxed),
-            total:         img_total.load(Ordering::Relaxed),
-            status:        ProgressStatus::Processing,
-            message:       format!("Downloading preset {}", task.preset_id),
-            progress_type: ProgressType::Popular,
-        });
-
-        // Phase 1 (browser borrow, must run before spawn):
-        let images = browser.fetch_preset_images(
-            task.preset_id,
-            task.image_1.as_deref(),
-            task.image_2.as_deref(),
-        ).await;
-
-        let _permit = permit;
         set.spawn(async move {
-            let _p = _permit;
+            let _permit = permit;
             let mut uploaded = 0usize;
             let mut errors   = 0usize;
 
+            Events::scrapper_progress(&app_h, ScrapperProgress {
+                preset_id:     task.preset_id.to_string(),
+                class_id:      task.class_id as u32,
+                class_name:    task.class_name.clone(),
+                current:       img_done_h.load(Ordering::Relaxed),
+                total:         img_total_h.load(Ordering::Relaxed),
+                status:        ProgressStatus::Processing,
+                message:       format!("Downloading preset {}", task.preset_id),
+                progress_type: ProgressType::Popular,
+            });
+
             if cancel_h.load(Ordering::Relaxed) { return (1, 0, 0); }
+
+            let images = browser_h.fetch_preset_images(
+                task.preset_id,
+                task.image_1.as_deref(),
+                task.image_2.as_deref(),
+            ).await;
 
             let (img1, img2) = match images {
                 Ok(pair) => pair,
@@ -477,6 +479,17 @@ pub async fn run_download_pipeline(
 
 // ── Helpers ───────────────────────────────────────────────────
 
+fn norm_image(s: Option<&str>) -> Option<&str> {
+    match s {
+        Some(v) if !v.is_empty() => Some(v),
+        _ => Some("not_found"),
+    }
+}
+
+fn is_real_image(s: Option<&str>) -> bool {
+    matches!(s, Some(v) if !v.is_empty() && v != "not_found")
+}
+
 async fn insert_preset_and_queue(
     app:        &AppHandle,
     pool:       &PgPool,
@@ -486,22 +499,25 @@ async fn insert_preset_and_queue(
     p:          &GarmothPreset,
     class_name: String,
 ) -> (usize, usize) {
+    let img1 = norm_image(p.image_1.as_deref());
+    let img2 = norm_image(p.image_2.as_deref());
+
     match PresetRepository::insert_new(
         pool, p.id, p.class_id,
         p.title.as_deref(), p.user_nickname.as_deref(), p.character_name.as_deref(),
         p.downloads, p.views, p.likes,
-        p.image_1.as_deref(), p.image_2.as_deref(),
+        img1, img2,
         p.creation_at, p.customizing_id, p.region.as_deref(), p.score,
     ).await {
         Ok(true) => {
-            if p.image_1.is_some() || p.image_2.is_some() {
+            if is_real_image(img1) || is_real_image(img2) {
                 img_total.fetch_add(1, Ordering::Relaxed);
                 tx.send(ImageTask {
                     preset_id:      p.id,
                     class_id:       p.class_id,
                     class_name,
-                    image_1:        p.image_1.clone(),
-                    image_2:        p.image_2.clone(),
+                    image_1:        img1.filter(|&s| s != "not_found").map(str::to_owned),
+                    image_2:        img2.filter(|&s| s != "not_found").map(str::to_owned),
                     downloads:      p.downloads,
                     views:          p.views,
                     likes:          p.likes,
@@ -531,6 +547,10 @@ async fn insert_preset_and_queue(
 
 
 // ── Phase: Pending image loop ─────────────────────────────────
+//
+// Runs concurrently with run_fetch. Each round queries the top-10 pending presets
+// per class (by downloads), enqueues them, then waits until that batch is processed
+// before querying again. Repeats until no pending images remain.
 
 async fn run_pending_loop(
     app:        &AppHandle,
@@ -540,6 +560,10 @@ async fn run_pending_loop(
     tx:         mpsc::Sender<ImageTask>,
     img_total:  Arc<AtomicUsize>,
 ) {
+    use std::collections::HashSet;
+
+    if cancel.load(Ordering::Relaxed) { return; }
+
     let class_name_map: std::collections::HashMap<i32, String> =
         ClassRepository::get_all(pool).await
             .unwrap_or_default()
@@ -547,31 +571,39 @@ async fn run_pending_loop(
             .map(|c| (c.id, c.display))
             .collect();
 
-    let mut queued: HashSet<i64> = HashSet::new();
+    // Track every ID ever sent this session to avoid double-queueing.
+    let mut all_sent: HashSet<i64> = HashSet::new();
+    let mut round = 0usize;
 
     loop {
-        if cancel.load(Ordering::Relaxed) { break; }
+        if cancel.load(Ordering::Relaxed) { return; }
 
-        let batch = PresetRepository::get_pending_downloads(pool).await.unwrap_or_default();
-        if batch.is_empty() { break; }
-
-        let new_items: Vec<_> = batch.into_iter()
-            .filter(|(id, ..)| !queued.contains(id))
+        let batch: Vec<_> = PresetRepository::get_pending_downloads(pool)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(id, ..)| !all_sent.contains(id))
             .collect();
 
-        if new_items.is_empty() {
-            // Top-10 slots all in flight — wait for some to complete (URL written to DB)
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-            continue;
+        if batch.is_empty() {
+            if round > 0 {
+                LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+                    "No more pending images — pending loop done",
+                ).await.ok();
+            }
+            return;
         }
 
+        round += 1;
+        let batch_ids: HashSet<i64> = batch.iter().map(|(id, ..)| *id).collect();
+        all_sent.extend(&batch_ids);
+
         LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
-            &format!("Queuing {} pending image downloads", new_items.len()),
+            &format!("Pending round {}: queuing {} preset(s) (top-10 per class by downloads)", round, batch.len()),
         ).await.ok();
 
-        for (id, class_id, image_1, image_2, downloads, views, likes, character_name) in new_items {
+        for (id, class_id, image_1, image_2, downloads, views, likes, character_name) in batch {
             if cancel.load(Ordering::Relaxed) { return; }
-            queued.insert(id);
             img_total.fetch_add(1, Ordering::Relaxed);
             let class_name = class_name_map.get(&class_id).cloned().unwrap_or_default();
             if tx.send(ImageTask {
@@ -586,6 +618,23 @@ async fn run_pending_loop(
                 character_name,
             }).await.is_err() { return; }
         }
+
+        // Wait for this batch to finish: poll DB every 15s until none of the sent IDs
+        // remain pending. 30-minute safety timeout handles stuck/errored presets.
+        let deadline = tokio::time::Instant::now()
+            + std::time::Duration::from_secs(30 * 60);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            if cancel.load(Ordering::Relaxed) { return; }
+
+            let still_pending = PresetRepository::get_pending_downloads(pool)
+                .await
+                .unwrap_or_default();
+            let any_in_batch = still_pending.iter().any(|(id, ..)| batch_ids.contains(id));
+
+            if !any_in_batch || tokio::time::Instant::now() >= deadline { break; }
+        }
+        // Query next batch
     }
 }
 

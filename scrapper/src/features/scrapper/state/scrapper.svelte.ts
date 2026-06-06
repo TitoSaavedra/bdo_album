@@ -113,6 +113,19 @@ export function setDbReady(success: boolean, error?: string | null): void {
 export function setStatus(s: ScrapperStatus): void {
   status = s;
   if (s === 'running') {
+    errors       = 0;
+    discarded    = 0;
+    imagesDone   = 0;
+    imagesTotal  = 0;
+    uploadsDone  = 0;
+    uploadsTotal = 0;
+    current      = 0;
+    total        = 0;
+    CLASSES.forEach(c => {
+      classMap[c.id].fetched = 0;
+      classMap[c.id].images  = 0;
+      classMap[c.id].active  = false;
+    });
     startedAt   = Date.now();
     _now        = startedAt;
     sessionLogs = [];
@@ -168,9 +181,10 @@ export function onUploadProgress(p: UploadProgress): void {
 
 export function onClassStatsUpdated(p: ClassStatsUpdated): void {
   const cls = classMap[p.class_id];
-  if (!cls) return;
-  cls.fetched = p.fetched;
-  cls.images  = p.images;
+  if (cls) {
+    cls.fetched = p.fetched;
+    cls.images  = p.images;
+  }
   if (p.errors  > 0) errors    += p.errors;
   if (p.skipped > 0) discarded += p.skipped;
 }

@@ -39,6 +39,17 @@ impl SessionRepository {
         Ok(result.rows_affected())
     }
 
+    pub async fn cancel_stale(pool: &PgPool) -> Result<u64> {
+        let result = sqlx::query(
+            "UPDATE scrapper_sessions
+             SET status = 'cancelled', finished_at = NOW()
+             WHERE status = 'running'",
+        )
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     pub async fn create(pool: &PgPool, cf_used: bool) -> Result<i64> {
         let id = sqlx::query_scalar::<_, i64>(
             "INSERT INTO scrapper_sessions (cf_used) VALUES ($1) RETURNING id",

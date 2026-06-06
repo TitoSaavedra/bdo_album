@@ -61,6 +61,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            app::commands::open_url,
             scraper::commands::get_db_status,
             scraper::commands::get_classes,
             scraper::commands::run_scraper,

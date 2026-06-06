@@ -5,7 +5,11 @@ use playwright_rs::{
     Playwright, WaitUntil, install_browsers,
 };
 
+use sqlx::PgPool;
+use tauri::AppHandle;
+
 use crate::core::errors::AppError;
+use crate::db::repositories::log_repo::LogRepository;
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
 mod hidden_console {
@@ -34,18 +38,27 @@ pub struct BrowserSession {
 }
 
 impl BrowserSession {
-    pub async fn new() -> Result<Self, AppError> {
+    pub async fn new(app: &AppHandle, pool: &PgPool, session_id: i64) -> Result<Self, AppError> {
         #[cfg(all(target_os = "windows", not(debug_assertions)))]
         hidden_console::ensure_hidden();
 
+        macro_rules! log {
+            ($tag:expr, $msg:expr) => {
+                LogRepository::insert(app, pool, Some(session_id), $tag, "browser", $msg).await.ok();
+            };
+        }
+
+        log!("INFO", "Verifying Chromium installation");
         install_browsers(Some(&["chromium"]))
             .await
             .map_err(|e| AppError::Scrape(format!("browser install: {:?}", e)))?;
 
+        log!("INFO", "Starting Playwright runtime");
         let playwright = Playwright::launch()
             .await
             .map_err(|e| AppError::Scrape(format!("playwright launch: {:?}", e)))?;
 
+        log!("INFO", "Launching Chromium (headless)");
         let browser = playwright
             .chromium()
             .launch_with_options(
@@ -71,7 +84,7 @@ impl BrowserSession {
             .await
             .map_err(|e| AppError::Scrape(format!("browser context: {:?}", e)))?;
 
-        // Warm-up: establish CF session on garmoth.com
+        log!("INFO", "Navigating to garmoth.com (CF challenge)");
         let page = context
             .new_page()
             .await
@@ -87,6 +100,8 @@ impl BrowserSession {
         )
         .await
         .map_err(|e| AppError::Scrape(format!("warmup navigate: {:?}", e)))?;
+
+        log!("INFO", "garmoth.com loaded — waiting for CF cookie");
 
         Ok(Self { _playwright: playwright, _browser: browser, context })
     }
@@ -188,19 +203,31 @@ impl BrowserSession {
         let img1 = self.download_image(get_url(image_1)).await;
         let img2 = self.download_image(get_url(image_2)).await;
 
+        let _ = page.close().await;
+
         Ok((img1, img2))
     }
 
     async fn download_image(&self, pair: Option<(String, String)>) -> Option<(String, Vec<u8>)> {
         let (name, url) = pair?;
         let page = self.context.new_page().await.ok()?;
-        let resp = match page.goto(&url, None).await {
+        let resp = match page.goto(&url, Some(GotoOptions {
+            timeout: Some(Duration::from_secs(30)),
+            ..Default::default()
+        })).await {
             Ok(Some(r)) => r,
-            _ => return None,
+            _ => { let _ = page.close().await; return None; }
         };
-        if resp.status() >= 400 { return None; }
-        let bytes = resp.body().await.ok()?;
-        if bytes.is_empty() { None } else { Some((name, bytes)) }
+        if resp.status() >= 400 {
+            let _ = page.close().await;
+            return None;
+        }
+        let bytes = resp.body().await.ok();
+        let _ = page.close().await;
+        match bytes {
+            Some(b) if !b.is_empty() => Some((name, b)),
+            _ => None,
+        }
     }
 
 }
