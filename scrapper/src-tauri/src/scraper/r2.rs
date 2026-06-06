@@ -46,8 +46,10 @@ impl R2Client {
             "image/webp"
         } else if key.ends_with(".jpg") || key.ends_with(".jpeg") {
             "image/jpeg"
-        } else {
+        } else if key.ends_with(".png") {
             "image/png"
+        } else {
+            "application/octet-stream"
         };
 
         self.client

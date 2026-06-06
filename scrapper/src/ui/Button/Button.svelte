@@ -3,7 +3,7 @@
   import type { Snippet } from 'svelte';
 
   interface Props {
-    variant?: 'primary' | 'ghost' | 'icon';
+    variant?: 'primary' | 'ghost' | 'icon' | 'success';
     disabled?: boolean;
     active?: boolean;
     type?: 'button' | 'submit' | 'reset';

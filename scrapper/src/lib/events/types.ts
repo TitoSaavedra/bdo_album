@@ -88,10 +88,11 @@ export interface DbReady {
 
 export interface RustEventMap {
   // Lifecycle
-  'scrapper_started':   void;
-  'scrapper_done':      ScrapperDone;
-  'scrapper_cancelled': void;
-  'scrapper_error':     ScrapperError;
+  'scrapper_started':    void;
+  'scrapper_done':       ScrapperDone;
+  'scrapper_cancelled':  void;
+  'scrapper_error':      ScrapperError;
+  'scrapper_fetch_done': void;
 
   // Progress
   'scrapper_progress':  ScrapperProgress;

@@ -184,90 +184,135 @@ pub async fn run_fetch(
         &format!("Pre-loaded {} existing preset IDs from DB", global_seen.len()),
     ).await.ok();
 
-    let total_classes = class_entries.len();
-    let mut total_fetched  = 0usize;
-    let mut total_errors   = 0usize;
-    let mut total_skipped  = 0usize;
+    let total_classes  = class_entries.len();
+    let total_requests = total_classes * days.len() * regions.len();
+    LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+        &format!("{} classes × {} days × {} regions = {} requests total",
+            total_classes, days.len(), regions.len(), total_requests),
+    ).await.ok();
 
-    // Unified loop: class × day × region
-    // "all" class/region are literal API values, not expansions.
-    for (i, class) in class_entries.iter().enumerate() {
-        if cancel.load(Ordering::Relaxed) { break; }
-
-        Events::fetch_progress(app, FetchProgress {
-            class_id:   class.db_id.max(0) as u32,
-            class_name: class.name.clone(),
-            fetched:    i,
-            total:      total_classes,
-        });
-
-        let sem = Arc::new(Semaphore::new(parallelism));
-        let mut js: JoinSet<(String, std::result::Result<Vec<GarmothPreset>, AppError>)> = JoinSet::new();
-
-        'outer: for day in &days {
-            for region in &regions {
-                if cancel.load(Ordering::Relaxed) { break 'outer; }
-                let client     = client.clone();
-                let permit     = Arc::clone(&sem).acquire_owned().await.unwrap();
-                let garmoth_id = class.garmoth_id;
-                let label      = format!("{}/{}/{}", class.name, day, region);
-                let d = day.clone();
-                let r = region.clone();
-                js.spawn(async move {
-                    let res = client.fetch_popular(garmoth_id, &d, &r).await;
-                    drop(permit);
-                    (label, res)
+    // Flatten all work: day → region → class order so classes interleave from the start.
+    struct WorkItem { db_id: i32, garmoth_id: Option<u32>, label: String, d: String, r: String }
+    let mut work: Vec<WorkItem> = Vec::with_capacity(total_requests);
+    for day in &days {
+        for region in &regions {
+            for class in &class_entries {
+                work.push(WorkItem {
+                    db_id:      class.db_id,
+                    garmoth_id: class.garmoth_id,
+                    label:      format!("{}/{}/{}", class.name, day, region),
+                    d:          day.clone(),
+                    r:          region.clone(),
                 });
             }
         }
+    }
 
-        let mut class_fetched = 0usize;
-        let mut class_errors  = 0usize;
-        let mut class_skipped = 0usize;
+    let mut total_fetched = 0usize;
+    let mut total_errors  = 0usize;
+    let mut total_skipped = 0usize;
+    let mut class_stats: std::collections::HashMap<i32, (usize, usize, usize)> = std::collections::HashMap::new();
+
+    // Process in batches of `parallelism`:
+    //   1. Refresh global_seen from DB
+    //   2. Spawn batch in parallel
+    //   3. Drain + validate + insert
+    for chunk in work.chunks(parallelism) {
+        if cancel.load(Ordering::Relaxed) { break; }
+
+        // Refresh before spawning so this batch skips IDs inserted by previous batches
+        if let Ok(fresh_ids) = PresetRepository::get_all_ids(pool).await {
+            let before = global_seen.len();
+            global_seen.extend(fresh_ids);
+            let added = global_seen.len() - before;
+            LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+                &format!("DB refresh: +{} IDs ({} total seen)", added, global_seen.len()),
+            ).await.ok();
+        }
+
+        let mut js: JoinSet<(i32, String, std::result::Result<Vec<GarmothPreset>, AppError>)> = JoinSet::new();
+
+        for item in chunk {
+            let client = client.clone();
+            let db_id  = item.db_id;
+            let gid    = item.garmoth_id;
+            let label  = item.label.clone();
+            let d      = item.d.clone();
+            let r      = item.r.clone();
+            LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
+                &format!("→ {}", label),
+            ).await.ok();
+            js.spawn(async move {
+                let res = client.fetch_popular(gid, &d, &r).await;
+                (db_id, label, res)
+            });
+        }
+
+        let mut batch_total_new     = 0usize;
+        let mut batch_total_skipped = 0usize;
 
         while let Some(res) = js.join_next().await {
-            let (label, result) = match res { Ok(v) => v, Err(_) => { class_errors += 1; continue; } };
+            let (db_id, label, result) = match res { Ok(v) => v, Err(_) => { total_errors += 1; continue; } };
+            let stat = class_stats.entry(db_id).or_insert((0, 0, 0));
             match result {
                 Ok(presets) => {
+                    let mut batch_new     = 0usize;
+                    let mut batch_skipped = 0usize;
                     for p in &presets {
-                        if !global_seen.insert(p.id) { class_skipped += 1; continue; }
+                        if !global_seen.insert(p.id) {
+                            stat.1 += 1; total_skipped += 1; batch_skipped += 1;
+                            continue;
+                        }
                         let (fetched, errors) = insert_preset_and_queue(
                             app, pool, session_id, &tx, &img_total,
                             p, class_name_map.get(&p.class_id).cloned().unwrap_or_default(),
                         ).await;
-                        class_fetched += fetched;
-                        class_errors  += errors;
+                        stat.0        += fetched;
+                        stat.2        += errors;
+                        total_fetched += fetched;
+                        total_errors  += errors;
+                        batch_new     += fetched;
                     }
+                    batch_total_new     += batch_new;
+                    batch_total_skipped += batch_skipped;
+                    LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
+                        &format!("{}: {} results → {} new, {} skipped", label, presets.len(), batch_new, batch_skipped),
+                    ).await.ok();
                 }
                 Err(e) => {
-                    class_errors += 1;
+                    stat.2 += 1;
+                    total_errors += 1;
                     LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
                         &format!("{} failed: {}", label, e)).await.ok();
                 }
             }
         }
 
-        total_fetched += class_fetched;
-        total_errors  += class_errors;
-        total_skipped += class_skipped;
+        LogRepository::insert(app, pool, Some(session_id), "SYNC", "fetch",
+            &format!("Batch saved: {} new, {} skipped", batch_total_new, batch_total_skipped),
+        ).await.ok();
+    }
 
+    // Per-class summaries + events
+    for (i, class) in class_entries.iter().enumerate() {
+        let (fetched, skipped, errors) = class_stats.get(&class.db_id).copied().unwrap_or((0, 0, 0));
         LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch", &format!(
             "{}: {} new | {} skipped (DB) | {} errors",
-            class.name, class_fetched, class_skipped, class_errors,
+            class.name, fetched, skipped, errors,
         )).await.ok();
 
         if class.db_id >= 0 {
             SessionRepository::upsert_class_stats(
-                pool, session_id, class.db_id, class_fetched as i32, 0, class_errors as i32,
+                pool, session_id, class.db_id, fetched as i32, 0, errors as i32,
             ).await.ok();
         }
 
         Events::class_stats_updated(app, ClassStatsUpdated {
             class_id: class.db_id.max(0) as u32,
-            fetched:  class_fetched,
+            fetched,
             images:   0,
-            errors:   class_errors,
-            skipped:  class_skipped,
+            errors,
+            skipped,
         });
 
         Events::fetch_progress(app, FetchProgress {
@@ -278,6 +323,7 @@ pub async fn run_fetch(
         });
     }
 
+    Events::fetch_done(app);
     Ok(FetchResult { total_fetched, total_errors, total_skipped })
 }
 

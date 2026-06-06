@@ -25,6 +25,8 @@ open = "5"
 thiserror = "1"
 aws-sdk-s3 = "1"
 aws-config = "1"
+zip    = "2"
+base64 = "0.22"
 
 [profile.release]
 panic = "abort"

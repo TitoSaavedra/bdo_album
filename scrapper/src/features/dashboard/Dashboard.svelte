@@ -7,6 +7,7 @@
   import Overview       from './components/Overview/Overview.svelte';
   import PresetStats    from './components/PresetStats/PresetStats.svelte';
   import SessionHistory from './components/SessionHistory/SessionHistory.svelte';
+  import ImportPabModal from './components/ImportPabModal/ImportPabModal.svelte';
 
   type MainTab = 'overview' | 'presets' | 'sessions';
   let mainTab = $state<MainTab>('overview');
@@ -27,6 +28,7 @@
 
   let parallelism     = $state(3);
   let sidebarOpen     = $state(false);
+  let pabModalOpen    = $state(false);
   let sidebarTab      = $state<'config' | 'status'>('config');
   let selectedDays    = $state<string[]>([ALL_DAYS[0]]);
   let selectedRegions = $state<string[]>(['all']);
@@ -105,6 +107,7 @@
     </div>
 
     <div class="dash-header-right">
+      <Button variant="success" onclick={() => pabModalOpen = true} disabled={dbReady !== true}>Import</Button>
       {#if status === 'running'}
         <Button variant="ghost" onclick={stop}>■ Stop</Button>
       {:else if status === 'stopping'}
@@ -243,5 +246,6 @@
     </div>
   </div>
 
-
 </div>
+
+<ImportPabModal bind:open={pabModalOpen} />

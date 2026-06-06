@@ -60,6 +60,7 @@ pub fn run() {
             });
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             app::commands::open_url,
             scraper::commands::get_db_status,
@@ -70,6 +71,7 @@ pub fn run() {
             scraper::commands::get_class_stats_cmd,
             scraper::commands::get_preset_stats,
             scraper::commands::get_logs,
+            scraper::commands::import_pab_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -32,6 +32,9 @@
   --color-border: #1a232c;
   --color-border-subtle: #141c24;
   --color-border-hover: #334155;
+  --color-border-light: #0f151d;
+  --color-border-deep: #1a2535;
+  --color-border-darker: #243040;
   --color-modal-border: #1e2a38;
 
   /* ===== ACCENT ===== */
@@ -39,14 +42,23 @@
   --color-accent: #ffcc4d;
   --color-accent-rgb: 255, 204, 77;
   --color-accent-primary: #ffcc4d;
+  --color-accent-primary-hover: #ffcc4d;
+  --color-accent-gradient: #b3861b;
   --color-accent-secondary: #06b6d4;
   --color-accent-tertiary: #8b5cf6;
+  --color-accent-quaternary: #a855f7;
+  --color-accent-quaternary-rgb: 168, 85, 247;
 
   /* ===== STATUS ===== */
 
   --color-status-success: #10b981;
+  --color-status-success-light: #22c55e;
+  --color-status-success-lighter: #4ade80;
   --color-status-warning: #f59e0b;
+  --color-status-warning-light: #fbbf24;
   --color-status-error: #dc3c3c;
+  --color-error: #dc3c3c;
+  --color-error-rgb: 220, 60, 60;
   --color-status-info: #3b82f6;
   --color-cyan: #2dd4bf;
   --color-purple: #a78bfa;
@@ -59,6 +71,18 @@
   --color-log-pop: #2dd4bf;
   --color-log-sync: #2dd4bf;
   --color-log-default: #475569;
+
+  /* ===== COMPONENT-SPECIFIC ===== */
+
+  --color-favorite-icon: #7c3f5e;
+  --color-favorite-text: #c084a0;
+  --color-favorite-active: #e05252;
+  --color-favorite-active-hover: #ff6b6b;
+  --color-favorite-stat: #64405a;
+  --color-favorite-stat-hover: #7c4f6d;
+
+  --color-btn-text: #475569;
+  --color-btn-text-on-accent: #0a0c10;
 
   /* ===== MISC ===== */
 

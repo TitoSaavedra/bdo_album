@@ -1,0 +1,195 @@
+.preset-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.preset-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 20px rgba(var(--color-accent-rgb), 0.1);
+}
+
+.preset-card:has(.action-want:hover) {
+  border-color: var(--color-accent-quaternary);
+  box-shadow: 0 0 20px rgba(var(--color-accent-quaternary-rgb), 0.2);
+}
+
+.preset-card:has(.action-discard:hover) {
+  border-color: rgba(var(--color-error-rgb), 0.5);
+  box-shadow: 0 0 20px rgba(var(--color-error-rgb), 0.15);
+}
+
+.preset-card.wished {
+  border-color: var(--color-accent-quaternary);
+  box-shadow: 0 0 16px rgba(var(--color-accent-quaternary-rgb), 0.25);
+}
+
+.preset-card.wished:hover {
+  border-color: var(--color-accent-quaternary);
+  box-shadow: 0 0 24px rgba(var(--color-accent-quaternary-rgb), 0.35);
+}
+
+// has-pab wins over wished when both are set
+.preset-card.has-pab {
+  border-color: var(--color-status-success-light);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.15);
+}
+
+.preset-card.has-pab:hover {
+  border-color: var(--color-status-success-lighter);
+  box-shadow: 0 0 24px rgba(34, 197, 94, 0.25);
+}
+
+.thumb-wrap {
+  aspect-ratio: 4 / 5;
+  background: var(--color-bg-base);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.preset-card:hover .thumb {
+  transform: scale(1.05);
+}
+
+.skeleton-thumb {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-bg-surface) 25%, var(--color-border) 50%, var(--color-bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.gradient-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 55%, transparent 100%);
+  padding: 36px 12px 10px;
+  transform: translateY(6px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.preset-card:hover .gradient-overlay {
+  transform: translateY(0);
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 6;
+  padding: 0 10px 10px;
+}
+
+.preset-card:hover .card-actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.action-want {
+  flex: 0 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border-radius: 5px 0 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 12, 18, 0.92);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.action-want:hover {
+  background: rgba(var(--color-accent-quaternary-rgb), 0.14);
+  color: var(--color-accent-quaternary);
+  border-color: rgba(var(--color-accent-quaternary-rgb), 0.35);
+}
+
+.action-want.want-active {
+  background: transparent;
+  color: var(--color-accent-quaternary);
+  border-color: var(--color-accent-quaternary);
+}
+
+.action-icon { font-size: 12px; line-height: 1; }
+
+.action-discard {
+  width: 28px;
+  height: 28px;
+  border-radius: 0 5px 5px 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: none;
+  background: rgba(8, 12, 18, 0.92);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.action-discard:hover {
+  background: rgba(var(--color-error-rgb), 0.18);
+  color: var(--color-text-error);
+  border-color: rgba(var(--color-error-rgb), 0.3);
+}
+
+.card-footer {
+  padding: 8px 12px;
+  background: var(--color-bg-footer);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--color-border-subtle);
+  gap: 4px;
+}
+
+.stat {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--color-btn-text);
+  letter-spacing: 0.04em;
+}
+
+.stat-fav { color: var(--color-favorite-stat); }
+.preset-card:hover .stat { color: var(--color-text-secondary); }
+.preset-card:hover .stat-fav { color: var(--color-favorite-stat-hover); }

@@ -212,7 +212,10 @@ export function pushLog(entry: LogEntry): void {
 }
 
 export function prependLogs(entries: LogEntry[]): void {
-  logs = [...logs, ...entries.map(e => ({ ...e, _uid: _logUid++ }))];
+  const existing = new Set(logs.map(l => `${l.ts}|${l.tag}|${l.source}|${l.msg}`));
+  const fresh = entries.filter(e => !existing.has(`${e.ts}|${e.tag}|${e.source}|${e.msg}`));
+  if (fresh.length === 0) return;
+  logs = [...logs, ...fresh.map(e => ({ ...e, _uid: _logUid++ }))];
 }
 
 export function clearLogs(): void {

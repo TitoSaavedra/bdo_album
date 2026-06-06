@@ -34,6 +34,22 @@
   }
 }
 
+.btn-success {
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--color-status-success);
+  color: var(--color-status-success);
+
+  &:hover:not(:disabled) {
+    background: var(--color-status-success);
+    color: #000;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}
+
 .btn-ghost {
   padding: 8px 14px;
   background: transparent;

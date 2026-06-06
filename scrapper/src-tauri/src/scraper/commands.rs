@@ -129,6 +129,143 @@ pub async fn get_preset_stats(
     Ok(stats)
 }
 
+#[derive(serde::Serialize)]
+pub struct ImportPabResult {
+    pub found:           usize,
+    pub not_found_count: usize,
+    pub not_found_names: Vec<String>,
+    pub zip_base64:      Option<String>,
+}
+
+fn extract_preset_id(filename: &str) -> Option<i64> {
+    let pos = filename.find("ID")?;
+    let after = &filename[pos + 2..];
+    let end = after.find(|c: char| !c.is_ascii_digit()).unwrap_or(after.len());
+    if end == 0 { return None; }
+    after[..end].parse().ok()
+}
+
+#[tauri::command]
+pub async fn import_pab_files(
+    app:   AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<ImportPabResult> {
+    use base64::Engine as _;
+    use std::io::Write as _;
+    use crate::db::repositories::{log_repo::LogRepository, preset_repo::PresetRepository, pab_repo::PabRepository};
+    use crate::scraper::r2::R2Client;
+
+    let pool = &state.pool;
+    let r2   = R2Client::from_env()?;
+
+    LogRepository::insert(&app, pool, None, "INFO", "pab_import",
+        &format!("Import started — {} file(s)", paths.len()),
+    ).await.ok();
+
+    // Pre-load all preset_ids that already have a PAB uploaded
+    let existing_preset_ids: std::collections::HashSet<i64> = sqlx::query_scalar(
+        "SELECT preset_id FROM scrapper_preset_pabs",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .collect();
+
+    let mut found = 0usize;
+    let mut not_found_files: Vec<(String, Vec<u8>)> = Vec::new();
+
+    for path_str in &paths {
+        let path = std::path::Path::new(path_str);
+        let filename = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) if !n.is_empty() => n.to_string(),
+            _ => continue,
+        };
+
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(e) => {
+                LogRepository::insert(&app, pool, None, "ERR", "pab_import",
+                    &format!("{}: read error — {}", filename, e),
+                ).await.ok();
+                continue;
+            }
+        };
+
+        let Some(preset_id) = extract_preset_id(&filename) else {
+            LogRepository::insert(&app, pool, None, "WARN", "pab_import",
+                &format!("{}: no preset ID in filename", filename),
+            ).await.ok();
+            not_found_files.push((filename, bytes));
+            continue;
+        };
+
+        match PresetRepository::get_with_class(pool, preset_id).await {
+            Ok(Some((id, class_name))) => {
+                let key     = format!("presets/{}/{}/{}", class_name, id, filename);
+                let db_path = format!("/{}", key);
+
+                if existing_preset_ids.contains(&id) {
+                    LogRepository::insert(&app, pool, None, "INFO", "pab_import",
+                        &format!("{}: preset {} already has a PAB, skipped", filename, id),
+                    ).await.ok();
+                    found += 1;
+                } else {
+                    match r2.upload(&key, bytes).await {
+                        Ok(_) => {
+                            PabRepository::insert(pool, id, &db_path).await.ok();
+                            LogRepository::insert(&app, pool, None, "SYNC", "pab_import",
+                                &format!("{}: uploaded → {}", filename, db_path),
+                            ).await.ok();
+                            found += 1;
+                        }
+                        Err(e) => {
+                            LogRepository::insert(&app, pool, None, "ERR", "pab_import",
+                                &format!("{}: R2 upload failed — {}", filename, e),
+                            ).await.ok();
+                        }
+                    }
+                }
+            }
+            _ => {
+                LogRepository::insert(&app, pool, None, "WARN", "pab_import",
+                    &format!("{}: preset {} not found in DB", filename, preset_id),
+                ).await.ok();
+                not_found_files.push((filename, bytes));
+            }
+        }
+    }
+
+    LogRepository::insert(&app, pool, None, "INFO", "pab_import",
+        &format!("Import done — {} uploaded, {} not found", found, not_found_files.len()),
+    ).await.ok();
+
+    let not_found_count = not_found_files.len();
+    let not_found_names: Vec<String> = not_found_files.iter().map(|(n, _)| n.clone()).collect();
+
+    let zip_base64 = if not_found_files.is_empty() {
+        None
+    } else {
+        let mut buf = Vec::new();
+        {
+            let mut zw = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            for (name, data) in &not_found_files {
+                zw.start_file(name, opts)
+                    .map_err(|e| AppError::Scrape(e.to_string()))?;
+                zw.write_all(data)
+                    .map_err(|e| AppError::Scrape(e.to_string()))?;
+            }
+            zw.finish().map_err(|e| AppError::Scrape(e.to_string()))?;
+        }
+        Some(base64::engine::general_purpose::STANDARD.encode(&buf))
+    };
+
+    Ok(ImportPabResult { found, not_found_count, not_found_names, zip_base64 })
+}
+
 #[tauri::command]
 pub async fn get_logs(
     state: State<'_, AppState>,

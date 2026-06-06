@@ -125,6 +125,20 @@ impl PresetRepository {
         Ok(rows)
     }
 
+    /// Fetches a preset with its class display name. Used by the PAB importer.
+    pub async fn get_with_class(pool: &PgPool, id: i64) -> Result<Option<(i64, String)>> {
+        let row = sqlx::query_as::<_, (i64, String)>(
+            "SELECT p.id, c.display
+             FROM scrapper_presets p
+             JOIN scrapper_classes c ON c.id = p.class_id
+             WHERE p.id = $1",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row)
+    }
+
     /// Total presets + per-class breakdown for the Presets tab.
     pub async fn get_stats(pool: &PgPool) -> Result<serde_json::Value> {
         let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM scrapper_presets")

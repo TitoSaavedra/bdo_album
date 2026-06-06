@@ -179,4 +179,8 @@ impl Events {
     pub fn sync_loading(app: &AppHandle, msg: &str) {
         app.emit("sync_loading", msg).ok();
     }
+
+    pub fn fetch_done(app: &AppHandle) {
+        app.emit("scrapper_fetch_done", ()).ok();
+    }
 }

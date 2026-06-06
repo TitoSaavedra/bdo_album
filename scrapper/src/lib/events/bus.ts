@@ -43,7 +43,8 @@ class ScrapperEventBus {
       // Progress
       this.on('scrapper_progress',  (p) => onProgress(p)),
       this.on('fetch_progress',     (p) => { setPhase('fetch');    onFetchProgress(p);   }),
-      this.on('image_progress',     (p) => { setPhase('download'); onImageProgress(p);   }),
+      this.on('scrapper_fetch_done',()  => { setPhase('download'); }),
+      this.on('image_progress',     (p) => { onImageProgress(p);   }),
       this.on('upload_progress',    (p) => { setPhase('upload');   onUploadProgress(p);  }),
 
       // Data
