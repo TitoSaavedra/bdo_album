@@ -1,0 +1,103 @@
+.face-sidebar {
+  width:          220px;
+  flex-shrink:    0;
+  display:        flex;
+  flex-direction: column;
+  border-right:   1px solid #222;
+  background:     #0e0e1a;
+
+  .sidebar-header {
+    padding:       10px 12px;
+    border-bottom: 1px solid #222;
+    font-size:     0.75rem;
+    color:         #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .grid-list {
+    flex:       1;
+    overflow-y: auto;
+    padding:    8px;
+    display:    flex;
+    flex-direction: column;
+    gap:        6px;
+  }
+
+  .grid-item {
+    border-radius: 6px;
+    overflow:      hidden;
+    background:    #1a1a2e;
+    border:        1px solid #2a2a3e;
+
+    .grid-thumb {
+      width:       100%;
+      aspect-ratio: 2;
+      object-fit:  cover;
+      display:     block;
+    }
+
+    .thumb-placeholder {
+      width:           100%;
+      aspect-ratio:    2;
+      background:      #111;
+      display:         flex;
+      align-items:     center;
+      justify-content: center;
+      color:           #333;
+      font-size:       0.7rem;
+    }
+
+    .grid-meta {
+      padding: 6px 8px;
+
+      .grid-name {
+        font-size:   0.8rem;
+        color:       #ccc;
+        white-space: nowrap;
+        overflow:    hidden;
+        text-overflow: ellipsis;
+      }
+
+      .grid-account {
+        font-size: 0.65rem;
+        color:     #555;
+        margin-top: 2px;
+      }
+    }
+
+    .grid-actions {
+      display:    flex;
+      gap:        4px;
+      padding:    4px 8px 8px;
+
+      button {
+        flex:          1;
+        padding:       4px;
+        font-size:     0.7rem;
+        border:        1px solid #333;
+        border-radius: 4px;
+        cursor:        pointer;
+        background:    transparent;
+        transition:    background 0.1s, color 0.1s;
+
+        &.apply-btn {
+          color: #c89b3c;
+          &:hover { background: rgba(200,155,60,0.15); }
+        }
+
+        &.delete-btn {
+          color: #883333;
+          &:hover { background: rgba(180,30,30,0.15); }
+        }
+      }
+    }
+  }
+
+  .empty-grids {
+    padding:    24px 12px;
+    text-align: center;
+    color:      #333;
+    font-size:  0.8rem;
+  }
+}

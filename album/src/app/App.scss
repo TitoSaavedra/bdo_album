@@ -45,3 +45,42 @@
 .splash-text.error {
   color: var(--color-text-error);
 }
+
+.region-bar {
+  margin-bottom: 20px;
+}
+
+.scroll-sentinel {
+  height: 1px;
+}
+
+.tab-nav {
+  display:       flex;
+  gap:           2px;
+  padding:       0 16px;
+  background:    var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink:   0;
+
+  button {
+    padding:       10px 18px;
+    font-size:     0.82rem;
+    letter-spacing: 0.04em;
+    border:        none;
+    background:    transparent;
+    color:         var(--color-text-secondary);
+    cursor:        pointer;
+    border-bottom: 2px solid transparent;
+    transition:    color 0.15s, border-color 0.15s;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &.active {
+      color:        #c89b3c;
+      border-color: #c89b3c;
+      font-weight:  600;
+    }
+  }
+}

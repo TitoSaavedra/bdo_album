@@ -1,0 +1,85 @@
+.face-grid-view {
+  display:        flex;
+  flex-direction: column;
+  flex:           1;
+  overflow:       hidden;
+
+  .fg-main {
+    display:    flex;
+    flex:       1;
+    overflow:   hidden;
+  }
+
+  .fg-center {
+    display:        flex;
+    flex-direction: column;
+    flex:           1;
+    overflow:       hidden;
+  }
+
+  .fg-toolbar {
+    display:         flex;
+    align-items:     center;
+    justify-content: flex-end;
+    gap:             8px;
+    padding:         8px 16px;
+    border-bottom:   1px solid #222;
+    background:      #0a0a16;
+
+    .pending-count {
+      font-size: 0.75rem;
+      color:     #888;
+    }
+
+    button {
+      padding:       6px 16px;
+      font-size:     0.8rem;
+      border-radius: 6px;
+      border:        none;
+      cursor:        pointer;
+      transition:    background 0.1s;
+
+      &.btn-clear {
+        background: #1e1e2e;
+        color:      #888;
+        &:hover { color: #ccc; background: #2a2a3e; }
+      }
+
+      &.btn-save {
+        background: #c89b3c;
+        color:      #000;
+        font-weight: 600;
+        &:hover { background: #d9b04e; }
+        &:disabled {
+          opacity: 0.5;
+          cursor:  default;
+        }
+      }
+    }
+  }
+
+  .fg-loading,
+  .fg-error {
+    flex:            1;
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    color:           #555;
+    font-size:       0.9rem;
+  }
+
+  .fg-error {
+    color: #c44;
+  }
+
+  .fg-empty {
+    flex:            1;
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    gap:             12px;
+    color:           #444;
+    font-size:       0.9rem;
+  }
+}
