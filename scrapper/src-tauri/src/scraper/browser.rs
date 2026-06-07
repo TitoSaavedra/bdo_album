@@ -157,7 +157,7 @@ impl BrowserSession {
         {
             let cap = Arc::clone(&captured);
             let exp = expected.clone();
-            page.route("**/beauty-album/images/**", move |route| {
+            if let Err(e) = page.route("**/beauty-album/images/**", move |route| {
                 let cap = Arc::clone(&cap);
                 let exp = exp.clone();
                 async move {
@@ -169,18 +169,24 @@ impl BrowserSession {
                     route.continue_(None).await?;
                     Ok(())
                 }
-            }).await.map_err(|e| AppError::Scrape(format!("route preset {}: {:?}", preset_id, e)))?;
+            }).await {
+                let _ = page.close().await;
+                return Err(AppError::Scrape(format!("route preset {}: {:?}", preset_id, e)));
+            }
         }
 
         let preset_url = format!("https://garmoth.com/beauty-album/preset/{}", preset_id);
-        page.goto(
+        if let Err(e) = page.goto(
             &preset_url,
             Some(GotoOptions {
                 wait_until: Some(WaitUntil::DomContentLoaded),
                 timeout:    Some(Duration::from_secs(60)),
                 ..Default::default()
             }),
-        ).await.map_err(|e| AppError::Scrape(format!("goto preset {}: {:?}", preset_id, e)))?;
+        ).await {
+            let _ = page.close().await;
+            return Err(AppError::Scrape(format!("goto preset {}: {:?}", preset_id, e)));
+        }
 
         // Wait up to 5s for both image URLs to be captured
         for _ in 0..5 {

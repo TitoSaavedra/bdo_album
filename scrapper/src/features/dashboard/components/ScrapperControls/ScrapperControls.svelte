@@ -2,7 +2,7 @@
   import './ScrapperControls.scss';
   import { invoke } from '@tauri-apps/api/core';
   import { _ } from 'svelte-i18n';
-  import { Input, Button } from '$ui/index';
+  import { Input, Button, PillSelector } from '$ui/index';
   import {
     getStatus,
     getPhase,
@@ -20,6 +20,13 @@
 
   let cfToken     = $state('');
   let parallelism = $state(3);
+  let mode        = $state<'images' | 'both' | 'fetch'>('both');
+
+  const MODE_OPTIONS = [
+    { value: 'images', label: 'Images only' },
+    { value: 'both',   label: 'Fetch + Images' },
+    { value: 'fetch',  label: 'Fetch only 🔒' },
+  ];
 
   const status      = $derived(getStatus());
   const phase       = $derived(getPhase());
@@ -38,7 +45,7 @@
   const isBusy = $derived(status === 'running' || status === 'stopping');
 
   async function start() {
-    await invoke('run_scraper', { cfToken, parallelism });
+    await invoke('run_scraper', { cfToken, parallelism, mode });
   }
 
   async function stop() {
@@ -124,7 +131,17 @@
       disabled={isBusy}
       class="range-slider"
     />
-    <span class="range-hint">{parallelism} regiones en paralelo</span>
+    <span class="range-hint">{parallelism} parallel regions</span>
+  </div>
+
+  <!-- Mode -->
+  <div class="ctrl-section">
+    <span class="ctrl-label">Mode</span>
+    <PillSelector
+      value={mode}
+      options={MODE_OPTIONS}
+      onchange={(v) => { if (!isBusy && v !== 'fetch') mode = v as 'images' | 'both'; }}
+    />
   </div>
 
   <!-- Action -->

@@ -303,7 +303,7 @@
                   </div>
                 </div>
 
-                <div class="preset-card-img-wrap" onclick={openPresetPage} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openPresetPage()} role="button" tabindex="0" title="Ver en Garmoth">
+                <div class="preset-card-img-wrap" onclick={openPresetPage} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && openPresetPage()} role="button" tabindex="0" title="View on Garmoth">
                   {#each cardImages as url, i}
                     <img
                       class="preset-card-img"

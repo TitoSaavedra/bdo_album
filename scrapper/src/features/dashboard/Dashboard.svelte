@@ -1,9 +1,7 @@
 <script lang="ts">
   import './Dashboard.scss';
-  import { _ } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';
-  import { Button, Sidebar, MultiPill } from '$ui/index';
-  import StatCard       from './components/StatCard/StatCard.svelte';
+  import { Button, Sidebar, MultiPill, PillSelector } from '$ui/index';
   import Overview       from './components/Overview/Overview.svelte';
   import PresetStats    from './components/PresetStats/PresetStats.svelte';
   import SessionHistory from './components/SessionHistory/SessionHistory.svelte';
@@ -16,7 +14,7 @@
     getCurrent, getTotal,
     getProgress, getImgProgress, getUpProgress,
     getTotalFetched, getImagesDone, getImagesTotal,
-    getUploadsDone, getErrors, getElapsed,
+    getUploadsDone, getErrors,
     requestStop, getDbReady,
   } from '../scrapper/state/scrapper.svelte';
 
@@ -26,7 +24,14 @@
   let dbClasses       = $state<{id: number, name: string}[]>([]);
   const ALL_CLASSES   = $derived(['all', ...dbClasses.map(c => c.name)]);
 
+  const MODE_OPTIONS = [
+    { value: 'images', label: 'Images only'    },
+    { value: 'fetch',  label: 'Fetch only'  },
+    { value: 'both',   label: 'Fetch + Images' },
+  ];
+
   let parallelism     = $state(3);
+  let mode            = $state<'images' | 'both' | 'fetch'>('both');
   let sidebarOpen     = $state(false);
   let pabModalOpen    = $state(false);
   let sidebarTab      = $state<'config' | 'status'>('config');
@@ -45,7 +50,6 @@
   const imgTotal = $derived(getImagesTotal());
   const upDone   = $derived(getUploadsDone());
   const errors   = $derived(getErrors());
-  const secs     = $derived(getElapsed());
   const current  = $derived(getCurrent());
   const total    = $derived(getTotal());
 
@@ -67,17 +71,13 @@
     { id: 'upload',   label: 'Upload R2',  color: 'var(--color-accent-tertiary)'  },
   ] as const;
 
-  const fmtTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
-  };
-
   async function start()  {
     const classIds = selectedClasses.map(name =>
       name === 'all' ? 'all' : dbClasses.find(c => c.name === name)!.id
     );
     await invoke('run_scraper', {
       parallelism,
+      mode,
       days:    selectedDays,
       regions: selectedRegions,
       classes: classIds,
@@ -133,6 +133,15 @@
           <span class="sidebar-label">Parallelism — <strong>{parallelism}</strong></span>
           <input class="range" type="range" min="1" max="10" bind:value={parallelism} disabled={isBusy} />
           <span class="range-hint">{parallelism * 2} concurrent downloads</span>
+        </div>
+
+        <div class="sidebar-section">
+          <span class="sidebar-label">Mode</span>
+          <PillSelector
+            value={mode}
+            options={MODE_OPTIONS}
+            onchange={(v) => { if (!isBusy && v !== 'fetch') mode = v as 'images' | 'both'; }}
+          />
         </div>
 
         <div class="sidebar-section">

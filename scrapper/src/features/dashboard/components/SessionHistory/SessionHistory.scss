@@ -229,10 +229,16 @@
 /* ── Class bar list ── */
 
 .class-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.class-bar-row {
   display: grid;
   grid-template-columns: 100px 1fr 52px auto;
   align-items: center;
-  gap: 6px 10px;
+  gap: 0 10px;
 }
 
 .cb-name {

@@ -37,15 +37,18 @@
     if (dbReady === true) load();
   });
 
-  // Poll while running; final reload when done/cancelled; cleanup on unmount
+  // Poll while running; 5s extra on done/cancelled; cleanup on unmount
   $effect(() => {
     const s = status;
     if (s === 'running') {
       stopPoll();
-      _poll = setInterval(load, 2000);
+      _poll = setInterval(load, 1000);
     } else {
       stopPoll();
-      if (s === 'done' || s === 'cancelled') load();
+      if (s === 'done' || s === 'cancelled') {
+        let ticks = 0;
+        _poll = setInterval(() => { load(); if (++ticks >= 5) stopPoll(); }, 1000);
+      }
     }
     return stopPoll;
   });
@@ -102,8 +105,8 @@
           </div>
           <span class="ps-class-name">{name}</span>
           <div class="ps-class-bar-wrap">
-            <div class="ps-class-bar" style="width: {pct(row.total, stats.total) * 2}%">
-              <div class="ps-class-bar-img" style="width: {imgPct}%"></div>
+            <div class="ps-class-bar">
+              <div class="ps-class-bar-img" class:complete={imgPct === 100} style="width: {imgPct}%"></div>
             </div>
           </div>
           <span class="ps-class-total">{fmt(row.total)}</span>

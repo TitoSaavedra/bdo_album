@@ -33,30 +33,28 @@ pub fn run() {
                 };
 
                 eprintln!("[startup] connecting to DB...");
-                match db::pool::init(&db_url).await {
-                    Ok(pool) => {
-                        eprintln!("[startup] DB connected OK");
-                        let recovered = db::repositories::session_repo::SessionRepository::recover_interrupted(&pool).await.unwrap_or(0);
-                        db::repositories::log_repo::LogRepository::insert(
-                            &app_h, &pool, None, "INFO", "startup",
-                            &if recovered > 0 {
-                                format!("Database connected. {} interrupted session(s) recovered.", recovered)
-                            } else {
-                                "Database connected. Ready to scrape.".to_string()
-                            },
-                        ).await.ok();
-                        app_h.manage(AppState::new(pool));
-                        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                        Events::db_ready(&app_h, DbReady { success: true, error: None });
+                let pool = loop {
+                    match db::pool::init(&db_url).await {
+                        Ok(p) => break p,
+                        Err(e) => {
+                            eprintln!("[startup] DB error: {}, retrying in 3s...", e);
+                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        }
                     }
-                    Err(e) => {
-                        eprintln!("[startup] DB error: {}", e);
-                        Events::db_ready(&app_h, DbReady {
-                            success: false,
-                            error: Some(e.to_string()),
-                        });
-                    }
-                }
+                };
+                eprintln!("[startup] DB connected OK");
+                let recovered = db::repositories::session_repo::SessionRepository::recover_interrupted(&pool).await.unwrap_or(0);
+                db::repositories::log_repo::LogRepository::insert(
+                    &app_h, &pool, None, "INFO", "startup",
+                    &if recovered > 0 {
+                        format!("Database connected. {} interrupted session(s) recovered.", recovered)
+                    } else {
+                        "Database connected. Ready to scrape.".to_string()
+                    },
+                ).await.ok();
+                app_h.manage(AppState::new(pool));
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                Events::db_ready(&app_h, DbReady { success: true, error: None });
             });
             Ok(())
         })

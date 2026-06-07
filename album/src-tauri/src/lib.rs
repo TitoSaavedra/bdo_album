@@ -34,21 +34,19 @@ pub fn run() {
                     .trim_end_matches('/')
                     .to_string();
 
-                match core::db::init(&db_url).await {
-                    Ok(pool) => {
-                        eprintln!("[startup] DB connected OK");
-                        app_h.manage(AppState::new(pool, r2_public_url));
-                        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                        Events::db_ready(&app_h, DbReady { success: true, error: None });
+                let pool = loop {
+                    match core::db::init(&db_url).await {
+                        Ok(p) => break p,
+                        Err(e) => {
+                            eprintln!("[startup] DB error: {}, retrying in 3s...", e);
+                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        }
                     }
-                    Err(e) => {
-                        eprintln!("[startup] DB error: {}", e);
-                        Events::db_ready(&app_h, DbReady {
-                            success: false,
-                            error: Some(e.to_string()),
-                        });
-                    }
-                }
+                };
+                eprintln!("[startup] DB connected OK");
+                app_h.manage(AppState::new(pool, r2_public_url));
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                Events::db_ready(&app_h, DbReady { success: true, error: None });
             });
             Ok(())
         })

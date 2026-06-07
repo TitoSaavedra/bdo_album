@@ -62,6 +62,7 @@ pub async fn run_session(
     days:        Vec<String>,
     regions:     Vec<String>,
     classes:     Vec<serde_json::Value>,
+    mode:        String,
 ) {
     let started = Instant::now();
 
@@ -85,25 +86,31 @@ pub async fn run_session(
         if cf_token.is_empty() { "CF clearance not found — proceeding without it" } else { "CF clearance obtained" },
     ).await.ok();
 
-    LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started").await.ok();
-    Events::sync_loading(&app, "Fetching & downloading...");
-
     let img_total = Arc::new(AtomicUsize::new(0));
     let img_done  = Arc::new(AtomicUsize::new(0));
     let (tx, rx)  = mpsc::channel::<ImageTask>(512);
-    let tx_pending = tx.clone();
 
-    // Fetch, download, and pending-image loop run concurrently.
-    // Fetch sends new presets; pending loop sends DB presets awaiting images; download consumes both.
-    let (fetch_result, dl, _) = tokio::join!(
-        run_fetch(&app, &pool, cf_token, session_id, cancel.clone(), parallelism, days, regions, classes, tx, img_total.clone()),
-        run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
-        run_pending_loop(&app, &pool, session_id, cancel.clone(), tx_pending, img_total),
-    );
-
-    let fetch = match fetch_result {
-        Ok(r) => r,
-        Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
+    let (fetch, dl) = if mode == "images" {
+        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch").await.ok();
+        Events::sync_loading(&app, "Downloading images...");
+        let (dl, _) = tokio::join!(
+            run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
+            run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
+        );
+        (FetchResult { total_fetched: 0, total_errors: 0, total_skipped: 0 }, dl)
+    } else {
+        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started").await.ok();
+        Events::sync_loading(&app, "Fetching & downloading...");
+        let (fetch_result, dl, _) = tokio::join!(
+            run_fetch(&app, &pool, cf_token, session_id, cancel.clone(), parallelism, days, regions, classes),
+            run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
+            run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
+        );
+        let fetch = match fetch_result {
+            Ok(r) => r,
+            Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
+        };
+        (fetch, dl)
     };
 
     LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch",
@@ -151,16 +158,9 @@ pub async fn run_fetch(
     days:           Vec<String>,
     regions:        Vec<String>,
     classes_filter: Vec<serde_json::Value>,
-    tx:             mpsc::Sender<ImageTask>,
-    img_total:      Arc<AtomicUsize>,
 ) -> Result<FetchResult> {
     let all_db_classes = ClassRepository::get_all(pool).await?;
     let client = Arc::new(GarmothClient::new(&cf_token));
-
-    // Map DB class IDs → display names, used to resolve preset.class_id from API responses
-    let class_name_map: std::collections::HashMap<i32, String> = all_db_classes.iter()
-        .map(|c| (c.id, c.display.clone()))
-        .collect();
 
     // Build class entries from the filter.
     // "all" → class=None (global ranking endpoint), numbers → class=Some(id).
@@ -213,6 +213,9 @@ pub async fn run_fetch(
     let mut total_skipped = 0usize;
     let mut class_stats: std::collections::HashMap<i32, (usize, usize, usize)> = std::collections::HashMap::new();
 
+    let total_chunks = (work.len() + parallelism - 1) / parallelism;
+    let mut chunk_idx = 0usize;
+
     // Process in batches of `parallelism`:
     //   1. Refresh global_seen from DB
     //   2. Spawn batch in parallel
@@ -264,8 +267,7 @@ pub async fn run_fetch(
                             continue;
                         }
                         let (fetched, errors) = insert_preset_and_queue(
-                            app, pool, session_id, &tx, &img_total,
-                            p, class_name_map.get(&p.class_id).cloned().unwrap_or_default(),
+                            app, pool, session_id, p,
                         ).await;
                         stat.0        += fetched;
                         stat.2        += errors;
@@ -288,8 +290,11 @@ pub async fn run_fetch(
             }
         }
 
-        LogRepository::insert(app, pool, Some(session_id), "SYNC", "fetch",
-            &format!("Batch saved: {} new, {} skipped", batch_total_new, batch_total_skipped),
+        chunk_idx += 1;
+        let remaining = total_chunks - chunk_idx;
+        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+            &format!("Round {}/{} — {} remaining | {} new, {} skipped",
+                chunk_idx, total_chunks, remaining, batch_total_new, batch_total_skipped),
         ).await.ok();
     }
 
@@ -323,6 +328,10 @@ pub async fn run_fetch(
         });
     }
 
+    LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+        &format!("Fetch done — {} rounds, {} presets, {} errors",
+            total_chunks, total_fetched, total_errors),
+    ).await.ok();
     Events::fetch_done(app);
     Ok(FetchResult { total_fetched, total_errors, total_skipped })
 }
@@ -532,18 +541,11 @@ fn norm_image(s: Option<&str>) -> Option<&str> {
     }
 }
 
-fn is_real_image(s: Option<&str>) -> bool {
-    matches!(s, Some(v) if !v.is_empty() && v != "not_found")
-}
-
 async fn insert_preset_and_queue(
     app:        &AppHandle,
     pool:       &PgPool,
     session_id: i64,
-    tx:         &mpsc::Sender<ImageTask>,
-    img_total:  &AtomicUsize,
     p:          &GarmothPreset,
-    class_name: String,
 ) -> (usize, usize) {
     let img1 = norm_image(p.image_1.as_deref());
     let img2 = norm_image(p.image_2.as_deref());
@@ -556,20 +558,6 @@ async fn insert_preset_and_queue(
         p.creation_at, p.customizing_id, p.region.as_deref(), p.score,
     ).await {
         Ok(true) => {
-            if is_real_image(img1) || is_real_image(img2) {
-                img_total.fetch_add(1, Ordering::Relaxed);
-                tx.send(ImageTask {
-                    preset_id:      p.id,
-                    class_id:       p.class_id,
-                    class_name,
-                    image_1:        img1.filter(|&s| s != "not_found").map(str::to_owned),
-                    image_2:        img2.filter(|&s| s != "not_found").map(str::to_owned),
-                    downloads:      p.downloads,
-                    views:          p.views,
-                    likes:          p.likes,
-                    character_name: p.character_name.clone(),
-                }).await.ok();
-            }
             Events::preset_synced(app, PresetSynced {
                 preset_id:      p.id.to_string(),
                 class_id:       p.class_id as u32,

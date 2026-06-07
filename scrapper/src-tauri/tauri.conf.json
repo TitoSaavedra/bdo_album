@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "BDO Dashboard",
-        "width": 1440,
-        "height": 900,
+        "width": 1600,
+        "height": 1100,
         "resizable": true,
         "visible": true
       }

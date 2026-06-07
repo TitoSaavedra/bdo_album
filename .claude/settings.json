@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs grep -l \"preset\" -i)"
+      "Bash(xargs grep -l \"preset\" -i)",
+      "Bash(Get-ChildItem -Force)",
+      "Bash(Select-Object Name)",
+      "Bash(find /x/Github/Personal -type d -name \"*beauty*\" 2>/dev/null)",
+      "Read(//x/Github/Personal/**)",
+      "Bash(cd /x/Github/Personal/bdo_album/album && find . -type f \\\\\\( -name \"*.svelte\" -o -name \"*.ts\" -o -name \"*.rs\" \\\\\\) | grep -v node_modules | sort)",
+      "Read(//x/x/Github/Personal/bdo_album/**)",
+      "Bash(powershell.exe -Command \"Copy-Item 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\scrapper\\\\src-tauri\\\\icons' -Destination 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' -Recurse -Force; Get-ChildItem 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' | Select-Object Name\")",
+      "Bash(pnpm add *)",
+      "Bash(python3 -c ' *)",
+      "Bash(pnpm tauri *)"
     ]
   }
 }

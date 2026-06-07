@@ -1,0 +1,12 @@
+{
+  "name": "bdo-album",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n scrapper,album -c cyan,green \"npm run scrapper\" \"npm run album\"",
+    "scrapper": "cd scrapper && pnpm tauri dev",
+    "album": "cd album && pnpm tauri dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

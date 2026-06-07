@@ -195,6 +195,9 @@ export function onPresetSynced(p: PresetSynced): void {
     currentMsg = `Preset ${p.preset_id} — ${count} image(s) synced to R2`;
     const cls = classMap[p.class_id];
     if (cls) cls.images += count;
+  } else {
+    const cls = classMap[p.class_id];
+    if (cls) cls.fetched += 1;
   }
   lastPresetSynced = p;
 }

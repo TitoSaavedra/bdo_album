@@ -32,6 +32,7 @@ pub async fn run_scraper(
     days:        Vec<String>,
     regions:     Vec<String>,
     classes:     Vec<serde_json::Value>,
+    mode:        Option<String>,
 ) -> Result<i64> {
     {
         let guard = state.current_session.lock().unwrap();
@@ -41,6 +42,7 @@ pub async fn run_scraper(
     }
 
     let parallelism = parallelism.max(1);
+    let mode        = mode.unwrap_or_else(|| "both".to_string());
     let pool        = state.pool.clone();
     let cancel      = state.cancel.clone();
     cancel.store(false, Ordering::Relaxed);
@@ -71,7 +73,7 @@ pub async fn run_scraper(
     ).await.ok();
 
     tauri::async_runtime::spawn(super::service::run_session(
-        app, pool, cancel, session_id, parallelism, days, regions, classes,
+        app, pool, cancel, session_id, parallelism, days, regions, classes, mode,
     ));
 
     Ok(session_id)
