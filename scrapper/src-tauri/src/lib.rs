@@ -12,6 +12,18 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            if let Some(win) = app.get_webview_window("main") {
+                if let Ok(Some(monitor)) = win.primary_monitor() {
+                    let s = monitor.size();
+                    let w = (s.width as f64 * 0.60) as u32;
+                    let h = (s.height as f64 * 0.80) as u32;
+                    let x = (s.width as f64 * 0.20) as i32;
+                    let y = (s.height as f64 * 0.10) as i32;
+                    let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: w, height: h }));
+                    let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+                }
+                let _ = win.show();
+            }
             let app_h = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let dotenv_result = dotenvy::dotenv();

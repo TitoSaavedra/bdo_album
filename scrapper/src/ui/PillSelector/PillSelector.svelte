@@ -12,12 +12,14 @@
     value?: string | number;
     options?: Option[];
     onchange?: (value: string | number) => void;
+    disabled?: boolean;
   }
 
   let {
     value = '',
     options = [],
     onchange,
+    disabled = false,
   }: Props = $props();
 
   let selected = $state(value);
@@ -25,12 +27,13 @@
   $effect(() => { selected = value; });
 
   function select(v: string | number) {
+    if (disabled) return;
     selected = v;
     onchange?.(v);
   }
 </script>
 
-<div class="pill-group">
+<div class="pill-group" class:pill-group-disabled={disabled}>
   {#each options as opt}
     <div
       class="pill"

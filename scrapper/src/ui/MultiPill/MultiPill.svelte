@@ -8,9 +8,10 @@
     disabled?:  boolean;
     reset?:     boolean;
     selectAll?: boolean;
+    icons?:     Record<string, string>;
   }
 
-  let { options, selected, onchange, disabled = false, reset, selectAll }: Props = $props();
+  let { options, selected, onchange, disabled = false, reset, selectAll, icons }: Props = $props();
 
   function toggle(v: string) {
     if (disabled) return;
@@ -37,7 +38,12 @@
       class="mp-pill"
       class:mp-active={selected.includes(opt)}
       onclick={() => toggle(opt)}
-    >{opt}</button>
+    >
+      {#if icons?.[opt]}
+        <span class="mp-icon">{@html icons[opt]}</span>
+      {/if}
+      {opt}
+    </button>
   {/each}
   {#if selectAll}
     <button

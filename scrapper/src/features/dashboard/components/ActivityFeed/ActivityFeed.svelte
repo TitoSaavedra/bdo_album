@@ -2,7 +2,12 @@
   import './ActivityFeed.scss';
   import { getSessionLogs } from '../../../scrapper/state/scrapper.svelte';
 
-  const recent = $derived(getSessionLogs().slice(0, 30));
+  // Each row: 4px+4px padding + 11px*1.5 line-height + 1px border ≈ 24px rendered
+  const ITEM_H = 24;
+
+  let containerH = $state(0);
+  const maxVisible = $derived(containerH > 0 ? Math.max(1, Math.floor(containerH / ITEM_H)) : 20);
+  const recent = $derived(getSessionLogs().slice(0, maxVisible));
 
   const TAG_COLOR: Record<string, string> = {
     ERR:      '#f87171',
@@ -20,7 +25,7 @@
     new Date(ts * 1000).toLocaleTimeString('es', { hour12: false });
 </script>
 
-<div class="feed">
+<div class="feed" bind:clientHeight={containerH}>
   {#if recent.length === 0}
     <div class="feed-empty">
       <div class="feed-empty-icon">

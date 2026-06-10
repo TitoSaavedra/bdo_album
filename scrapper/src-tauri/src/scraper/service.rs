@@ -307,15 +307,18 @@ pub async fn run_fetch(
                             continue;
                         }
                         if update_existing {
-                            let (new, updated, errors) = upsert_preset_stats(app, pool, session_id, p).await;
+                            let (new, updated, skipped, errors) = upsert_preset_stats(app, pool, session_id, p).await;
                             stat.0        += new;
+                            stat.1        += skipped;
                             stat.2        += errors;
                             stat.3        += updated;
                             total_fetched += new;
                             total_updated += updated;
+                            total_skipped += skipped;
                             total_errors  += errors;
                             batch_new     += new;
                             batch_updated += updated;
+                            batch_skipped += skipped;
                         } else {
                             let (fetched, errors) = insert_preset_and_queue(app, pool, session_id, p).await;
                             stat.0        += fetched;
@@ -640,12 +643,13 @@ fn norm_image(s: Option<&str>) -> Option<&str> {
     }
 }
 
+// Returns (new, updated, skipped, errors)
 async fn upsert_preset_stats(
     app:        &AppHandle,
     pool:       &PgPool,
     session_id: i64,
     p:          &GarmothPreset,
-) -> (usize, usize, usize) {
+) -> (usize, usize, usize, usize) {
     let img1 = norm_image(p.image_1.as_deref());
     let img2 = norm_image(p.image_2.as_deref());
 
@@ -667,16 +671,17 @@ async fn upsert_preset_stats(
                 likes:          None,
                 character_name: None,
             });
-            (1, 0, 0)
+            (1, 0, 0, 0)
         }
         Ok(false) => {
             match PresetRepository::update_stats(pool, p.id, p.downloads, p.views, p.likes).await {
-                Ok(()) => (0, 1, 0),
+                Ok(true)  => (0, 1, 0, 0),
+                Ok(false) => (0, 0, 1, 0),
                 Err(e) => {
                     LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
                         &format!("preset {} stats update failed: {}", p.id, e),
                     ).await.ok();
-                    (0, 0, 1)
+                    (0, 0, 0, 1)
                 }
             }
         }
@@ -684,7 +689,7 @@ async fn upsert_preset_stats(
             LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
                 &format!("preset {} upsert failed: {}", p.id, e),
             ).await.ok();
-            (0, 0, 1)
+            (0, 0, 0, 1)
         }
     }
 }

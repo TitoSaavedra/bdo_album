@@ -52,21 +52,23 @@ impl PresetRepository {
         Ok(row.is_some())
     }
 
-    /// Updates views, likes and downloads for an existing preset.
+    /// Updates views, likes and downloads only if any value changed.
+    /// Returns `true` if a row was modified, `false` if values were identical.
     pub async fn update_stats(
         pool:      &PgPool,
         id:        i64,
         downloads: i64,
         views:     i64,
         likes:     i64,
-    ) -> Result<()> {
-        sqlx::query(
+    ) -> Result<bool> {
+        let result = sqlx::query(
             "UPDATE scrapper_presets
              SET downloads  = $1,
                  views      = $2,
                  likes      = $3,
                  updated_at = NOW()
-             WHERE id = $4",
+             WHERE id = $4
+               AND (downloads != $1 OR views != $2 OR likes != $3)",
         )
         .bind(downloads)
         .bind(views)
@@ -74,7 +76,7 @@ impl PresetRepository {
         .bind(id)
         .execute(pool)
         .await?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
     /// Marks image slots as not_found when the preset page shows no image.

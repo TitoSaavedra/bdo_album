@@ -16,7 +16,7 @@
   cursor: pointer;
   border: 1px solid var(--color-border);
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   transition: border-color 0.12s, background 0.12s, color 0.12s;
   line-height: 1.4;
 
@@ -29,6 +29,9 @@
 
 .mp-pill {
   @extend %base;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 
   &.mp-active {
     border-color: var(--color-accent);
@@ -36,6 +39,24 @@
     color: var(--color-accent);
     font-weight: 700;
   }
+}
+
+.mp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.75;
+
+  :global(svg) {
+    width: 13px;
+    height: 13px;
+    display: block;
+  }
+
+  .mp-active & { opacity: 1; }
 }
 
 .mp-reset {

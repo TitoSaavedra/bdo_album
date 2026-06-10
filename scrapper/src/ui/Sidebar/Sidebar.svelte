@@ -31,6 +31,18 @@
     onclick={() => (open = !open)}
     title={open ? 'Collapse' : 'Expand'}
   >
-    {side === 'left' ? (open ? '‹' : '›') : (open ? '›' : '‹')}
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      style="transform: rotate({(side === 'left') === open ? '0deg' : '180deg'}); transition: transform 0.25s ease"
+    >
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
   </button>
 </div>

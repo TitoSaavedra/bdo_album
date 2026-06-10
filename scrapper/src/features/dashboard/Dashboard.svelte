@@ -15,7 +15,7 @@
     getProgress, getImgProgress, getUpProgress,
     getTotalFetched, getImagesDone, getImagesTotal,
     getUploadsDone, getErrors,
-    requestStop, getDbReady,
+    requestStop, getDbReady, getClassIcons,
   } from '../scrapper/state/scrapper.svelte';
 
   const ALL_DAYS    = ['20', '30', '60', '90', '180', '365', 'ever'];
@@ -25,9 +25,9 @@
   const ALL_CLASSES   = $derived(['all', ...dbClasses.map(c => c.name)]);
 
   const MODE_OPTIONS = [
-    { value: 'images', label: 'Images only'    },
-    { value: 'fetch',  label: 'Fetch only'  },
-    { value: 'both',   label: 'Fetch + Images' },
+    { value: 'images', label: 'Images' },
+    { value: 'fetch',  label: 'Fetch'  },
+    { value: 'both',   label: 'Both'   },
   ];
 
   let parallelism     = $state(3);
@@ -53,8 +53,16 @@
   const current  = $derived(getCurrent());
   const total    = $derived(getTotal());
 
-  const dbReady = $derived(getDbReady());
-  const isBusy  = $derived(status === 'running' || status === 'stopping');
+  const dbReady      = $derived(getDbReady());
+  const isBusy       = $derived(status === 'running' || status === 'stopping');
+  const classIconsSvg = $derived(getClassIcons());
+  const classIconMap  = $derived(
+    Object.fromEntries(
+      dbClasses
+        .filter(c => classIconsSvg[c.id])
+        .map(c => [c.name, classIconsSvg[c.id]])
+    )
+  );
 
   $effect(() => {
     if (dbReady === true) {
@@ -72,7 +80,6 @@
   ] as const;
 
   async function start()  {
-    debugger;
     const classIds = selectedClasses.map(name =>
       name === 'all' ? 'all' : dbClasses.find(c => c.name === name)!.id
     );
@@ -91,19 +98,35 @@
 
   <!-- ── Top header ── -->
   <header class="dash-header">
+
     <div class="dash-header-left">
-      <span class="dash-title">BDO Scrapper</span>
+      <span class="header-gem"></span>
+      <span class="dash-title">Scrapper</span>
       <span class="status-pill status-{status}">{status}</span>
+      {#if status !== 'idle'}
+        <div class="phase-mini">
+          {#each PHASES as p, i}
+            <div
+              class="phase-mini-step"
+              class:active={phase === p.id}
+              class:done={['fetch','download','upload'].indexOf(phase) > i}
+              style="--c: {p.color}"
+              title={p.label}
+            >
+              <span class="phase-mini-dot"></span>
+            </div>
+            {#if i < 2}<span class="phase-mini-arrow">›</span>{/if}
+          {/each}
+        </div>
+      {/if}
     </div>
 
-    <!-- Phase pipeline -->
-    <div class="phase-pipeline">
-      {#each PHASES as p, i}
-        <div class="pipe-step" class:active={status !== 'idle' && phase === p.id} class:done={status !== 'idle' && ['fetch','download','upload'].indexOf(phase) > i} style="--c: {p.color}">
-          <span class="pipe-dot"></span>
-          <span class="pipe-label">{p.label}</span>
-        </div>
-        {#if i < 2}<div class="pipe-arrow">→</div>{/if}
+    <!-- Segmented tabs -->
+    <div class="header-tabs">
+      {#each ([['overview','Overview'],['presets','Presets'],['sessions','Sessions']] as const) as [id, label]}
+        <button class="header-tab" class:active={mainTab === id} onclick={() => mainTab = id}>
+          {label}
+        </button>
       {/each}
     </div>
 
@@ -112,11 +135,12 @@
       {#if status === 'running'}
         <Button variant="ghost" onclick={stop}>■ Stop</Button>
       {:else if status === 'stopping'}
-        <Button variant="ghost" disabled>⏳ Stopping...</Button>
+        <Button variant="ghost" disabled>Stopping...</Button>
       {:else}
         <Button variant="primary" onclick={start} disabled={dbReady !== true || isBusy}>▶ Start</Button>
       {/if}
     </div>
+
   </header>
 
   <!-- ── Body ── -->
@@ -124,9 +148,9 @@
 
     <Sidebar bind:open={sidebarOpen} width={220}>
       <!-- Sidebar tabs -->
-      <div class="sidebar-tabs">
-        <button class="sidebar-tab" class:active={sidebarTab === 'config'} onclick={() => sidebarTab = 'config'}>Config</button>
-        <button class="sidebar-tab" class:active={sidebarTab === 'status'} onclick={() => sidebarTab = 'status'}>Status</button>
+      <div class="sidebar-seg">
+        <button class="seg-btn" class:active={sidebarTab === 'config'} onclick={() => sidebarTab = 'config'}>Config</button>
+        <button class="seg-btn" class:active={sidebarTab === 'status'} onclick={() => sidebarTab = 'status'}>Status</button>
       </div>
 
       {#if sidebarTab === 'config'}
@@ -141,7 +165,8 @@
           <PillSelector
             value={mode}
             options={MODE_OPTIONS}
-            onchange={(v) => { if (!isBusy) mode = v as 'images' | 'both' | 'fetch'; }}
+            disabled={isBusy}
+            onchange={(v) => { mode = v as 'images' | 'both' | 'fetch'; }}
           />
         </div>
 
@@ -176,6 +201,7 @@
             selected={selectedClasses}
             onchange={(v) => selectedClasses = v}
             disabled={isBusy}
+            icons={classIconMap}
             selectAll
             reset
           />
@@ -226,15 +252,6 @@
 
     <!-- Main content -->
     <div class="dash-main">
-
-      <!-- Main tabs -->
-      <div class="main-tabs">
-        {#each ([['overview','Overview'],['presets','Presets'],['sessions','Sessions']] as const) as [id, label]}
-          <button class="main-tab" class:active={mainTab === id} onclick={() => mainTab = id}>
-            {label}
-          </button>
-        {/each}
-      </div>
 
       <!-- Tab content -->
       {#if mainTab === 'overview'}
