@@ -1,6 +1,7 @@
 <script lang="ts">
+  import './AccountTabs.scss';
   import type { BdoAccount } from '../../../../lib/face_grid';
-  import { faceGrid, selectAccount } from '../../state/face_grid.svelte';
+  import { faceGrid, removeAccount, selectAccount } from '../../state/face_grid.svelte';
 
   interface Props {
     accounts: BdoAccount[];
@@ -8,16 +9,18 @@
   const { accounts }: Props = $props();
 </script>
 
-{#if accounts.length > 1}
-  <div class="account-tabs">
-    {#each accounts as acc (acc.account_id)}
-      <button
-        class:active={faceGrid.activeAccountId === acc.account_id}
-        onclick={() => selectAccount(acc.account_id)}
-      >
+<div class="account-tabs">
+  {#each accounts as acc (acc.account_id)}
+    <div class="tab" class:active={faceGrid.activeAccountId === acc.account_id}>
+      <button class="tab-btn" onclick={() => selectAccount(acc.account_id)}>
         Cuenta {acc.account_id}
-        <span style="font-size:0.7em;opacity:0.6"> ({acc.characters.length})</span>
+        <span class="count">({acc.characters.length})</span>
       </button>
-    {/each}
-  </div>
-{/if}
+      <button
+        class="delete-btn"
+        title="Eliminar cuenta"
+        onclick={() => removeAccount(acc.account_id)}
+      >✕</button>
+    </div>
+  {/each}
+</div>

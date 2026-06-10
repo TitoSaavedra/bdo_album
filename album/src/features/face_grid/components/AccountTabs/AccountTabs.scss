@@ -1,28 +1,60 @@
 .account-tabs {
-  display:     flex;
-  gap:         4px;
-  padding:     8px 16px 0;
+  display:       flex;
+  gap:           4px;
+  padding:       8px 16px 0;
   border-bottom: 1px solid #222;
+  flex-shrink:   0;
 
-  button {
-    padding:       6px 14px;
-    font-size:     0.8rem;
-    border:        none;
+  .tab {
+    display:       flex;
+    align-items:   center;
     border-radius: 4px 4px 0 0;
-    background:    transparent;
-    color:         #888;
-    cursor:        pointer;
-    transition:    color 0.15s, background 0.15s;
-
-    &:hover {
-      color:      #ccc;
-      background: #1e1e2e;
-    }
+    overflow:      hidden;
+    border:        1px solid transparent;
+    border-bottom: none;
+    transition:    background 0.15s, border-color 0.15s;
 
     &.active {
-      color:      #c89b3c;
-      background: #1e1e2e;
-      font-weight: 600;
+      background:   #1e1e2e;
+      border-color: #2a2a3e;
+
+      .tab-btn {
+        color: #c89b3c;
+        font-weight: 600;
+      }
+    }
+
+    &:not(.active):hover {
+      background: #161625;
+    }
+  }
+
+  .tab-btn {
+    padding:    8px 12px 8px 14px;
+    font-size:  0.8rem;
+    border:     none;
+    background: transparent;
+    color:      #888;
+    cursor:     pointer;
+
+    .count {
+      font-size: 0.7em;
+      opacity:   0.6;
+      margin-left: 4px;
+    }
+  }
+
+  .delete-btn {
+    padding:    4px 8px;
+    font-size:  0.65rem;
+    border:     none;
+    background: transparent;
+    color:      #555;
+    cursor:     pointer;
+    transition: color 0.1s;
+
+    &:hover {
+      color: #c44;
     }
   }
 }

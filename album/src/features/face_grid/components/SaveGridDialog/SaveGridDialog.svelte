@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './SaveGridDialog.scss';
   import { closeSaveDialog, saveGrid } from '../../state/face_grid.svelte';
 
   let name    = $state('');

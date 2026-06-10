@@ -5,9 +5,9 @@
   overflow:       hidden;
 
   .fg-main {
-    display:    flex;
-    flex:       1;
-    overflow:   hidden;
+    display:  flex;
+    flex:     1;
+    overflow: hidden;
   }
 
   .fg-center {
@@ -21,39 +21,26 @@
     display:         flex;
     align-items:     center;
     justify-content: flex-end;
-    gap:             8px;
     padding:         8px 16px;
-    border-bottom:   1px solid #222;
+    border-bottom:   1px solid #1e1e2e;
     background:      #0a0a16;
+    flex-shrink:     0;
 
-    .pending-count {
-      font-size: 0.75rem;
-      color:     #888;
-    }
-
-    button {
-      padding:       6px 16px;
+    .btn-save {
+      padding:       6px 18px;
       font-size:     0.8rem;
-      border-radius: 6px;
-      border:        none;
+      border-radius: 4px;
+      border:        1px solid #c89b3c;
+      background:    transparent;
+      color:         #c89b3c;
+      font-weight:   600;
       cursor:        pointer;
-      transition:    background 0.1s;
+      letter-spacing: 0.03em;
+      transition:    background 0.15s, color 0.15s;
 
-      &.btn-clear {
-        background: #1e1e2e;
-        color:      #888;
-        &:hover { color: #ccc; background: #2a2a3e; }
-      }
-
-      &.btn-save {
+      &:hover {
         background: #c89b3c;
         color:      #000;
-        font-weight: 600;
-        &:hover { background: #d9b04e; }
-        &:disabled {
-          opacity: 0.5;
-          cursor:  default;
-        }
       }
     }
   }
@@ -68,9 +55,7 @@
     font-size:       0.9rem;
   }
 
-  .fg-error {
-    color: #c44;
-  }
+  .fg-error { color: #c44; }
 
   .fg-empty {
     flex:            1;
@@ -78,8 +63,13 @@
     flex-direction:  column;
     align-items:     center;
     justify-content: center;
-    gap:             12px;
+    gap:             10px;
     color:           #444;
     font-size:       0.9rem;
+  }
+
+  .fg-empty-hint {
+    font-size: 0.75rem;
+    color:     #333;
   }
 }

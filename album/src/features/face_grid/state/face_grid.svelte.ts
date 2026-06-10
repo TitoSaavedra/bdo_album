@@ -1,8 +1,6 @@
-import type { PresetEntry } from '../../../lib/album';
 import type { BdoAccount, FaceGridRow, FaceGridSlotRow, FaceTextureEntry, SlotAssignment } from '../../../lib/face_grid';
 import {
   applyFaceGrid as cmdApplyFaceGrid,
-  applyFaceToSlot,
   deleteFaceGrid as cmdDeleteFaceGrid,
   getFaceGrids,
   getFaceGridSlots,
@@ -12,28 +10,12 @@ import {
 } from '../../../lib/face_grid';
 
 export const faceGrid = $state({
-  // BDO accounts detected from UserCache
   accounts:        [] as BdoAccount[],
   activeAccountId: null as string | null,
-
-  // All BMPs in FaceTexture (for orphan detection)
   faceTextures:    [] as FaceTextureEntry[],
-
-  // Pending slot assignments (in-memory before save/apply)
-  // character_no → { preset, image_url }
-  pendingSlots:    {} as Record<string, { preset: PresetEntry; image_url: string }>,
-
-  // Saved grids
+  pendingSlots:    {} as Record<string, string>,  // character_no → image_url (unused for now)
   savedGrids:      [] as FaceGridRow[],
-  gridsLoading:    false,
-
-  // Active grid for slot inspection
   activeGridSlots: [] as FaceGridSlotRow[],
-
-  // Drag state
-  draggingPreset:  null as PresetEntry | null,
-
-  // UI
   loading:         false,
   error:           null as string | null,
   applyingGrid:    false,
@@ -68,7 +50,13 @@ export async function loadAccounts() {
 
 export function selectAccount(accountId: string) {
   faceGrid.activeAccountId = accountId;
-  faceGrid.pendingSlots    = {};
+}
+
+export function removeAccount(accountId: string) {
+  faceGrid.accounts = faceGrid.accounts.filter(a => a.account_id !== accountId);
+  if (faceGrid.activeAccountId === accountId) {
+    faceGrid.activeAccountId = faceGrid.accounts[0]?.account_id ?? null;
+  }
 }
 
 export function activeAccount(): BdoAccount | undefined {
@@ -81,54 +69,17 @@ export function bmpPathFor(characterNo: string): string | null {
   return faceGrid.faceTextures.find(t => t.character_no === characterNo)?.path ?? null;
 }
 
-export function isOrphan(characterNo: string): boolean {
-  const inAnyAccount = faceGrid.accounts.some(a =>
-    a.characters.some(c => c.character_no === characterNo)
-  );
-  return !inAnyAccount;
-}
-
-// ── Slot assignments ──────────────────────────────────────────
-
-export function assignPresetToSlot(characterNo: string, preset: PresetEntry) {
-  const image_url = preset.image_1_url ?? '';
-  faceGrid.pendingSlots = {
-    ...faceGrid.pendingSlots,
-    [characterNo]: { preset, image_url },
-  };
-}
-
-export function clearSlot(characterNo: string) {
-  const next = { ...faceGrid.pendingSlots };
-  delete next[characterNo];
-  faceGrid.pendingSlots = next;
-}
-
-export function clearAllSlots() {
-  faceGrid.pendingSlots = {};
-}
-
-// ── Apply single slot ─────────────────────────────────────────
-
-export async function applySlot(characterNo: string): Promise<void> {
-  const slot = faceGrid.pendingSlots[characterNo];
-  if (!slot || !slot.image_url) return;
-  await applyFaceToSlot(characterNo, slot.image_url);
-  // Refresh face textures list
-  faceGrid.faceTextures = await listFaceTextures();
-}
-
-// ── Save grid ─────────────────────────────────────────────────
+// ── Save grid (snapshot of current account's characters) ──────
 
 export async function saveGrid(name: string): Promise<void> {
   const account = activeAccount();
   if (!account) return;
 
-  const slots: SlotAssignment[] = Object.entries(faceGrid.pendingSlots).map(([charNo, val]) => ({
-    character_no: charNo,
-    preset_id:    val.preset.preset_id,
-    slot_order:   account.characters.find(c => c.character_no === charNo)?.order ?? 0,
-    image_url:    val.image_url,
+  const slots: SlotAssignment[] = account.characters.map(c => ({
+    character_no: c.character_no,
+    preset_id:    '0',
+    slot_order:   c.order,
+    image_url:    '',
   }));
 
   const grid = await cmdSaveFaceGrid(name, account.account_id, slots);
@@ -161,18 +112,7 @@ export async function loadGridSlots(gridId: string): Promise<void> {
   faceGrid.activeGridSlots = await getFaceGridSlots(gridId);
 }
 
-// ── Drag ──────────────────────────────────────────────────────
-
-export function setDraggingPreset(preset: PresetEntry | null) {
-  faceGrid.draggingPreset = preset;
-}
-
 // ── UI ────────────────────────────────────────────────────────
 
-export function openSaveDialog() {
-  faceGrid.saveDialogOpen = true;
-}
-
-export function closeSaveDialog() {
-  faceGrid.saveDialogOpen = false;
-}
+export function openSaveDialog()  { faceGrid.saveDialogOpen = true;  }
+export function closeSaveDialog() { faceGrid.saveDialogOpen = false; }

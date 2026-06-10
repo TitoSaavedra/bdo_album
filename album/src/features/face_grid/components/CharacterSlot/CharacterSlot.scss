@@ -1,88 +1,91 @@
-.slot {
-  position:      relative;
-  aspect-ratio:  1;
-  border-radius: 6px;
-  overflow:      hidden;
-  background:    #1a1a2e;
-  border:        2px solid transparent;
-  cursor:        default;
-  transition:    border-color 0.15s, box-shadow 0.15s;
+.bdo-card {
+  position:         relative;
+  width:            100%;
+  aspect-ratio:     142 / 172;
+  border:           2px solid #3d3d3d;
+  border-radius:    4px;
+  overflow:         hidden;
+  background-color: #1a1a1a;
+  box-shadow:       inset 0 0 10px rgba(0, 0, 0, 0.8);
+  user-select:      none;
+  cursor:           pointer;
+  transition:       border-color 0.15s, box-shadow 0.15s;
+
+  &:hover {
+    border-color: #888;
+  }
 
   &.drag-over {
     border-color: #c89b3c;
-    box-shadow:   0 0 12px rgba(200, 155, 60, 0.5);
+    box-shadow:   0 0 14px rgba(200, 155, 60, 0.6),
+                  inset 0 0 10px rgba(0, 0, 0, 0.8);
   }
 
-  &.has-pending {
-    border-color: rgba(200, 155, 60, 0.4);
+  .card-bg {
+    width:       100%;
+    height:      100%;
+    object-fit:  cover;
+    position:    absolute;
+    top:         0;
+    left:        0;
+    z-index:     1;
+    display:     block;
   }
 
-  &.orphan {
-    opacity: 0.5;
-    filter:  saturate(0);
-  }
-
-  .bmp-img,
-  .pending-img {
-    width:      100%;
-    height:     100%;
-    object-fit: cover;
-    display:    block;
-  }
-
-  .pending-img {
-    position: absolute;
-    inset:    0;
-    opacity:  0.9;
-  }
-
-  .empty {
-    width:           100%;
-    height:          100%;
-    display:         flex;
-    align-items:     center;
-    justify-content: center;
-    color:           #444;
-    font-size:       0.7rem;
+  .card-content {
+    position:         absolute;
+    inset:            0;
+    z-index:          2;
+    display:          flex;
+    flex-direction:   column;
+    justify-content:  flex-end;
+    background:       linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.4) 0%,
+      rgba(0, 0, 0, 0)   25%,
+      rgba(0, 0, 0, 0)   60%,
+      rgba(0, 0, 0, 0.85) 100%
+    );
   }
 
   .order-badge {
-    position:      absolute;
-    bottom:        3px;
-    left:          4px;
-    font-size:     0.6rem;
-    color:         rgba(255,255,255,0.5);
+    position:    absolute;
+    bottom:      4px;
+    left:        5px;
+    font-size:   0.6rem;
+    color:       rgba(255, 255, 255, 0.45);
+    z-index:     3;
     pointer-events: none;
   }
 
-  .orphan-badge {
-    position:      absolute;
-    top:           3px;
-    right:         3px;
-    font-size:     0.55rem;
-    background:    rgba(180,30,30,0.8);
-    color:         #fff;
-    border-radius: 3px;
-    padding:       1px 3px;
+  .pending-img {
+    position:   absolute;
+    inset:      0;
+    width:      100%;
+    height:     100%;
+    object-fit: cover;
+    z-index:    4;
+    opacity:    0.88;
   }
 
   .clear-btn {
-    position:      absolute;
-    top:           3px;
-    right:         3px;
-    width:         18px;
-    height:        18px;
-    background:    rgba(0,0,0,0.6);
-    border:        none;
-    border-radius: 50%;
-    color:         #fff;
-    font-size:     0.65rem;
-    cursor:        pointer;
-    display:       flex;
-    align-items:   center;
+    position:        absolute;
+    top:             4px;
+    right:           4px;
+    width:           18px;
+    height:          18px;
+    background:      rgba(0, 0, 0, 0.65);
+    border:          1px solid rgba(255,255,255,0.15);
+    border-radius:   50%;
+    color:           #fff;
+    font-size:       0.6rem;
+    cursor:          pointer;
+    display:         flex;
+    align-items:     center;
     justify-content: center;
-    opacity:       0;
-    transition:    opacity 0.1s;
+    z-index:         5;
+    opacity:         0;
+    transition:      opacity 0.1s;
   }
 
   &:hover .clear-btn {

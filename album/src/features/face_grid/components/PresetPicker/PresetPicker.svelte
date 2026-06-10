@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './PresetPicker.scss';
   import { onMount } from 'svelte';
   import type { ClassEntry, PresetEntry } from '../../../../lib/album';
   import { getClasses, getPresets } from '../../../../lib/album';

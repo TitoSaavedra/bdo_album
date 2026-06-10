@@ -4,6 +4,6 @@ use crate::core::errors::Result;
 
 pub async fn init(database_url: &str) -> Result<PgPool> {
     let pool = PgPool::connect(database_url).await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    sqlx::migrate!("./migrations").run(&pool).await?; // 0008_face_grids
     Ok(pool)
 }

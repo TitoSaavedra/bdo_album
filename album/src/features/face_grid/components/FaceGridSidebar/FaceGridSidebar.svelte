@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './FaceGridSidebar.scss';
   import { applyGrid, deleteGrid, faceGrid } from '../../state/face_grid.svelte';
 
   async function handleApply(gridId: string) {
