@@ -226,6 +226,44 @@
   font-weight: 600;
 }
 
+/* ── Session stat chips ── */
+
+.session-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  font-family: monospace;
+  font-size: 11px;
+
+  &.chip-ok  { border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.06); }
+  &.chip-off { border-color: var(--color-border); opacity: 0.5; }
+}
+
+.chip-label {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chip-val {
+  color: var(--color-text-bright);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Class bar list ── */
 
 .class-bars {

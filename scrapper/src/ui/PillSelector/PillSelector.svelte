@@ -15,13 +15,17 @@
   }
 
   let {
-    value = $bindable(''),
+    value = '',
     options = [],
     onchange,
   }: Props = $props();
 
+  let selected = $state(value);
+
+  $effect(() => { selected = value; });
+
   function select(v: string | number) {
-    value = v;
+    selected = v;
     onchange?.(v);
   }
 </script>
@@ -30,7 +34,7 @@
   {#each options as opt}
     <div
       class="pill"
-      class:pill-active={value === opt.value}
+      class:pill-active={selected === opt.value}
       style={opt.color ? `--pill-color: ${opt.color}` : ''}
       role="button"
       tabindex="0"

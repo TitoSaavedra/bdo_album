@@ -21,6 +21,11 @@
   align-content: start;
 }
 
+.live-card {
+  outline: 1px solid rgba(61, 158, 74, 0.35);
+  border-radius: 8px;
+}
+
 .skel-card {
   aspect-ratio: 4 / 5;
   border-radius: 8px;

@@ -46,21 +46,18 @@
   color: var(--color-text-error);
 }
 
-.region-bar {
-  margin-bottom: 20px;
-}
-
 .scroll-sentinel {
   height: 1px;
 }
 
 .tab-nav {
-  display:       flex;
-  gap:           2px;
-  padding:       0 16px;
-  background:    var(--color-bg-base);
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink:   0;
+  display:         flex;
+  justify-content: flex-end;
+  gap:             2px;
+  padding:         0 16px;
+  background:      var(--color-bg-base);
+  border-bottom:   1px solid var(--color-border);
+  flex-shrink:     0;
 
   button {
     padding:       10px 18px;
@@ -78,8 +75,8 @@
     }
 
     &.active {
-      color:        #c89b3c;
-      border-color: #c89b3c;
+      color:        var(--color-accent);
+      border-color: var(--color-accent);
       font-weight:  600;
     }
   }

@@ -8,10 +8,10 @@
 
   const TAG_COLORS: Record<string, string> = {
     ERR:'#f87171', WARN:'#fbbf24', FETCH:'#06b6d4', SYNC:'#2dd4bf',
-    ORCH:'#a78bfa', USER:'#60a5fa', INFO:'#94a3b8',
+    ORCH:'#a78bfa', USER:'#60a5fa', INFO:'#94a3b8', UPDT:'#34d399',
   };
 
-  const TAG_OPTIONS = ['ALL', 'ERR', 'WARN', 'ORCH', 'FETCH', 'SYNC', 'USER', 'INFO'];
+  const TAG_OPTIONS = ['ALL', 'ERR', 'WARN', 'ORCH', 'FETCH', 'SYNC', 'UPDT', 'USER', 'INFO'];
   const TIME_OPTIONS = [
     { value: 'all', label: 'All time' },
     { value: '60',  label: 'Last 1h'  },

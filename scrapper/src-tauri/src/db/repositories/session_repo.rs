@@ -9,6 +9,7 @@ pub struct SessionRow {
     pub finished_at:    Option<chrono::DateTime<chrono::Utc>>,
     pub status:         String,
     pub total_fetched:  i32,
+    pub total_updated:  i32,
     pub total_images:   i32,
     pub total_uploaded: i32,
     pub errors:         i32,
@@ -23,6 +24,17 @@ pub struct ClassStatRow {
     pub fetched:   i32,
     pub images_ok: i32,
     pub errors:    i32,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct SessionTotals {
+    pub count:          i64,
+    pub total_fetched:  i64,
+    pub total_updated:  i64,
+    pub total_images:   i64,
+    pub total_uploaded: i64,
+    pub errors:         i64,
+    pub skipped:        i64,
 }
 
 pub struct SessionRepository;
@@ -65,6 +77,7 @@ impl SessionRepository {
         id: i64,
         status: &str,
         total_fetched: i32,
+        total_updated: i32,
         total_images: i32,
         total_uploaded: i32,
         errors: i32,
@@ -76,15 +89,17 @@ impl SessionRepository {
                 finished_at    = NOW(),
                 status         = $1,
                 total_fetched  = $2,
-                total_images   = $3,
-                total_uploaded = $4,
-                errors         = $5,
-                skipped        = $6,
-                elapsed_secs   = $7
-             WHERE id = $8",
+                total_updated  = $3,
+                total_images   = $4,
+                total_uploaded = $5,
+                errors         = $6,
+                skipped        = $7,
+                elapsed_secs   = $8
+             WHERE id = $9",
         )
         .bind(status)
         .bind(total_fetched)
+        .bind(total_updated)
         .bind(total_images)
         .bind(total_uploaded)
         .bind(errors)
@@ -99,7 +114,7 @@ impl SessionRepository {
     pub async fn get_recent(pool: &PgPool, limit: i64) -> Result<Vec<SessionRow>> {
         let rows = sqlx::query_as::<_, SessionRow>(
             "SELECT id, started_at, finished_at, status,
-                    total_fetched, total_images, total_uploaded,
+                    total_fetched, total_updated, total_images, total_uploaded,
                     errors, skipped, elapsed_secs, cf_used
              FROM scrapper_sessions
              ORDER BY started_at DESC
@@ -109,6 +124,23 @@ impl SessionRepository {
         .fetch_all(pool)
         .await?;
         Ok(rows)
+    }
+
+    pub async fn get_totals(pool: &PgPool) -> Result<SessionTotals> {
+        let row = sqlx::query_as::<_, SessionTotals>(
+            "SELECT
+                COUNT(*)::bigint                          AS count,
+                COALESCE(SUM(total_fetched),  0)::bigint AS total_fetched,
+                COALESCE(SUM(total_updated),  0)::bigint AS total_updated,
+                COALESCE(SUM(total_images),   0)::bigint AS total_images,
+                COALESCE(SUM(total_uploaded), 0)::bigint AS total_uploaded,
+                COALESCE(SUM(errors),         0)::bigint AS errors,
+                COALESCE(SUM(skipped),        0)::bigint AS skipped
+             FROM scrapper_sessions",
+        )
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
     }
 
     pub async fn get_class_stats(pool: &PgPool, session_id: i64) -> Result<Vec<ClassStatRow>> {

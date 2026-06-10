@@ -11,7 +11,17 @@
       "Bash(powershell.exe -Command \"Copy-Item 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\scrapper\\\\src-tauri\\\\icons' -Destination 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' -Recurse -Force; Get-ChildItem 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' | Select-Object Name\")",
       "Bash(pnpm add *)",
       "Bash(python3 -c ' *)",
-      "Bash(pnpm tauri *)"
+      "Bash(pnpm tauri *)",
+      "Bash(dir /s \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\")",
+      "Bash(xargs grep -l \"region\")",
+      "Bash(dir \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\" -Recurse)",
+      "Bash(git checkout *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git add *)",
+      "Bash(Remove-Item -Force \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\ui\\\\ConfirmDialog\\\\ConfirmDialog.svelte\", \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\ui\\\\ConfirmDialog\\\\ConfirmDialog.scss\")",
+      "Bash(Remove-Item -Force \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\CharacterSlot\\\\CharacterSlot.svelte\", \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\CharacterSlot\\\\CharacterSlot.scss\")",
+      "Bash(Remove-Item -Force \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\SaveGridDialog\\\\SaveGridDialog.svelte\", \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\SaveGridDialog\\\\SaveGridDialog.scss\")",
+      "Bash(grep -rn --include=\"*.svelte\" --include=\"*.ts\" --include=\"*.rs\" -E \"'[^']*[áéíóúñü¿¡][^']*'|\\\\\"[^\\\\\"]*[áéíóúñü¿¡][^\\\\\"]*\\\\\"|>[^<]*[áéíóúñü¿¡][^<]*<|\\\\/\\\\/[^\\\\n]*[áéíóúñü¿¡]|#[^\\\\n]*[áéíóúñü¿¡]\" \"x:/Github/Personal/bdo_album/album/src\")"
     ]
   }
 }

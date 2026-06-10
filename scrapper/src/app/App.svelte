@@ -12,9 +12,9 @@
   type Tab = 'dashboard' | 'logs';
   let tab = $state<Tab>('dashboard');
 
-  const TABS: { id: Tab; icon: string; label: string }[] = [
-    { id: 'dashboard', icon: '⚡', label: 'Dashboard' },
-    { id: 'logs',      icon: '📋', label: 'Logs'      },
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'logs',      label: 'Logs'      },
   ];
 
   const dbReady = $derived(getDbReady());
@@ -27,6 +27,19 @@
         ? [{ id: 0, type: 'warning', text: 'Connecting to database...' }]
         : []
   );
+
+  // ── Dock visibility ──
+  let dockVisible = $state(false);
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function onEnterDock() {
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    dockVisible = true;
+  }
+
+  function onLeaveDock() {
+    hideTimer = setTimeout(() => { dockVisible = false; }, 220);
+  }
 
   onMount(async () => {
     await eventBus.init();
@@ -46,22 +59,6 @@
 </script>
 
 <div class="app">
-
-  <nav class="app-nav">
-    <div class="nav-brand">BDO</div>
-    {#each TABS as t}
-      <button
-        class="nav-item"
-        class:active={tab === t.id}
-        title={t.label}
-        onclick={() => tab = t.id}
-      >
-        <span class="nav-icon">{t.icon}</span>
-        <span class="nav-label">{t.label}</span>
-      </button>
-    {/each}
-  </nav>
-
   <main class="app-content">
     {#if tab === 'dashboard'}
       <Dashboard />
@@ -70,6 +67,49 @@
     {/if}
   </main>
 
+  <!-- Thin hover strip at the bottom that wakes the dock -->
+  <div
+    class="dock-trigger"
+    onmouseenter={onEnterDock}
+    onmouseleave={onLeaveDock}
+    role="none"
+  ></div>
 </div>
+
+<!-- Dock floats outside the flex layout so it can be fixed -->
+<nav
+  class="app-nav"
+  class:visible={dockVisible}
+  onmouseenter={onEnterDock}
+  onmouseleave={onLeaveDock}
+>
+  {#each TABS as t}
+    <button
+      class="dock-item"
+      class:active={tab === t.id}
+      title={t.label}
+      onclick={() => tab = t.id}
+    >
+      {#if t.id === 'dashboard'}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+      {:else}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="8" y1="13" x2="16" y2="13"/>
+          <line x1="8" y1="17" x2="13" y2="17"/>
+        </svg>
+      {/if}
+      {#if tab === t.id}
+        <span class="dock-dot"></span>
+      {/if}
+    </button>
+  {/each}
+</nav>
 
 <Toast {toasts} />

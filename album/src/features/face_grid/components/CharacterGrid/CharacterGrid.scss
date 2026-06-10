@@ -1,11 +1,14 @@
 .grid-wrap {
-  flex:       1;
-  overflow-y: auto;
-  padding:    16px;
+  flex:            1;
+  overflow:        auto;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  padding:         20px;
 
   .char-grid {
     display:               grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap:                   8px;
+    grid-template-columns: repeat(7, 154px);
+    gap:                   6px;
   }
 }

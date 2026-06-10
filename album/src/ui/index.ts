@@ -4,3 +4,7 @@ export { default as Select } from './Select/Select.svelte';
 export { default as Toggle } from './Toggle/Toggle.svelte';
 export { default as PillSelector } from './PillSelector/PillSelector.svelte';
 export { default as Toast } from './Toast/Toast.svelte';
+export { default as Dialog } from './Dialog/Dialog.svelte';
+export { default as TabBar } from './TabBar/TabBar.svelte';
+export { default as SidebarList } from './SidebarList/SidebarList.svelte';
+export { default as ImageCard } from './ImageCard/ImageCard.svelte';

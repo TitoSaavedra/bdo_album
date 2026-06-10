@@ -64,8 +64,8 @@ pub async fn run_scraper(
     }).collect();
 
     LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session",
-        &format!("Session #{} started — parallelism={} | classes=[{}] | days=[{}] | regions=[{}]",
-            session_id, parallelism,
+        &format!("Session #{} started — mode={} | parallelism={} | classes=[{}] | days=[{}] | regions=[{}]",
+            session_id, mode, parallelism,
             classes_str.join(", "),
             days.join(", "),
             regions.join(", "),
@@ -97,6 +97,7 @@ pub async fn get_sessions(
         "finished_at":    r.finished_at.map(|t| t.timestamp_millis()),
         "status":         r.status,
         "total_fetched":  r.total_fetched,
+        "total_updated":  r.total_updated,
         "total_images":   r.total_images,
         "total_uploaded": r.total_uploaded,
         "errors":         r.errors,
@@ -105,6 +106,22 @@ pub async fn get_sessions(
         "cf_used":        r.cf_used,
     })).collect();
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn get_session_totals(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value> {
+    let t = SessionRepository::get_totals(&state.pool).await?;
+    Ok(serde_json::json!({
+        "count":          t.count,
+        "total_fetched":  t.total_fetched,
+        "total_updated":  t.total_updated,
+        "total_images":   t.total_images,
+        "total_uploaded": t.total_uploaded,
+        "errors":         t.errors,
+        "skipped":        t.skipped,
+    }))
 }
 
 #[tauri::command]

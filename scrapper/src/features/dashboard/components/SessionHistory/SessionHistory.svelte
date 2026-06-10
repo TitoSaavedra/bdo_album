@@ -11,9 +11,11 @@
     finished_at:    number | null;
     status:         'running' | 'done' | 'error' | 'cancelled';
     total_fetched:  number;
+    total_updated:  number;
     total_images:   number;
     total_uploaded: number;
     errors:         number;
+    skipped:        number;
     elapsed_secs:   number | null;
     cf_used:        boolean;
   }
@@ -127,6 +129,28 @@
             <tr class="detail-row">
               <td colspan="9">
                 <div class="detail-panel">
+
+                  <div class="session-chips">
+                    <div class="chip">
+                      <span class="chip-label">Updated</span>
+                      <span class="chip-val">{s.total_updated.toLocaleString()}</span>
+                    </div>
+                    <div class="chip">
+                      <span class="chip-label">Skipped</span>
+                      <span class="chip-val">{s.skipped.toLocaleString()}</span>
+                    </div>
+                    <div class="chip" class:chip-ok={s.cf_used} class:chip-off={!s.cf_used}>
+                      <span class="chip-label">Cloudflare</span>
+                      <span class="chip-val">{s.cf_used ? '✓ on' : '✗ off'}</span>
+                    </div>
+                    {#if s.finished_at}
+                      <div class="chip">
+                        <span class="chip-label">Ended</span>
+                        <span class="chip-val">{fmtDate(s.finished_at)}</span>
+                      </div>
+                    {/if}
+                  </div>
+
                   {#if loadingStats}
                     <div class="detail-loading">
                       <span class="spinner"></span>

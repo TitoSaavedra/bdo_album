@@ -44,6 +44,7 @@ let uploadsDone  = $state(0);
 let uploadsTotal = $state(0);
 let errors       = $state(0);
 let discarded    = $state(0);
+let updated      = $state(0);
 let startedAt    = $state<number | null>(null);
 let _logUid      = 0;
 let logs         = $state<LogEntryTagged[]>([]);
@@ -87,6 +88,7 @@ export const getUploadsDone  = () => uploadsDone;
 export const getUploadsTotal = () => uploadsTotal;
 export const getErrors       = () => errors;
 export const getDiscarded    = () => discarded;
+export const getUpdated      = () => updated;
 export const getClassMap     = () => classMap;
 export const getLogs         = () => logs;
 export const getSessionLogs  = () => sessionLogs;
@@ -115,6 +117,7 @@ export function setStatus(s: ScrapperStatus): void {
   if (s === 'running') {
     errors       = 0;
     discarded    = 0;
+    updated      = 0;
     imagesDone   = 0;
     imagesTotal  = 0;
     uploadsDone  = 0;
@@ -135,6 +138,10 @@ export function setStatus(s: ScrapperStatus): void {
     if (_ticker) { clearInterval(_ticker); _ticker = null; }
     Object.values(classMap).forEach(c => (c.active = false));
   }
+}
+
+export function setUpdated(n: number): void {
+  updated = n;
 }
 
 export function requestStop(): void {

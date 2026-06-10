@@ -45,6 +45,7 @@ pub struct ScrapperProgress {
 #[derive(Serialize, Clone)]
 pub struct ScrapperDone {
     pub total_fetched:  usize,
+    pub total_updated:  usize,
     pub total_images:   usize,
     pub total_uploaded: usize,
     pub errors:         usize,

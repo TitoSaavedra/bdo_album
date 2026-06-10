@@ -41,6 +41,7 @@ pub struct ImageTask {
 
 pub struct FetchResult {
     pub total_fetched:  usize,
+    pub total_updated:  usize,
     pub total_errors:   usize,
     pub total_skipped:  usize,
 }
@@ -66,67 +67,87 @@ pub async fn run_session(
 ) {
     let started = Instant::now();
 
-    let r2 = match R2Client::from_env() {
-        Ok(r2) => r2,
-        Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
-    };
+    println!("[run_session] mode={:?}", mode);
 
-    Events::sync_loading(&app, "Starting browser");
-    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser").await.ok();
-    let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
-        Ok(b) => b,
-        Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
-    });
-    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Browser ready").await.ok();
-
-    Events::sync_loading(&app, "Waiting for CF clearance");
-    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)").await.ok();
-    let cf_token = browser.wait_for_cf_clearance(30).await.unwrap_or_default();
-    LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser",
-        if cf_token.is_empty() { "CF clearance not found — proceeding without it" } else { "CF clearance obtained" },
-    ).await.ok();
-
-    let img_total = Arc::new(AtomicUsize::new(0));
-    let img_done  = Arc::new(AtomicUsize::new(0));
-    let (tx, rx)  = mpsc::channel::<ImageTask>(512);
-
-    let (fetch, dl) = if mode == "images" {
-        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch").await.ok();
-        Events::sync_loading(&app, "Downloading images...");
-        let (dl, _) = tokio::join!(
-            run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
-            run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
-        );
-        (FetchResult { total_fetched: 0, total_errors: 0, total_skipped: 0 }, dl)
-    } else {
-        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started").await.ok();
-        Events::sync_loading(&app, "Fetching & downloading...");
-        let (fetch_result, dl, _) = tokio::join!(
-            run_fetch(&app, &pool, cf_token, session_id, cancel.clone(), parallelism, days, regions, classes),
-            run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
-            run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
-        );
+    let (fetch, dl) = if mode == "fetch" {
+        // Fetch-only: no browser, no R2, no image pipeline
+        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Fetch-only mode — updating stats, skipping browser and image download").await.ok();
+        Events::sync_loading(&app, "Fetching presets...");
+        let fetch_result = run_fetch(&app, &pool, String::new(), session_id, cancel.clone(), parallelism, days, regions, classes, true).await;
         let fetch = match fetch_result {
             Ok(r) => r,
             Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
         };
-        (fetch, dl)
+        (fetch, DownloadResult { total_images: 0, total_uploaded: 0, total_errors: 0 })
+    } else {
+        // Images-only or Fetch+Images: need browser and R2
+        let r2 = match R2Client::from_env() {
+            Ok(r2) => r2,
+            Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
+        };
+
+        Events::sync_loading(&app, "Starting browser");
+        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser").await.ok();
+        let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
+            Ok(b) => b,
+            Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
+        });
+        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Browser ready").await.ok();
+
+        Events::sync_loading(&app, "Waiting for CF clearance");
+        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)").await.ok();
+        let cf_token = browser.wait_for_cf_clearance(30).await.unwrap_or_default();
+        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser",
+            if cf_token.is_empty() { "CF clearance not found — proceeding without it" } else { "CF clearance obtained" },
+        ).await.ok();
+
+        let img_total = Arc::new(AtomicUsize::new(0));
+        let img_done  = Arc::new(AtomicUsize::new(0));
+        let (tx, rx)  = mpsc::channel::<ImageTask>(512);
+
+        if mode == "images" {
+            LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch").await.ok();
+            Events::sync_loading(&app, "Downloading images...");
+            let (dl, _) = tokio::join!(
+                run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
+                run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
+            );
+            (FetchResult { total_fetched: 0, total_updated: 0, total_errors: 0, total_skipped: 0 }, dl)
+        } else {
+            LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started").await.ok();
+            Events::sync_loading(&app, "Fetching & downloading...");
+            let (fetch_result, dl, _) = tokio::join!(
+                run_fetch(&app, &pool, cf_token, session_id, cancel.clone(), parallelism, days, regions, classes, false),
+                run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
+                run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
+            );
+            let fetch = match fetch_result {
+                Ok(r) => r,
+                Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
+            };
+            (fetch, dl)
+        }
     };
 
-    LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch",
-        &format!("Fetch done — {} new presets, {} errors", fetch.total_fetched, fetch.total_errors),
-    ).await.ok();
-
-    LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "images",
-        &format!("Images done — {} done, {} uploaded, {} errors", dl.total_images, dl.total_uploaded, dl.total_errors),
-    ).await.ok();
+    if mode == "fetch" {
+        LogRepository::insert(&app, &pool, Some(session_id), "UPDT", "fetch",
+            &format!("Fetch-only done — {} processed, {} errors", fetch.total_fetched, fetch.total_errors),
+        ).await.ok();
+    } else {
+        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch",
+            &format!("Fetch done — {} new presets, {} errors", fetch.total_fetched, fetch.total_errors),
+        ).await.ok();
+        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "images",
+            &format!("Images done — {} done, {} uploaded, {} errors", dl.total_images, dl.total_uploaded, dl.total_errors),
+        ).await.ok();
+    }
 
     let elapsed      = started.elapsed().as_secs();
     let cancelled    = cancel.load(Ordering::Relaxed);
     let total_errors = fetch.total_errors + dl.total_errors;
     let status       = if cancelled { "cancelled" } else { "done" };
 
-    finish_session(&app, &pool, session_id, status, fetch.total_fetched, dl.total_images, dl.total_uploaded, total_errors, fetch.total_skipped, started).await;
+    finish_session(&app, &pool, session_id, status, fetch.total_fetched, fetch.total_updated, dl.total_images, dl.total_uploaded, total_errors, fetch.total_skipped, started).await;
 
     if cancelled {
         LogRepository::insert(&app, &pool, Some(session_id), "WARN", "session", "Session cancelled").await.ok();
@@ -138,6 +159,7 @@ pub async fn run_session(
         ).await.ok();
         Events::scrapper_done(&app, ScrapperDone {
             total_fetched:  fetch.total_fetched,
+            total_updated:  fetch.total_updated,
             total_images:   dl.total_images,
             total_uploaded: dl.total_uploaded,
             errors:         total_errors,
@@ -149,15 +171,16 @@ pub async fn run_session(
 // ── Phase: Fetch ──────────────────────────────────────────────
 
 pub async fn run_fetch(
-    app:            &AppHandle,
-    pool:           &PgPool,
-    cf_token:       String,
-    session_id:     i64,
-    cancel:         Arc<AtomicBool>,
-    parallelism:    usize,
-    days:           Vec<String>,
-    regions:        Vec<String>,
-    classes_filter: Vec<serde_json::Value>,
+    app:             &AppHandle,
+    pool:            &PgPool,
+    cf_token:        String,
+    session_id:      i64,
+    cancel:          Arc<AtomicBool>,
+    parallelism:     usize,
+    days:            Vec<String>,
+    regions:         Vec<String>,
+    classes_filter:  Vec<serde_json::Value>,
+    update_existing: bool,
 ) -> Result<FetchResult> {
     let all_db_classes = ClassRepository::get_all(pool).await?;
     let client = Arc::new(GarmothClient::new(&cf_token));
@@ -178,11 +201,20 @@ pub async fn run_fetch(
         }
     }
 
-    let existing_ids: HashSet<i64> = PresetRepository::get_all_ids(pool).await.unwrap_or_default();
-    let mut global_seen = existing_ids;
-    LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
-        &format!("Pre-loaded {} existing preset IDs from DB", global_seen.len()),
-    ).await.ok();
+    // When updating existing presets, global_seen starts empty so every returned preset
+    // is processed (we want to refresh their stats). Otherwise pre-seed from DB to skip them.
+    let mut global_seen: HashSet<i64> = if !update_existing {
+        let ids = PresetRepository::get_all_ids(pool).await.unwrap_or_default();
+        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+            &format!("Pre-loaded {} existing preset IDs from DB", ids.len()),
+        ).await.ok();
+        ids
+    } else {
+        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+            "Fetch-only: skipping DB pre-seed — all returned presets will be processed",
+        ).await.ok();
+        HashSet::new()
+    };
 
     let total_classes  = class_entries.len();
     let total_requests = total_classes * days.len() * regions.len();
@@ -209,9 +241,10 @@ pub async fn run_fetch(
     }
 
     let mut total_fetched = 0usize;
+    let mut total_updated = 0usize;
     let mut total_errors  = 0usize;
     let mut total_skipped = 0usize;
-    let mut class_stats: std::collections::HashMap<i32, (usize, usize, usize)> = std::collections::HashMap::new();
+    let mut class_stats: std::collections::HashMap<i32, (usize, usize, usize, usize)> = std::collections::HashMap::new();
 
     let total_chunks = (work.len() + parallelism - 1) / parallelism;
     let mut chunk_idx = 0usize;
@@ -223,17 +256,25 @@ pub async fn run_fetch(
     for chunk in work.chunks(parallelism) {
         if cancel.load(Ordering::Relaxed) { break; }
 
-        // Refresh before spawning so this batch skips IDs inserted by previous batches
-        if let Ok(fresh_ids) = PresetRepository::get_all_ids(pool).await {
-            let before = global_seen.len();
-            global_seen.extend(fresh_ids);
-            let added = global_seen.len() - before;
-            LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
-                &format!("DB refresh: +{} IDs ({} total seen)", added, global_seen.len()),
-            ).await.ok();
+        // When updating existing presets we must NOT refresh from DB: it would add all existing
+        // IDs to global_seen and cause us to skip presets we still want to update.
+        if !update_existing {
+            if let Ok(fresh_ids) = PresetRepository::get_all_ids(pool).await {
+                let before = global_seen.len();
+                global_seen.extend(fresh_ids);
+                let added = global_seen.len() - before;
+                LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+                    &format!("DB refresh: +{} IDs ({} total seen)", added, global_seen.len()),
+                ).await.ok();
+            }
         }
 
         let mut js: JoinSet<(i32, String, std::result::Result<Vec<GarmothPreset>, AppError>)> = JoinSet::new();
+
+        let batch_remaining = work.len() - chunk_idx * parallelism;
+        LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
+            &format!("→ {}/{}", batch_remaining, work.len()),
+        ).await.ok();
 
         for item in chunk {
             let client = client.clone();
@@ -242,9 +283,6 @@ pub async fn run_fetch(
             let label  = item.label.clone();
             let d      = item.d.clone();
             let r      = item.r.clone();
-            LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
-                &format!("→ {}", label),
-            ).await.ok();
             js.spawn(async move {
                 let res = client.fetch_popular(gid, &d, &r).await;
                 (db_id, label, res)
@@ -252,34 +290,53 @@ pub async fn run_fetch(
         }
 
         let mut batch_total_new     = 0usize;
+        let mut batch_total_updated = 0usize;
         let mut batch_total_skipped = 0usize;
 
         while let Some(res) = js.join_next().await {
             let (db_id, label, result) = match res { Ok(v) => v, Err(_) => { total_errors += 1; continue; } };
-            let stat = class_stats.entry(db_id).or_insert((0, 0, 0));
+            let stat = class_stats.entry(db_id).or_insert((0, 0, 0, 0));
             match result {
                 Ok(presets) => {
                     let mut batch_new     = 0usize;
+                    let mut batch_updated = 0usize;
                     let mut batch_skipped = 0usize;
                     for p in &presets {
                         if !global_seen.insert(p.id) {
                             stat.1 += 1; total_skipped += 1; batch_skipped += 1;
                             continue;
                         }
-                        let (fetched, errors) = insert_preset_and_queue(
-                            app, pool, session_id, p,
-                        ).await;
-                        stat.0        += fetched;
-                        stat.2        += errors;
-                        total_fetched += fetched;
-                        total_errors  += errors;
-                        batch_new     += fetched;
+                        if update_existing {
+                            let (new, updated, errors) = upsert_preset_stats(app, pool, session_id, p).await;
+                            stat.0        += new;
+                            stat.2        += errors;
+                            stat.3        += updated;
+                            total_fetched += new;
+                            total_updated += updated;
+                            total_errors  += errors;
+                            batch_new     += new;
+                            batch_updated += updated;
+                        } else {
+                            let (fetched, errors) = insert_preset_and_queue(app, pool, session_id, p).await;
+                            stat.0        += fetched;
+                            stat.2        += errors;
+                            total_fetched += fetched;
+                            total_errors  += errors;
+                            batch_new     += fetched;
+                        }
                     }
                     batch_total_new     += batch_new;
+                    batch_total_updated += batch_updated;
                     batch_total_skipped += batch_skipped;
-                    LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
-                        &format!("{}: {} results → {} new, {} skipped", label, presets.len(), batch_new, batch_skipped),
-                    ).await.ok();
+                    if update_existing {
+                        LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch",
+                            &format!("{}: {} results → {} new, {} updated, {} skipped", label, presets.len(), batch_new, batch_updated, batch_skipped),
+                        ).await.ok();
+                    } else {
+                        LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
+                            &format!("{}: {} results → {} new, {} skipped", label, presets.len(), batch_new, batch_skipped),
+                        ).await.ok();
+                    }
                 }
                 Err(e) => {
                     stat.2 += 1;
@@ -292,19 +349,33 @@ pub async fn run_fetch(
 
         chunk_idx += 1;
         let remaining = total_chunks - chunk_idx;
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
-            &format!("Round {}/{} — {} remaining | {} new, {} skipped",
-                chunk_idx, total_chunks, remaining, batch_total_new, batch_total_skipped),
-        ).await.ok();
+        if update_existing {
+            LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch",
+                &format!("Round {}/{} — {} remaining | {} new, {} updated, {} skipped",
+                    chunk_idx, total_chunks, remaining, batch_total_new, batch_total_updated, batch_total_skipped),
+            ).await.ok();
+        } else {
+            LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+                &format!("Round {}/{} — {} remaining | {} new, {} skipped",
+                    chunk_idx, total_chunks, remaining, batch_total_new, batch_total_skipped),
+            ).await.ok();
+        }
     }
 
     // Per-class summaries + events
     for (i, class) in class_entries.iter().enumerate() {
-        let (fetched, skipped, errors) = class_stats.get(&class.db_id).copied().unwrap_or((0, 0, 0));
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch", &format!(
-            "{}: {} new | {} skipped (DB) | {} errors",
-            class.name, fetched, skipped, errors,
-        )).await.ok();
+        let (fetched, skipped, errors, updated) = class_stats.get(&class.db_id).copied().unwrap_or((0, 0, 0, 0));
+        if update_existing {
+            LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch", &format!(
+                "{}: {} new | {} updated | {} skipped | {} errors",
+                class.name, fetched, updated, skipped, errors,
+            )).await.ok();
+        } else {
+            LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch", &format!(
+                "{}: {} new | {} skipped (DB) | {} errors",
+                class.name, fetched, skipped, errors,
+            )).await.ok();
+        }
 
         if class.db_id >= 0 {
             SessionRepository::upsert_class_stats(
@@ -328,12 +399,19 @@ pub async fn run_fetch(
         });
     }
 
-    LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
-        &format!("Fetch done — {} rounds, {} presets, {} errors",
-            total_chunks, total_fetched, total_errors),
-    ).await.ok();
+    if update_existing {
+        LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch",
+            &format!("Fetch-only done — {} rounds, {} processed, {} errors",
+                total_chunks, total_fetched, total_errors),
+        ).await.ok();
+    } else {
+        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+            &format!("Fetch done — {} rounds, {} presets, {} errors",
+                total_chunks, total_fetched, total_errors),
+        ).await.ok();
+    }
     Events::fetch_done(app);
-    Ok(FetchResult { total_fetched, total_errors, total_skipped })
+    Ok(FetchResult { total_fetched, total_updated, total_errors, total_skipped })
 }
 
 // ── Phase: Download pipeline ──────────────────────────────────
@@ -398,10 +476,15 @@ pub async fn run_download_pipeline(
 
             if cancel_h.load(Ordering::Relaxed) { return (1, 0, 0); }
 
+            // Strip 'not_found' slots so the browser doesn't wait 5s looking for a
+            // filename that will never appear in the intercept map.
+            let name1 = task.image_1.as_deref().filter(|&s| s != "not_found");
+            let name2 = task.image_2.as_deref().filter(|&s| s != "not_found");
+
             let images = browser_h.fetch_preset_images(
                 task.preset_id,
-                task.image_1.as_deref(),
-                task.image_2.as_deref(),
+                name1,
+                name2,
             ).await;
 
             let (img1, img2) = match images {
@@ -447,9 +530,11 @@ pub async fn run_download_pipeline(
                     }
                 }
                 None => {
-                    nf1 = Some("not_found");
-                    LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
-                        &format!("preset {} img1 not found on page", task.preset_id)).await.ok();
+                    if name1.is_some() {
+                        nf1 = Some("not_found");
+                        LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
+                            &format!("preset {} img1 not found on page", task.preset_id)).await.ok();
+                    }
                 }
             }
 
@@ -478,9 +563,11 @@ pub async fn run_download_pipeline(
                     }
                 }
                 None => {
-                    nf2 = Some("not_found");
-                    LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
-                        &format!("preset {} img2 not found on page", task.preset_id)).await.ok();
+                    if name2.is_some() {
+                        nf2 = Some("not_found");
+                        LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
+                            &format!("preset {} img2 not found on page", task.preset_id)).await.ok();
+                    }
                 }
             }
 
@@ -489,6 +576,18 @@ pub async fn run_download_pipeline(
                 LogRepository::insert(&app_h, &pool_h, Some(session_id), "SYNC", "img_upload",
                     &format!("preset {} — {} image(s) uploaded", task.preset_id, img_count)).await.ok();
                 PresetRepository::update_image_urls(&pool_h, task.preset_id, db_path_1.as_deref(), db_path_2.as_deref()).await.ok();
+
+                let pg_payload = serde_json::json!({
+                    "preset_id": task.preset_id,
+                    "class_id":  task.class_id,
+                    "image_1_url": r2_url_1.as_deref(),
+                    "image_2_url": r2_url_2.as_deref(),
+                }).to_string();
+                sqlx::query("SELECT pg_notify('preset_uploaded', $1)")
+                    .bind(&pg_payload)
+                    .execute(&pool_h)
+                    .await
+                    .ok();
             }
             if nf1.is_some() || nf2.is_some() {
                 PresetRepository::update_image_names(&pool_h, task.preset_id, nf1, nf2).await.ok();
@@ -538,6 +637,55 @@ fn norm_image(s: Option<&str>) -> Option<&str> {
     match s {
         Some(v) if !v.is_empty() => Some(v),
         _ => Some("not_found"),
+    }
+}
+
+async fn upsert_preset_stats(
+    app:        &AppHandle,
+    pool:       &PgPool,
+    session_id: i64,
+    p:          &GarmothPreset,
+) -> (usize, usize, usize) {
+    let img1 = norm_image(p.image_1.as_deref());
+    let img2 = norm_image(p.image_2.as_deref());
+
+    match PresetRepository::insert_new(
+        pool, p.id, p.class_id,
+        p.title.as_deref(), p.user_nickname.as_deref(), p.character_name.as_deref(),
+        p.downloads, p.views, p.likes,
+        img1, img2,
+        p.creation_at, p.customizing_id, p.region.as_deref(), p.score,
+    ).await {
+        Ok(true) => {
+            Events::preset_synced(app, PresetSynced {
+                preset_id:      p.id.to_string(),
+                class_id:       p.class_id as u32,
+                image_1_url:    None,
+                image_2_url:    None,
+                downloads:      None,
+                views:          None,
+                likes:          None,
+                character_name: None,
+            });
+            (1, 0, 0)
+        }
+        Ok(false) => {
+            match PresetRepository::update_stats(pool, p.id, p.downloads, p.views, p.likes).await {
+                Ok(()) => (0, 1, 0),
+                Err(e) => {
+                    LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
+                        &format!("preset {} stats update failed: {}", p.id, e),
+                    ).await.ok();
+                    (0, 0, 1)
+                }
+            }
+        }
+        Err(e) => {
+            LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
+                &format!("preset {} upsert failed: {}", p.id, e),
+            ).await.ok();
+            (0, 0, 1)
+        }
     }
 }
 
@@ -612,7 +760,28 @@ async fn run_pending_loop(
     loop {
         if cancel.load(Ordering::Relaxed) { return; }
 
-        let batch: Vec<_> = PresetRepository::get_pending_downloads(pool)
+        // Fairness: skip classes that are >5% ahead of the class with the fewest downloaded images.
+        let dl_counts = PresetRepository::get_class_downloaded_counts(pool).await.unwrap_or_default();
+        let min_dl = dl_counts.iter().map(|(_, n)| *n).min().unwrap_or(0);
+        let threshold = min_dl + (min_dl as f64 * 0.05).ceil().max(1.0) as i64;
+        let excluded: Vec<i32> = dl_counts.iter()
+            .filter(|(_, n)| *n > threshold)
+            .map(|(id, _)| *id)
+            .collect();
+
+        if !excluded.is_empty() {
+            let names: Vec<String> = excluded.iter()
+                .filter_map(|id| class_name_map.get(id).map(|n| {
+                    let cnt = dl_counts.iter().find(|(i, _)| i == id).map(|(_, n)| *n).unwrap_or(0);
+                    format!("{}({})", n, cnt)
+                }))
+                .collect();
+            LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+                &format!("Fairness: skipping {} — min={}, threshold={}", names.join(", "), min_dl, threshold),
+            ).await.ok();
+        }
+
+        let batch: Vec<_> = PresetRepository::get_pending_downloads(pool, &excluded)
             .await
             .unwrap_or_default()
             .into_iter()
@@ -621,6 +790,20 @@ async fn run_pending_loop(
 
         if batch.is_empty() {
             if round > 0 {
+                // If classes were excluded due to fairness, don't stop — retry without exclusion
+                // so those classes can eventually drain their pending presets.
+                if !excluded.is_empty() {
+                    let all_pending = PresetRepository::get_pending_downloads(pool, &[])
+                        .await
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter(|(id, ..)| !all_sent.contains(id))
+                        .count();
+                    if all_pending > 0 {
+                        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                        continue;
+                    }
+                }
                 LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
                     "No more pending images — pending loop done",
                 ).await.ok();
@@ -661,7 +844,7 @@ async fn run_pending_loop(
             tokio::time::sleep(std::time::Duration::from_secs(15)).await;
             if cancel.load(Ordering::Relaxed) { return; }
 
-            let still_pending = PresetRepository::get_pending_downloads(pool)
+            let still_pending = PresetRepository::get_pending_downloads(pool, &[])
                 .await
                 .unwrap_or_default();
             let any_in_batch = still_pending.iter().any(|(id, ..)| batch_ids.contains(id));
@@ -679,7 +862,7 @@ async fn abort_session(app: &AppHandle, pool: &PgPool, session_id: i64, e: AppEr
         &format!("Session failed: {}", e),
     ).await.ok();
     clear_session(app);
-    SessionRepository::finish(pool, session_id, "error", 0, 0, 0, 1, 0, 0).await.ok();
+    SessionRepository::finish(pool, session_id, "error", 0, 0, 0, 0, 1, 0, 0).await.ok();
     Events::scrapper_error(app, ScrapperError { message: e.to_string(), phase: ScrapperPhase::Fetch });
 }
 
@@ -689,6 +872,7 @@ async fn finish_session(
     session_id: i64,
     status:     &str,
     fetched:    usize,
+    updated:    usize,
     images:     usize,
     uploaded:   usize,
     errors:     usize,
@@ -699,6 +883,7 @@ async fn finish_session(
     SessionRepository::finish(
         pool, session_id, status,
         fetched  as i32,
+        updated  as i32,
         images   as i32,
         uploaded as i32,
         errors   as i32,

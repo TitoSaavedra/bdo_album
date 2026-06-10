@@ -6,10 +6,23 @@ export interface DbReady {
   error:   string | null;
 }
 
+export interface PresetUploaded {
+  preset_id:   number;
+  class_id:    number;
+  image_1_url: string | null;
+  image_2_url: string | null;
+}
+
+export interface ListenerStatus {
+  connected: boolean;
+}
+
 // ── Event → Payload map  (extend here to add new events) ─────
 
 export interface RustEventMap {
-  'db_ready': DbReady;
+  'db_ready':         DbReady;
+  'preset_uploaded':  PresetUploaded;
+  'listener_status':  ListenerStatus;
 }
 
 export type RustEventName = keyof RustEventMap;

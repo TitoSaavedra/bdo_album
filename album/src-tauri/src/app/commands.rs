@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Manager};
 
 use crate::core::state::AppState;
@@ -5,6 +6,13 @@ use crate::core::state::AppState;
 #[tauri::command]
 pub fn is_db_ready(app: AppHandle) -> bool {
     app.try_state::<AppState>().is_some()
+}
+
+#[tauri::command]
+pub fn is_listener_connected(app: AppHandle) -> bool {
+    app.try_state::<AppState>()
+        .map(|s| s.listener_connected.load(Ordering::Relaxed))
+        .unwrap_or(false)
 }
 
 #[tauri::command]

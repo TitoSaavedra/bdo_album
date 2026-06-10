@@ -8,7 +8,7 @@
   import ActivityFeed from '../ActivityFeed/ActivityFeed.svelte';
   import {
     getStatus, getTotalFetched, getImagesDone,
-    getUploadsDone, getElapsed, getErrors, getDiscarded,
+    getUploadsDone, getElapsed, getErrors, getDiscarded, getUpdated,
     getClassIcons, getLastPresetSynced,
   } from '../../../scrapper/state/scrapper.svelte';
   import { CLASSES } from '$lib/classes';
@@ -17,6 +17,7 @@
   let dbPresets   = $state(0);
   let dbImages    = $state(0);
   let dbUploaded  = $state(0);
+  let dbUpdated   = $state(0);
   let dbSessions  = $state(0);
   let dbErrors    = $state(0);
   let dbSkipped   = $state(0);
@@ -24,6 +25,7 @@
   const tPresets  = tweened(0, { duration: 700, easing: cubicOut });
   const tImages   = tweened(0, { duration: 700, easing: cubicOut });
   const tUploaded = tweened(0, { duration: 700, easing: cubicOut });
+  const tUpdated  = tweened(0, { duration: 700, easing: cubicOut });
   const tErrors   = tweened(0, { duration: 700, easing: cubicOut });
   const tSkipped  = tweened(0, { duration: 700, easing: cubicOut });
 
@@ -34,6 +36,7 @@
   const elapsed   = $derived(getElapsed());
   const errors    = $derived(getErrors());
   const discarded = $derived(getDiscarded());
+  const sessionUpdated = $derived(getUpdated());
   const isActive  = $derived(status === 'running' || status === 'stopping' || status === 'done' || status === 'cancelled');
 
   // ── Preset card queue ────────────────────────────────────────
@@ -170,15 +173,19 @@
       imgErrors     = [false, false];
       stopDisplayTimer();
       stopImgTimer();
+      // Refresh base stats so All Time KPIs are accurate for this session.
+      // fetched/discarded have already been reset to 0 at this point.
+      loadStats(true);
     }
     _prevStatus = s;
   });
 
-  $effect(() => { tPresets.set(dbPresets   + fetched);    });
-  $effect(() => { tImages.set(dbImages    + imgDone);     });
-  $effect(() => { tUploaded.set(dbUploaded + upDone);     });
-  $effect(() => { tErrors.set(dbErrors    + errors);      });
-  $effect(() => { tSkipped.set(dbSkipped  + discarded);   });
+  $effect(() => { tPresets.set(dbPresets   + fetched);         });
+  $effect(() => { tImages.set(dbImages    + imgDone);          });
+  $effect(() => { tUploaded.set(dbUploaded + upDone);          });
+  $effect(() => { tUpdated.set(dbUpdated  + sessionUpdated);   });
+  $effect(() => { tErrors.set(dbErrors    + errors);           });
+  $effect(() => { tSkipped.set(dbSkipped  + discarded);        });
 
   const fmt = (n: number) => Math.round(n).toLocaleString('es');
   const fmtTime = (s: number) => {
@@ -186,25 +193,31 @@
     return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
   };
 
-  onMount(async () => {
+  async function loadStats(animate = true) {
     try {
-      const [stats, sessions] = await Promise.all([
+      const [stats, totals] = await Promise.all([
         invoke<any>('get_preset_stats'),
-        invoke<any[]>('get_sessions'),
+        invoke<any>('get_session_totals'),
       ]);
-      dbPresets   = stats.total ?? 0;
-      dbSessions  = sessions.length;
-      dbImages    = sessions.reduce((s: number, r: any) => s + (r.total_images   ?? 0), 0);
-      dbUploaded  = sessions.reduce((s: number, r: any) => s + (r.total_uploaded ?? 0), 0);
-      dbErrors    = sessions.reduce((s: number, r: any) => s + (r.errors         ?? 0), 0);
-      dbSkipped   = sessions.reduce((s: number, r: any) => s + (r.skipped        ?? 0), 0);
-      tPresets.set(dbPresets,   { duration: 0 });
-      tImages.set(dbImages,     { duration: 0 });
-      tUploaded.set(dbUploaded, { duration: 0 });
-      tErrors.set(dbErrors,     { duration: 0 });
-      tSkipped.set(dbSkipped,   { duration: 0 });
+      dbPresets  = stats.total      ?? 0;
+      dbSessions = totals.count     ?? 0;
+      dbImages   = totals.total_images   ?? 0;
+      dbUploaded = totals.total_uploaded ?? 0;
+      dbUpdated  = totals.total_updated  ?? 0;
+      dbErrors   = totals.errors         ?? 0;
+      dbSkipped  = totals.skipped        ?? 0;
+      if (!animate) {
+        tPresets.set(dbPresets,   { duration: 0 });
+        tImages.set(dbImages,     { duration: 0 });
+        tUploaded.set(dbUploaded, { duration: 0 });
+        tUpdated.set(dbUpdated,   { duration: 0 });
+        tErrors.set(dbErrors,     { duration: 0 });
+        tSkipped.set(dbSkipped,   { duration: 0 });
+      }
     } catch {}
-  });
+  }
+
+  onMount(() => loadStats(false));
 </script>
 
 <div class="overview">
@@ -225,9 +238,13 @@
         <span class="ov-kpi-val">{fmt($tUploaded)}</span>
         <span class="ov-kpi-meta">☁ Uploaded</span>
       </div>
+      <div class="ov-kpi" style="--kc: #34d399">
+        <span class="ov-kpi-val">{fmt($tUpdated)}</span>
+        <span class="ov-kpi-meta">↺ Updated</span>
+      </div>
       <div class="ov-kpi" style="--kc: var(--color-cyan)">
         <span class="ov-kpi-val">{dbSessions + (isActive ? 1 : 0)}</span>
-        <span class="ov-kpi-meta">📋 Sessions</span>
+        <span class="ov-kpi-meta">≡ Sessions</span>
       </div>
       <div class="ov-kpi" style="--kc: var(--color-text-muted)">
         <span class="ov-kpi-val">{fmt($tSkipped)}</span>
@@ -260,6 +277,10 @@
         <div class="ov-delta" class:zero={upDone === 0}>
           <span class="ov-delta-val">+{upDone.toLocaleString('es')}</span>
           <span class="ov-delta-label">Uploaded to R2</span>
+        </div>
+        <div class="ov-delta" class:zero={sessionUpdated === 0}>
+          <span class="ov-delta-val">↺{sessionUpdated.toLocaleString('es')}</span>
+          <span class="ov-delta-label">Stats updated</span>
         </div>
         <div class="ov-delta" class:zero={discarded === 0}>
           <span class="ov-delta-val">{discarded.toLocaleString('es')}</span>
@@ -359,8 +380,14 @@
           </div>
         {:else if !hasHadPreset}
           <div class="preset-card-empty">
-            <span style="font-size: 24px">🖼</span>
-            <span>Waiting for images...</span>
+            <div class="pce-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
+            <span class="pce-text">Waiting for images<span class="feed-dots"><span>.</span><span>.</span><span>.</span></span></span>
           </div>
         {/if}
       </div>

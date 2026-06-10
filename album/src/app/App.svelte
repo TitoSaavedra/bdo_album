@@ -2,7 +2,7 @@
   import './App.scss';
   import { onMount, tick } from 'svelte';
   import { eventBus } from '../lib/events';
-  import { getPresets, getWanted, getRegions } from '../lib/album';
+  import { getPresets, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
   import {
     beauty,
     selectClass,
@@ -10,14 +10,14 @@
     clearLiveForClass,
     setSelectedRegion,
     setAvailableRegions,
+    setSearchCounts,
   } from '../features/beauty/state/beauty.svelte';
   import type { ClassEntry, PresetEntry } from '../lib/album';
   import ClassList    from '../features/beauty/components/ClassList/ClassList.svelte';
   import PresetGrid   from '../features/beauty/components/PresetGrid/PresetGrid.svelte';
   import PresetDetail from '../features/beauty/components/PresetDetail/PresetDetail.svelte';
-  import LiveDot       from '../ui/LiveDot/LiveDot.svelte';
-  import PillSelector  from '../ui/PillSelector/PillSelector.svelte';
-  import FaceGridView  from '../features/face_grid/components/FaceGridView/FaceGridView.svelte';
+  import LiveDot      from '../ui/LiveDot/LiveDot.svelte';
+  import FaceGridView from '../features/face_grid/components/FaceGridView/FaceGridView.svelte';
 
   type Tab = 'beauty' | 'face_grid';
   let activeTab = $state<Tab>('beauty');
@@ -39,14 +39,21 @@
     beauty.classes.find(c => c.name === beauty.selectedClass)?.class_id ?? null
   );
 
-  const livePresets = $derived(
-    selectedClassId !== null ? (beauty.livePresets[selectedClassId] ?? []) : []
-  );
-
-  const regionPills = $derived([
-    { value: '', label: 'All' },
-    ...beauty.availableRegions.map(r => ({ value: r, label: r.toUpperCase() })),
-  ]);
+  const livePresets = $derived.by(() => {
+    if (selectedClassId === null) return [];
+    let all = beauty.livePresets[selectedClassId] ?? [];
+    const region = beauty.selectedRegion;
+    if (region) all = all.filter(p => p.region === region);
+    const days = beauty.selectedDays;
+    if (days !== 'ever') {
+      const n = parseInt(days, 10);
+      if (!isNaN(n)) {
+        const cutoff = Math.floor(Date.now() / 1000) - n * 86400;
+        all = all.filter(p => p.creation_at != null && p.creation_at >= cutoff);
+      }
+    }
+    return all;
+  });
 
   onMount(async () => {
     await eventBus.init();
@@ -55,11 +62,24 @@
     return () => eventBus.destroy();
   });
 
-  // Reload when selected class OR region changes
+  // Reload when selected class, region, search, days, OR sort changes
   $effect(() => {
     const cls    = beauty.selectedClass;
     const region = beauty.selectedRegion;
-    if (cls) resetAndLoad(cls, region);
+    const search = beauty.searchQuery;
+    const days   = beauty.selectedDays;
+    const sort   = beauty.sortBy;
+    if (cls) resetAndLoad(cls, region, search, days, sort);
+  });
+
+  // Update per-class counts whenever search, region, OR days changes
+  $effect(() => {
+    const search = beauty.searchQuery;
+    const region = beauty.selectedRegion;
+    const days   = beauty.selectedDays;
+    const hasFilter = !!search.trim() || !!region || days !== 'ever';
+    if (!hasFilter) { setSearchCounts([], false); return; }
+    getClassSearchCounts(search, region, days).then(r => setSearchCounts(r, true)).catch(() => {});
   });
 
   // Infinite scroll — fires when sentinel enters the scroll container
@@ -76,39 +96,39 @@
     return () => obs.disconnect();
   });
 
-  async function resetAndLoad(cls: string, region: string) {
+  async function resetAndLoad(cls: string, region: string, search: string, days: string, sort: string) {
     offset = 0;
     hasMore = false;
     presets = [];
     presetsError = '';
     const entry = beauty.classes.find(c => c.name === cls);
     if (entry) clearLiveForClass(entry.class_id);
-    await doLoad(cls, 0, region, true);
+    await doLoad(cls, 0, region, search, days, sort, true);
   }
 
   async function loadMore() {
     if (!beauty.selectedClass || !hasMore || loadingMore || presetsLoading) return;
-    loadingMore = true;  // lock immediately — prevents concurrent calls racing past the guard
+    loadingMore = true;
     const nextOffset = offset + LIMIT;
     offset = nextOffset;
-    await doLoad(beauty.selectedClass, nextOffset, beauty.selectedRegion, false);
+    await doLoad(beauty.selectedClass, nextOffset, beauty.selectedRegion, beauty.searchQuery, beauty.selectedDays, beauty.sortBy, false);
   }
 
-  async function doLoad(cls: string, off: number, region: string, initial: boolean) {
+  async function doLoad(cls: string, off: number, region: string, search: string, days: string, sort: string, initial: boolean) {
     if (initial) presetsLoading = true;
     else         loadingMore    = true;
     presetsError = '';
     try {
       if (initial) {
         const [fetched, wanted] = await Promise.all([
-          getPresets(cls, off, LIMIT, 'downloads', '', region),
+          getPresets(cls, off, LIMIT, sort, search, region, days),
           getWanted(),
         ]);
         presets = fetched;
         setWantedPresets(wanted);
         hasMore = fetched.length >= LIMIT;
       } else {
-        const fetched = await getPresets(cls, off, LIMIT, 'downloads', '', region);
+        const fetched = await getPresets(cls, off, LIMIT, sort, search, region, days);
         const seen = new Set(presets.map(p => p.preset_id));
         presets = [...presets, ...fetched.filter(p => !seen.has(p.preset_id))];
         hasMore = fetched.length >= LIMIT;
@@ -129,10 +149,6 @@
     setSelectedRegion('');
     selectClass(cls);
   }
-
-  function handleRegionChange(region: string | number) {
-    setSelectedRegion(String(region));
-  }
 </script>
 
 <div class="app">
@@ -146,12 +162,8 @@
     </div>
   {:else}
     <nav class="tab-nav">
-      <button class:active={activeTab === 'beauty'}    onclick={() => activeTab = 'beauty'}>
-        Beauty Album
-      </button>
-      <button class:active={activeTab === 'face_grid'} onclick={() => activeTab = 'face_grid'}>
-        Character Grid
-      </button>
+      <button class:active={activeTab === 'beauty'}    onclick={() => activeTab = 'beauty'}>Beauty</button>
+      <button class:active={activeTab === 'face_grid'} onclick={() => activeTab = 'face_grid'}>Grid</button>
     </nav>
 
     {#if activeTab === 'beauty'}
@@ -163,15 +175,6 @@
           />
         </aside>
         <main class="main custom-scroll" bind:this={mainEl}>
-          {#if beauty.selectedClass && beauty.availableRegions.length > 0}
-            <div class="region-bar">
-              <PillSelector
-                value={beauty.selectedRegion}
-                options={regionPills}
-                onchange={handleRegionChange}
-              />
-            </div>
-          {/if}
           <PresetGrid
             {presets}
             {livePresets}

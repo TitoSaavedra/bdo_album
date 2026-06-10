@@ -6,6 +6,20 @@ use crate::db::repositories::{
     preset_repo::{PresetRepository, PresetRow},
 };
 
+fn days_to_cutoff(days: Option<&str>) -> Option<i64> {
+    match days {
+        None | Some("ever") | Some("") => None,
+        Some(d) => d.parse::<i64>().ok().map(|n| {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            now - n * 86400
+        }),
+    }
+}
+
 pub struct BeautyService;
 
 impl BeautyService {
@@ -28,13 +42,24 @@ impl BeautyService {
         limit:         i64,
         sort_by:       &str,
         search:        &str,
+        region:        Option<&str>,
+        days:          Option<&str>,
         r2_public_url: &str,
     ) -> Result<Vec<PresetRow>> {
         let class_id = PresetRepository::get_class_id(pool, class_name).await?;
         let Some(class_id) = class_id else {
             return Ok(vec![]);
         };
-        PresetRepository::get_by_class(pool, class_id, offset, limit, sort_by, search, r2_public_url).await
+        let days_cutoff = days_to_cutoff(days);
+        PresetRepository::get_by_class(pool, class_id, offset, limit, sort_by, search, region, days_cutoff, r2_public_url).await
+    }
+
+    pub async fn get_preset_by_id(pool: &PgPool, preset_id: i64, r2_public_url: &str) -> Result<Option<PresetRow>> {
+        PresetRepository::get_by_id(pool, preset_id, r2_public_url).await
+    }
+
+    pub async fn get_regions(pool: &PgPool) -> Result<Vec<String>> {
+        PresetRepository::get_distinct_regions(pool).await
     }
 
     pub async fn discard_preset(pool: &PgPool, preset_id: i64) -> Result<()> {
@@ -47,5 +72,23 @@ impl BeautyService {
 
     pub async fn get_wanted_ids(pool: &PgPool) -> Result<Vec<String>> {
         PresetRepository::get_wanted_ids(pool).await
+    }
+
+    pub async fn get_wanted_pab_urls(pool: &PgPool) -> Result<Vec<String>> {
+        PresetRepository::get_wanted_pab_urls(pool).await
+    }
+
+    pub async fn get_wanted_presets(pool: &PgPool, r2_public_url: &str) -> Result<Vec<PresetRow>> {
+        PresetRepository::get_wanted_presets(pool, r2_public_url).await
+    }
+
+    pub async fn get_class_search_counts(
+        pool:   &PgPool,
+        search: &str,
+        region: Option<&str>,
+        days:   Option<&str>,
+    ) -> Result<Vec<(i32, i64)>> {
+        let days_cutoff = days_to_cutoff(days);
+        PresetRepository::count_by_search(pool, search, region, days_cutoff).await
     }
 }

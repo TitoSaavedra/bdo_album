@@ -19,7 +19,16 @@ export const faceGrid = $state({
   loading:         false,
   error:           null as string | null,
   applyingGrid:    false,
-  saveDialogOpen:  false,
+  dialog: {
+    open:       false,
+    title:      '',
+    message:    '' as string | null,
+    inputs:     [] as Array<{ value: string; placeholder: string }>,
+    error:      null as string | null,
+    submitText: '',
+    submitting: false,
+    onSubmit:   null as ((values: string[]) => void | Promise<void>) | null,
+  },
 });
 
 // ── Loaders ───────────────────────────────────────────────────
@@ -84,7 +93,7 @@ export async function saveGrid(name: string): Promise<void> {
 
   const grid = await cmdSaveFaceGrid(name, account.account_id, slots);
   faceGrid.savedGrids = [grid, ...faceGrid.savedGrids];
-  faceGrid.saveDialogOpen = false;
+  faceGrid.dialog.open = false;
 }
 
 // ── Apply saved grid ──────────────────────────────────────────
@@ -114,5 +123,62 @@ export async function loadGridSlots(gridId: string): Promise<void> {
 
 // ── UI ────────────────────────────────────────────────────────
 
-export function openSaveDialog()  { faceGrid.saveDialogOpen = true;  }
-export function closeSaveDialog() { faceGrid.saveDialogOpen = false; }
+export function openDialog(
+  title: string,
+  options?: {
+    message?: string;
+    inputs?: Array<{ placeholder: string }>;
+    submitText?: string;
+    onSubmit?: (values: string[]) => void | Promise<void>;
+  }
+) {
+  faceGrid.dialog.title = title;
+  faceGrid.dialog.message = options?.message ?? null;
+  faceGrid.dialog.inputs = options?.inputs?.map(i => ({ value: '', placeholder: i.placeholder })) ?? [];
+  faceGrid.dialog.submitText = options?.submitText || 'Confirm';
+  faceGrid.dialog.submitting = false;
+  faceGrid.dialog.error = null;
+  faceGrid.dialog.onSubmit = options?.onSubmit || null;
+  faceGrid.dialog.open = true;
+}
+
+export function closeDialog() {
+  faceGrid.dialog.open = false;
+}
+
+export function openSaveGridDialog() {
+  openDialog('Save Grid', {
+    inputs: [{ placeholder: 'Grid name' }],
+    submitText: 'Save',
+    onSubmit: async (values) => {
+      try {
+        faceGrid.dialog.submitting = true;
+        await saveGrid(values[0]);
+      } catch (e) {
+        faceGrid.dialog.error = String(e);
+        faceGrid.dialog.submitting = false;
+      }
+    },
+  });
+}
+
+export function openConfirmDialog(
+  title: string,
+  message: string,
+  onConfirm: () => void | Promise<void>,
+  confirmText = 'Confirm'
+) {
+  openDialog(title, {
+    message,
+    submitText: confirmText,
+    onSubmit: async () => {
+      try {
+        faceGrid.dialog.submitting = true;
+        await onConfirm();
+      } catch (e) {
+        faceGrid.dialog.error = String(e);
+        faceGrid.dialog.submitting = false;
+      }
+    },
+  });
+}

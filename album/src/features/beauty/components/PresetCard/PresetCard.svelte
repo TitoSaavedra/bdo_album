@@ -40,8 +40,15 @@
     try { await discardPreset(id); } catch { /* non-fatal */ }
   }
 
+  let imageLoaded = $state(false);
+
+  function onThumbLoad() {
+    imageLoaded = true;
+  }
+
   function onThumbError(e: Event) {
     (e.currentTarget as HTMLImageElement).style.display = 'none';
+    imageLoaded = true;
   }
 </script>
 
@@ -56,7 +63,18 @@
 >
   <div class="thumb-wrap">
     {#if imageUrl}
-      <img src={imageUrl} alt={title} class="thumb" onerror={onThumbError} loading="lazy" />
+      {#if !imageLoaded}
+        <div class="skeleton-thumb"></div>
+      {/if}
+      <img
+        src={imageUrl}
+        alt={title}
+        class="thumb"
+        class:loaded={imageLoaded}
+        onerror={onThumbError}
+        onload={onThumbLoad}
+        loading="lazy"
+      />
     {:else}
       <div class="skeleton-thumb"></div>
     {/if}

@@ -66,6 +66,7 @@ pub fn run() {
             scraper::commands::run_scraper,
             scraper::commands::cancel_scraper,
             scraper::commands::get_sessions,
+            scraper::commands::get_session_totals,
             scraper::commands::get_class_stats_cmd,
             scraper::commands::get_preset_stats,
             scraper::commands::get_logs,

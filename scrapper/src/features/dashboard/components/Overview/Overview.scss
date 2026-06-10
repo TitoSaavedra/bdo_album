@@ -60,20 +60,21 @@
 
 .ov-kpi-row {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
 }
 
 .ov-kpi {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px;
+  gap: 5px;
+  padding: 12px 12px 10px;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow: hidden;
+  min-width: 0;
 
   &::before {
     content: '';
@@ -95,20 +96,26 @@
 }
 
 .ov-kpi-val {
-  font-size: 31px;
+  font-size: 24px;
   font-weight: 700;
   font-family: monospace;
   color: var(--kc, var(--color-text-primary));
   line-height: 1;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ov-kpi-meta {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Session delta ── */
@@ -322,18 +329,67 @@
 }
 
 .preset-card-empty {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--color-text-muted);
   font-size: 12px;
   background: var(--color-bg-panel);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  opacity: 0.35;
+  overflow: hidden;
+
+  /* Scan line */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--color-accent-rgb), 0.25), transparent);
+    animation: scan-line 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes scan-line {
+  0%   { top: 15%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 85%; opacity: 0; }
+}
+
+.pce-icon {
+  opacity: 0.2;
+  animation: idle-pulse 2.8s ease-in-out infinite;
+}
+
+.pce-text {
+  font-family: monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.4;
+}
+
+.feed-dots span {
+  animation: dot-seq 1.5s ease-in-out infinite;
+  opacity: 0;
+
+  &:nth-child(2) { animation-delay: 0.25s; }
+  &:nth-child(3) { animation-delay: 0.5s; }
+}
+
+@keyframes dot-seq {
+  0%, 60%, 100% { opacity: 0; }
+  30%            { opacity: 1; }
+}
+
+@keyframes idle-pulse {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(1.1); }
 }
 
 .preset-card-dot-row {

@@ -276,5 +276,13 @@
 }
 
 :global(.btn-garmoth) { width: 100%; }
+:global(.btn-export)  { width: 100%; }
+
+.export-error {
+  font-size: 10px;
+  color: var(--color-text-error);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
 
 .icon { font-size: 13px; line-height: 1; }

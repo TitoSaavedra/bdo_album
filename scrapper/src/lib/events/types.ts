@@ -20,6 +20,7 @@ export interface ScrapperProgress {
 
 export interface ScrapperDone {
   total_fetched:  number;
+  total_updated:  number;
   total_images:   number;
   total_uploaded: number;
   errors:         number;

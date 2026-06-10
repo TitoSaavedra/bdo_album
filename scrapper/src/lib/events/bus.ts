@@ -11,6 +11,7 @@ import {
   setStatus,
   setPhase,
   setDbReady,
+  setUpdated,
   pushLog,
 } from '../../features/scrapper/state/scrapper.svelte';
 
@@ -36,7 +37,7 @@ class ScrapperEventBus {
 
       // Lifecycle
       this.on('scrapper_started',   ()  => { setStatus('running'); setPhase('fetch'); }),
-      this.on('scrapper_done',      ()  => { setStatus('done'); }),
+      this.on('scrapper_done',      (p) => { setUpdated(p.total_updated); setStatus('done'); }),
       this.on('scrapper_cancelled', ()  => setStatus('cancelled')),
       this.on('scrapper_error',     ()  => { setStatus('error'); }),
 

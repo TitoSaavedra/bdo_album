@@ -1,60 +1,37 @@
-.account-tabs {
-  display:       flex;
-  gap:           4px;
-  padding:       8px 16px 0;
-  border-bottom: 1px solid #222;
-  flex-shrink:   0;
+.btn-save {
+  padding:        5px 16px;
+  font-size:      0.75rem;
+  border-radius:  6px;
+  border:         1px solid var(--color-accent);
+  background:     transparent;
+  color:          var(--color-accent);
+  font-weight:    600;
+  cursor:         pointer;
+  letter-spacing: 0.02em;
+  transition:     background 0.2s, color 0.2s, box-shadow 0.2s;
 
-  .tab {
-    display:       flex;
-    align-items:   center;
-    border-radius: 4px 4px 0 0;
-    overflow:      hidden;
-    border:        1px solid transparent;
-    border-bottom: none;
-    transition:    background 0.15s, border-color 0.15s;
-
-    &.active {
-      background:   #1e1e2e;
-      border-color: #2a2a3e;
-
-      .tab-btn {
-        color: #c89b3c;
-        font-weight: 600;
-      }
-    }
-
-    &:not(.active):hover {
-      background: #161625;
-    }
+  &:hover {
+    background:  var(--color-accent);
+    color:       var(--color-btn-text-on-accent);
+    box-shadow:  0 4px 12px rgba(var(--color-accent-rgb), 0.25);
   }
+}
 
-  .tab-btn {
-    padding:    8px 12px 8px 14px;
-    font-size:  0.8rem;
-    border:     none;
-    background: transparent;
-    color:      #888;
-    cursor:     pointer;
+.btn-reset {
+  padding:         4px;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  border:          1px solid var(--color-border);
+  background:      transparent;
+  color:           var(--color-text-secondary);
+  cursor:          pointer;
+  border-radius:   4px;
+  transition:      border-color 0.2s, color 0.2s, background 0.2s;
 
-    .count {
-      font-size: 0.7em;
-      opacity:   0.6;
-      margin-left: 4px;
-    }
-  }
-
-  .delete-btn {
-    padding:    4px 8px;
-    font-size:  0.65rem;
-    border:     none;
-    background: transparent;
-    color:      #555;
-    cursor:     pointer;
-    transition: color 0.1s;
-
-    &:hover {
-      color: #c44;
-    }
+  &:hover {
+    border-color: var(--color-accent);
+    color:        var(--color-accent);
+    background:   rgba(var(--color-accent-rgb), 0.05);
   }
 }

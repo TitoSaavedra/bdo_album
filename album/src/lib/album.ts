@@ -10,12 +10,18 @@ export interface ClassEntry {
   is_favorite:  boolean;
 }
 
+export interface ClassCount {
+  class_id: number;
+  count:    number;
+}
+
 export interface PresetEntry {
   preset_id:      string;
   class_id:       number;
   title:          string | null;
   user_nickname:  string | null;
   character_name: string | null;
+  region:         string | null;
   image_1_url:    string | null;
   image_2_url:    string | null;
   pab_url:        string | null;
@@ -49,12 +55,27 @@ export const setClassFavorite = (className: string, isFavorite: boolean): Promis
 
 export const getPresets = (
   className: string,
-  offset   = 0,
-  limit    = 50,
-  sortBy   = 'downloads',
-  search   = '',
+  offset    = 0,
+  limit     = 40,
+  sortBy    = 'downloads',
+  search    = '',
+  region    = '',
+  days      = 'ever',
 ): Promise<PresetEntry[]> =>
-  invoke('get_presets', { className, offset, limit, sortBy, search });
+  invoke('get_presets', { className, offset, limit, sortBy, search, region, days });
+
+export const getPreset = (presetId: string): Promise<PresetEntry | null> =>
+  invoke('get_preset', { presetId });
+
+export const getRegions = (): Promise<string[]> =>
+  invoke('get_regions');
+
+export const getClassSearchCounts = (
+  search = '',
+  region = '',
+  days   = 'ever',
+): Promise<ClassCount[]> =>
+  invoke('get_class_search_counts', { search, region, days });
 
 export const discardPreset = (presetId: string): Promise<void> =>
   invoke('discard_preset', { presetId });
@@ -64,6 +85,15 @@ export const toggleWanted = (presetId: string): Promise<boolean> =>
 
 export const getWanted = (): Promise<string[]> =>
   invoke('get_wanted');
+
+export const getWantedPabUrls = (): Promise<string[]> =>
+  invoke('get_wanted_pab_urls');
+
+export const getWantedPresets = (): Promise<PresetEntry[]> =>
+  invoke('get_wanted_presets');
+
+export const exportToBdo = (pabUrl: string): Promise<void> =>
+  invoke('export_to_bdo', { pabUrl });
 
 // ── URL ───────────────────────────────────────────────────────
 

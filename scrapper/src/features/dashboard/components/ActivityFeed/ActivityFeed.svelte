@@ -9,6 +9,7 @@
     WARN:     '#fbbf24',
     POP:      '#2dd4bf',
     SYNC:     '#2dd4bf',
+    UPDT:     '#34d399',
     ORCH:     '#a78bfa',
     PERSONAL: '#22d3ee',
     USER:     '#60a5fa',
@@ -22,8 +23,12 @@
 <div class="feed">
   {#if recent.length === 0}
     <div class="feed-empty">
-      <span class="feed-empty-icon">⚡</span>
-      <span>Waiting for activity...</span>
+      <div class="feed-empty-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <span class="feed-empty-text">Waiting for activity<span class="feed-dots"><span>.</span><span>.</span><span>.</span></span></span>
     </div>
   {:else}
     {#each recent as entry (entry._uid)}

@@ -12,6 +12,14 @@
   }: Props = $props();
 </script>
 
-<div class="toggle" class:toggle-on={checked} role="switch" aria-checked={checked} {onclick}>
+<div
+  class="toggle"
+  class:toggle-on={checked}
+  role="switch"
+  aria-checked={checked}
+  tabindex="0"
+  {onclick}
+  onkeydown={(e) => (e.key === ' ' || e.key === 'Enter') && onclick?.(e as unknown as MouseEvent)}
+>
   <span class="knob"></span>
 </div>

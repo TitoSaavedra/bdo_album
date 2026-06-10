@@ -7,6 +7,7 @@
 
   interface Props {
     presets:       PresetEntry[];
+    livePresets?:  PresetEntry[];
     selectedClass: string | null;
     loading?:      boolean;
     error?:        string;
@@ -15,6 +16,7 @@
 
   const {
     presets,
+    livePresets = [],
     selectedClass,
     loading = false,
     error = '',
@@ -23,9 +25,20 @@
 
   let discarded = $state(new Set<string>());
 
-  const localPresets = $derived(
-    [...presets]
-      .filter(p => !discarded.has(p.preset_id))
+  const hasFilters = $derived(
+    !!beauty.searchQuery.trim() || !!beauty.selectedRegion || beauty.selectedDays !== 'ever'
+  );
+
+  const liveIds = $derived(new Set(livePresets.map(p => p.preset_id)));
+
+  const localPresets = $derived.by(() => {
+    const seen = new Set<string>();
+    return [...livePresets, ...presets]
+      .filter(p => {
+        if (discarded.has(p.preset_id) || seen.has(p.preset_id)) return false;
+        seen.add(p.preset_id);
+        return true;
+      })
       .sort((a, b) => {
         // Tier 1: has PAB file (green) — top
         if (a.has_pab !== b.has_pab) return a.has_pab ? -1 : 1;
@@ -34,8 +47,8 @@
         const bW = beauty.wantedPresets.has(b.preset_id);
         if (aW !== bW) return aW ? -1 : 1;
         return 0;
-      })
-  );
+      });
+  });
 
   function handleDiscard(id: string) {
     discarded = new Set([...discarded, id]);
@@ -56,14 +69,19 @@
   <div class="state-msg">
     <div class="state-hint error">{error}</div>
   </div>
-{:else if localPresets.length === 0}
+{:else if localPresets.length === 0 && livePresets.length === 0}
   <div class="state-msg">
-    <div class="state-hint">No presets found in this class</div>
+    <div class="state-hint">
+      {hasFilters ? 'No presets match your filters' : 'No presets found in this class'}
+    </div>
   </div>
 {:else}
   <div class="grid">
     {#each localPresets as preset, i (preset.preset_id ?? i)}
-      <div in:fly={{ y: 20, duration: 220, easing: cubicOut }}>
+      <div
+        in:fly={{ y: 20, duration: 220, easing: cubicOut }}
+        class:live-card={liveIds.has(preset.preset_id)}
+      >
         <PresetCard {preset} {selectedClass} ondiscard={handleDiscard} />
       </div>
     {/each}

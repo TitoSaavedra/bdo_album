@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
-  import { openUrl, toggleWanted, discardPreset } from '../../../../lib/album';
+  import { openUrl, toggleWanted, discardPreset, exportToBdo } from '../../../../lib/album';
   import {
     beauty,
     closePreset,
@@ -55,6 +55,22 @@
     openUrl(`https://garmoth.com/beauty-album/preset/${id}`);
   }
 
+  let exporting     = $state(false);
+  let exportError   = $state('');
+
+  async function handleExport() {
+    if (!p?.pab_url) return;
+    exporting   = true;
+    exportError = '';
+    try {
+      await exportToBdo(p.pab_url);
+    } catch (e) {
+      exportError = String(e);
+    } finally {
+      exporting = false;
+    }
+  }
+
   function onImgError(e: Event) {
     (e.currentTarget as HTMLImageElement).style.display = 'none';
   }
@@ -63,12 +79,20 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if p}
-  <div class="backdrop" onclick={closePreset} transition:fade={{ duration: 200 }}>
+  <div
+    class="backdrop"
+    role="presentation"
+    onclick={closePreset}
+    onkeydown={(e) => e.key === 'Escape' && closePreset()}
+    transition:fade={{ duration: 200 }}
+  >
     <div
       class="modal"
-      onclick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
       transition:scale={{ duration: 250, start: 0.95 }}
     >
 
@@ -158,9 +182,18 @@
             <Button variant="icon" class="btn-want-sm" active={isWanted} onclick={handleToggleWant} title={isWanted ? 'Remove from wishlist' : 'Add to wishlist'}>♥</Button>
             <Button variant="icon" class="btn-discard-sm" title="Discard" onclick={handleDiscard}>✕</Button>
           </div>
-          <Button variant="ghost" class="btn-garmoth" onclick={openOnGarmoth}>
-            <span class="icon">◈</span> View on Garmoth
-          </Button>
+          {#if p?.has_pab}
+            <Button variant="ghost" class="btn-export" onclick={handleExport} disabled={exporting}>
+              <span class="icon">⬆</span> {exporting ? 'Exporting...' : 'Export to Black Desert'}
+            </Button>
+            {#if exportError}
+              <p class="export-error">{exportError}</p>
+            {/if}
+          {:else}
+            <Button variant="ghost" class="btn-garmoth" onclick={openOnGarmoth}>
+              <span class="icon">◈</span> View on Garmoth
+            </Button>
+          {/if}
         </div>
 
       </div>

@@ -1,4 +1,4 @@
-import type { ClassEntry, PresetEntry } from '../../../lib/album';
+import type { ClassCount, ClassEntry, PresetEntry } from '../../../lib/album';
 import { getClasses } from '../../../lib/album';
 
 export const beauty = $state({
@@ -21,6 +21,26 @@ export const beauty = $state({
 
   // Wanted presets
   wantedPresets: new Set<string>(),
+
+  // Region filter
+  selectedRegion:   '',
+  availableRegions: [] as string[],
+
+  // Sort
+  sortBy: 'downloads' as 'downloads' | 'views' | 'likes',
+
+  // Days filter
+  selectedDays: 'ever',
+
+  // Search
+  searchQuery:        '',
+  searchCounts:       {} as Record<number, number>,
+  searchCountsLoaded: false,
+
+  // Live upload tracking (from scrapper via PG LISTEN/NOTIFY)
+  liveUploaded:      {} as Record<number, number>,
+  livePresets:       {} as Record<number, PresetEntry[]>,
+  listenerConnected: false,
 });
 
 // ── DB ────────────────────────────────────────────────────────
@@ -37,6 +57,9 @@ export async function loadClasses() {
   beauty.classesLoading = true;
   try {
     beauty.classes = await getClasses();
+    if (beauty.selectedClass === null && beauty.classes.length > 0) {
+      beauty.selectedClass = beauty.classes[0].name;
+    }
   } catch { /* non-fatal */ }
   finally { beauty.classesLoading = false; }
 }
@@ -81,4 +104,49 @@ export function toggleWantedPreset(id: string) {
   if (next.has(id)) next.delete(id);
   else next.add(id);
   beauty.wantedPresets = next;
+}
+
+// ── Region filter ─────────────────────────────────────────────
+
+export function setSelectedRegion(region: string) {
+  beauty.selectedRegion = region;
+}
+
+export function setAvailableRegions(regions: string[]) {
+  beauty.availableRegions = regions;
+}
+
+export function setSelectedDays(days: string) {
+  beauty.selectedDays = days;
+}
+
+export function setSelectedSort(sort: 'downloads' | 'views' | 'likes') {
+  beauty.sortBy = sort;
+}
+
+// ── Live upload tracking ──────────────────────────────────────
+
+export function onPresetUploaded(preset: PresetEntry) {
+  beauty.liveUploaded[preset.class_id] = (beauty.liveUploaded[preset.class_id] ?? 0) + 1;
+  beauty.livePresets[preset.class_id]  = [preset, ...(beauty.livePresets[preset.class_id] ?? [])];
+  const cls = beauty.classes.find(c => c.class_id === preset.class_id);
+  if (cls) cls.preset_count += 1;
+}
+
+export function clearLiveForClass(classId: number) {
+  beauty.liveUploaded[classId] = 0;
+  beauty.livePresets[classId]  = [];
+}
+
+export function setListenerConnected(connected: boolean) {
+  beauty.listenerConnected = connected;
+}
+
+// ── Search ────────────────────────────────────────────────────
+
+export function setSearchCounts(counts: ClassCount[], loaded = true) {
+  const map: Record<number, number> = {};
+  for (const { class_id, count } of counts) map[class_id] = count;
+  beauty.searchCounts       = map;
+  beauty.searchCountsLoaded = loaded;
 }

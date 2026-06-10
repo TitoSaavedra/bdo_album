@@ -25,7 +25,7 @@
   const MODE_OPTIONS = [
     { value: 'images', label: 'Images only' },
     { value: 'both',   label: 'Fetch + Images' },
-    { value: 'fetch',  label: 'Fetch only 🔒' },
+    { value: 'fetch',  label: 'Fetch only' },
   ];
 
   const status      = $derived(getStatus());
@@ -140,7 +140,7 @@
     <PillSelector
       value={mode}
       options={MODE_OPTIONS}
-      onchange={(v) => { if (!isBusy && v !== 'fetch') mode = v as 'images' | 'both'; }}
+      onchange={(v) => { mode = v as 'images' | 'both' | 'fetch'; }}
     />
   </div>
 

@@ -72,6 +72,7 @@
   ] as const;
 
   async function start()  {
+    debugger;
     const classIds = selectedClasses.map(name =>
       name === 'all' ? 'all' : dbClasses.find(c => c.name === name)!.id
     );
@@ -140,7 +141,7 @@
           <PillSelector
             value={mode}
             options={MODE_OPTIONS}
-            onchange={(v) => { if (!isBusy && v !== 'fetch') mode = v as 'images' | 'both'; }}
+            onchange={(v) => { if (!isBusy) mode = v as 'images' | 'both' | 'fetch'; }}
           />
         </div>
 
