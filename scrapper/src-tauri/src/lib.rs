@@ -26,16 +26,11 @@ pub fn run() {
             }
             let app_h = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let dotenv_result = dotenvy::dotenv();
-                eprintln!("[startup] dotenv: {:?}", dotenv_result);
+                dotenvy::dotenv().ok();
 
                 let db_url = match std::env::var("DATABASE_URL") {
-                    Ok(url) => {
-                        eprintln!("[startup] DATABASE_URL found: {}", url);
-                        url
-                    }
+                    Ok(url) => url,
                     Err(e) => {
-                        eprintln!("[startup] DATABASE_URL missing: {}", e);
                         Events::db_ready(&app_h, DbReady {
                             success: false,
                             error: Some(format!("DATABASE_URL not set: {}", e)),
@@ -44,17 +39,14 @@ pub fn run() {
                     }
                 };
 
-                eprintln!("[startup] connecting to DB...");
                 let pool = loop {
                     match db::pool::init(&db_url).await {
                         Ok(p) => break p,
-                        Err(e) => {
-                            eprintln!("[startup] DB error: {}, retrying in 3s...", e);
+                        Err(_) => {
                             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                         }
                     }
                 };
-                eprintln!("[startup] DB connected OK");
                 let recovered = db::repositories::session_repo::SessionRepository::recover_interrupted(&pool).await.unwrap_or(0);
                 db::repositories::log_repo::LogRepository::insert(
                     &app_h, &pool, None, "INFO", "startup",

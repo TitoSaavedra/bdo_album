@@ -34,16 +34,14 @@ async fn preset_listen_loop(app: AppHandle, db_url: String) {
                                 Events::preset_uploaded(&app, payload);
                             }
                         }
-                        Err(e) => {
-                            eprintln!("[listen] recv error: {}, reconnecting...", e);
+                        Err(_) => {
                             set_listener_state(&app, false);
                             break;
                         }
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("[listen] PgListener connect error: {}", e);
+            Err(_) => {
                 set_listener_state(&app, false);
             }
         }
@@ -69,13 +67,11 @@ pub fn run() {
             }
             let app_h = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let dotenv_result = dotenvy::dotenv();
-                eprintln!("[startup] dotenv: {:?}", dotenv_result);
+                dotenvy::dotenv().ok();
 
                 let db_url = match std::env::var("DATABASE_URL") {
                     Ok(url) => url,
                     Err(e) => {
-                        eprintln!("[startup] DATABASE_URL missing: {}", e);
                         Events::db_ready(&app_h, DbReady {
                             success: false,
                             error: Some(format!("DATABASE_URL not set: {}", e)),
@@ -84,7 +80,6 @@ pub fn run() {
                     }
                 };
 
-                eprintln!("[startup] connecting to DB...");
                 let r2_public_url = std::env::var("R2_PUBLIC_URL")
                     .unwrap_or_default()
                     .trim_end_matches('/')
@@ -93,13 +88,11 @@ pub fn run() {
                 let pool = loop {
                     match core::db::init(&db_url).await {
                         Ok(p) => break p,
-                        Err(e) => {
-                            eprintln!("[startup] DB error: {}, retrying in 3s...", e);
+                        Err(_) => {
                             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                         }
                     }
                 };
-                eprintln!("[startup] DB connected OK");
                 let r2_client = core::r2::R2Client::from_env().ok();
                 app_h.manage(AppState::new(pool, r2_public_url, r2_client));
 

@@ -89,9 +89,7 @@ impl FaceGridService {
                     characters.sort_by_key(|c| c.order);
                     accounts.push(BdoAccount { account_id, characters });
                 }
-                Err(e) => {
-                    eprintln!("[face_grid] failed to parse {}: {}", xml_path.display(), e);
-                }
+                Err(_) => {}
             }
         }
 
@@ -158,7 +156,7 @@ impl FaceGridService {
                 if !first.image_url.is_empty() {
                     match Self::fetch_and_upload_thumb(r2, grid.id, &first.image_url).await {
                         Ok(url) => thumbnail_url = Some(url),
-                        Err(e)  => eprintln!("[face_grid] thumb upload failed: {}", e),
+                        Err(_)  => {},
                     }
                 }
             }
@@ -228,9 +226,7 @@ impl FaceGridService {
         let slots = FaceGridRepository::get_slots(pool, grid_id, r2_pub).await?;
         for slot in slots {
             if let Some(url) = slot.image_1_url {
-                if let Err(e) = Self::apply_face_to_slot(&slot.character_no, &url).await {
-                    eprintln!("[face_grid] apply slot {} failed: {}", slot.character_no, e);
-                }
+                Self::apply_face_to_slot(&slot.character_no, &url).await.ok();
             }
         }
         Ok(())
