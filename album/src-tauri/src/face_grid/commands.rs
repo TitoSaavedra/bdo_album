@@ -52,33 +52,48 @@ pub async fn get_face_grids(state: State<'_, AppState>) -> Result<Vec<FaceGridRo
 
 #[tauri::command]
 pub async fn get_face_grid_slots(
-    grid_id: String,
+    grid_id: i64,
     state:   State<'_, AppState>,
 ) -> Result<Vec<FaceGridSlotRow>, String> {
-    let id: i64 = grid_id.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
-    FaceGridService::get_face_grid_slots(&state.pool, id, &state.r2_public_url)
+    FaceGridService::get_face_grid_slots(&state.pool, grid_id, &state.r2_public_url)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn apply_face_grid(
-    grid_id: String,
+    grid_id: i64,
     state:   State<'_, AppState>,
 ) -> Result<(), String> {
-    let id: i64 = grid_id.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
-    FaceGridService::apply_face_grid(&state.pool, id, &state.r2_public_url)
+    FaceGridService::apply_face_grid(&state.pool, grid_id, &state.r2_public_url)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn delete_face_grid(
-    grid_id: String,
+    grid_id: i64,
     state:   State<'_, AppState>,
 ) -> Result<(), String> {
-    let id: i64 = grid_id.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
-    FaceGridService::delete_face_grid(&state.pool, id)
+    FaceGridService::delete_face_grid(&state.pool, grid_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn upload_character_face(
+    character_no: String,
+    image_b64:    String,
+    state:        State<'_, AppState>,
+) -> Result<String, String> {
+    FaceGridService::upload_character_face(&state.pool, state.r2_client.as_ref(), &character_no, &image_b64)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_character_faces(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
+    FaceGridService::get_character_faces(&state.pool)
         .await
         .map_err(|e| e.to_string())
 }

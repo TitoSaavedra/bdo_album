@@ -1,16 +1,18 @@
 <script lang="ts">
   import './FaceGridView.scss';
   import { onMount } from 'svelte';
+  import Button from '../../../../ui/Button/Button.svelte';
   import {
     activeAccount,
     faceGrid,
     loadAccounts,
     openSaveGridDialog,
+    openAccountPicker,
   } from '../../state/face_grid.svelte';
-  import AccountTabs   from '../AccountTabs/AccountTabs.svelte';
   import CharacterGrid from '../CharacterGrid/CharacterGrid.svelte';
   import Dialog from '../Dialog/Dialog.svelte';
   import FaceGridSidebar from '../FaceGridSidebar/FaceGridSidebar.svelte';
+  import GridAccountPicker from '../GridAccountPicker/GridAccountPicker.svelte';
 
   onMount(() => loadAccounts());
 
@@ -34,7 +36,16 @@
           </span>
         </div>
       {:else}
-        <AccountTabs accounts={faceGrid.accounts} onSave={openSaveGridDialog} onReset={loadAccounts} />
+        <div class="fg-toolbar">
+          <div class="toolbar-left">
+            <span class="account-name">Account {faceGrid.activeAccountId}</span>
+            <div class="toolbar-actions">
+              <Button variant="primary" onclick={openSaveGridDialog} title="Save current grid as preset">Save</Button>
+              <Button variant="ghost" onclick={loadAccounts} title="Refresh accounts">Refresh</Button>
+            </div>
+          </div>
+          <Button variant="icon" title="Select accounts" onclick={openAccountPicker}>⚙</Button>
+        </div>
 
         {#if account}
           <CharacterGrid characters={account.characters} />
@@ -44,4 +55,7 @@
   </div>
 
   <Dialog />
+  {#if faceGrid.showAccountPicker}
+    <GridAccountPicker accounts={faceGrid.accounts} />
+  {/if}
 </div>

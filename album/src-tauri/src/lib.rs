@@ -132,6 +132,8 @@ pub fn run() {
             face_grid::commands::get_face_grid_slots,
             face_grid::commands::apply_face_grid,
             face_grid::commands::delete_face_grid,
+            face_grid::commands::upload_character_face,
+            face_grid::commands::get_character_faces,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

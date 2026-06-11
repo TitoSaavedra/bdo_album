@@ -21,7 +21,10 @@
       "Bash(Remove-Item -Force \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\ui\\\\ConfirmDialog\\\\ConfirmDialog.svelte\", \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\ui\\\\ConfirmDialog\\\\ConfirmDialog.scss\")",
       "Bash(Remove-Item -Force \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\CharacterSlot\\\\CharacterSlot.svelte\", \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\CharacterSlot\\\\CharacterSlot.scss\")",
       "Bash(Remove-Item -Force \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\SaveGridDialog\\\\SaveGridDialog.svelte\", \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\\\\face_grid\\\\components\\\\SaveGridDialog\\\\SaveGridDialog.scss\")",
-      "Bash(grep -rn --include=\"*.svelte\" --include=\"*.ts\" --include=\"*.rs\" -E \"'[^']*[áéíóúñü¿¡][^']*'|\\\\\"[^\\\\\"]*[áéíóúñü¿¡][^\\\\\"]*\\\\\"|>[^<]*[áéíóúñü¿¡][^<]*<|\\\\/\\\\/[^\\\\n]*[áéíóúñü¿¡]|#[^\\\\n]*[áéíóúñü¿¡]\" \"x:/Github/Personal/bdo_album/album/src\")"
+      "Bash(grep -rn --include=\"*.svelte\" --include=\"*.ts\" --include=\"*.rs\" -E \"'[^']*[áéíóúñü¿¡][^']*'|\\\\\"[^\\\\\"]*[áéíóúñü¿¡][^\\\\\"]*\\\\\"|>[^<]*[áéíóúñü¿¡][^<]*<|\\\\/\\\\/[^\\\\n]*[áéíóúñü¿¡]|#[^\\\\n]*[áéíóúñü¿¡]\" \"x:/Github/Personal/bdo_album/album/src\")",
+      "Bash(ls \"x:\\\\Github\\\\Personal\\\\\" 2>/dev/null || dir \"x:\\\\Github\\\\Personal\\\\\")",
+      "Read(//x/Github/Personal\" 2>/dev/**)",
+      "Bash(dir \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\" /b)"
     ]
   }
 }

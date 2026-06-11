@@ -17,10 +17,8 @@ pub struct FaceGridSlotRow {
     pub id:           i64,
     pub grid_id:      i64,
     pub character_no: String,
-    pub preset_id:    Option<i64>,
+    pub image_url:    String,
     pub slot_order:   i32,
-    pub image_1_url:  Option<String>,
-    pub preset_title: Option<String>,
 }
 
 pub struct FaceGridRepository;
@@ -79,47 +77,70 @@ impl FaceGridRepository {
         pool:         &PgPool,
         grid_id:      i64,
         character_no: &str,
-        preset_id:    Option<i64>,
+        image_url:    &str,
         slot_order:   i32,
     ) -> Result<()> {
-        sqlx::query!(
-            r#"INSERT INTO album_face_grid_slots (grid_id, character_no, preset_id, slot_order)
+        sqlx::query(
+            r#"INSERT INTO album_face_grid_slots (grid_id, character_no, image_url, slot_order)
                VALUES ($1, $2, $3, $4)
                ON CONFLICT (grid_id, character_no)
-               DO UPDATE SET preset_id = EXCLUDED.preset_id, slot_order = EXCLUDED.slot_order"#,
-            grid_id,
-            character_no,
-            preset_id,
-            slot_order,
+               DO UPDATE SET image_url = EXCLUDED.image_url, slot_order = EXCLUDED.slot_order"#,
         )
+        .bind(grid_id)
+        .bind(character_no)
+        .bind(image_url)
+        .bind(slot_order)
         .execute(pool)
         .await?;
         Ok(())
     }
 
-    pub async fn get_slots(
+    pub async fn get_slots(pool: &PgPool, grid_id: i64, r2_public_url: &str) -> Result<Vec<FaceGridSlotRow>> {
+        let rows = sqlx::query_as::<_, (i64, i64, String, String, i32)>(
+            "SELECT id, grid_id, character_no, image_url, slot_order FROM album_face_grid_slots WHERE grid_id = $1 ORDER BY slot_order"
+        )
+        .bind(grid_id)
+        .fetch_all(pool)
+        .await?;
+
+        // Prepend r2_public_url to image_url
+        Ok(rows.into_iter().map(|(id, grid_id, character_no, image_url, slot_order)| {
+            let full_url = if image_url.is_empty() {
+                image_url
+            } else {
+                format!("{}/{}", r2_public_url, image_url)
+            };
+            FaceGridSlotRow {
+                id,
+                grid_id,
+                character_no,
+                image_url: full_url,
+                slot_order,
+            }
+        }).collect())
+    }
+
+    pub async fn upsert_character_face(
         pool:          &PgPool,
-        grid_id:       i64,
-        r2_public_url: &str,
-    ) -> Result<Vec<FaceGridSlotRow>> {
-        let rows = sqlx::query_as!(
-            FaceGridSlotRow,
-            r#"SELECT
-                s.id,
-                s.grid_id,
-                s.character_no,
-                s.preset_id,
-                s.slot_order,
-                CASE WHEN p.image_1_url IS NOT NULL
-                     THEN $2 || p.image_1_url
-                END AS image_1_url,
-                p.title AS preset_title
-               FROM album_face_grid_slots s
-               LEFT JOIN scrapper_presets p ON p.id = s.preset_id
-               WHERE s.grid_id = $1
-               ORDER BY s.slot_order"#,
-            grid_id,
-            r2_public_url,
+        character_no:  &str,
+        image_url:     &str,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"INSERT INTO album_character_faces (character_no, image_url)
+               VALUES ($1, $2)
+               ON CONFLICT (character_no)
+               DO UPDATE SET image_url = EXCLUDED.image_url, updated_at = NOW()"#,
+        )
+        .bind(character_no)
+        .bind(image_url)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_all_character_faces(pool: &PgPool) -> Result<Vec<(String, String)>> {
+        let rows = sqlx::query_as::<_, (String, String)>(
+            "SELECT character_no, image_url FROM album_character_faces ORDER BY updated_at DESC"
         )
         .fetch_all(pool)
         .await?;

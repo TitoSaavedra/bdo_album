@@ -20,7 +20,7 @@ export interface FaceTextureEntry {
 }
 
 export interface FaceGridRow {
-  id:            string;
+  id:            number;
   name:          string;
   account_id:    string;
   thumbnail_url: string | null;
@@ -28,18 +28,15 @@ export interface FaceGridRow {
 }
 
 export interface FaceGridSlotRow {
-  id:           string;
-  grid_id:      string;
+  id:           number;
+  grid_id:      number;
   character_no: string;
-  preset_id:    string | null;
+  image_url:    string;
   slot_order:   number;
-  image_1_url:  string | null;
-  preset_title: string | null;
 }
 
 export interface SlotAssignment {
   character_no: string;
-  preset_id:    string;
   slot_order:   number;
   image_url:    string;
 }
@@ -65,11 +62,17 @@ export const saveFaceGrid = (
 export const getFaceGrids = (): Promise<FaceGridRow[]> =>
   invoke('get_face_grids');
 
-export const getFaceGridSlots = (gridId: string): Promise<FaceGridSlotRow[]> =>
+export const getFaceGridSlots = (gridId: number): Promise<FaceGridSlotRow[]> =>
   invoke('get_face_grid_slots', { gridId });
 
-export const applyFaceGrid = (gridId: string): Promise<void> =>
+export const applyFaceGrid = (gridId: number): Promise<void> =>
   invoke('apply_face_grid', { gridId });
 
-export const deleteFaceGrid = (gridId: string): Promise<void> =>
+export const deleteFaceGrid = (gridId: number): Promise<void> =>
   invoke('delete_face_grid', { gridId });
+
+export const uploadCharacterFace = (characterNo: string, imageB64: string): Promise<string> =>
+  invoke('upload_character_face', { characterNo, imageB64 });
+
+export const getCharacterFaces = (): Promise<Array<[string, string]>> =>
+  invoke('get_character_faces');
