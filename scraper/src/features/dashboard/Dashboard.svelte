@@ -80,7 +80,8 @@
   ] as const;
 
   async function start()  {
-    const classIds = selectedClasses.map(name =>
+    const effectiveClasses = selectedClasses.includes('all') ? ['all'] : selectedClasses;
+    const classIds = effectiveClasses.map(name =>
       name === 'all' ? 'all' : dbClasses.find(c => c.name === name)!.id
     );
     await invoke('run_scraper', {
@@ -170,29 +171,31 @@
           />
         </div>
 
-        <div class="sidebar-section">
-          <span class="sidebar-label">Days <span class="sidebar-count">{selectedDays.length}/{ALL_DAYS.length}</span></span>
-          <MultiPill
-            options={ALL_DAYS}
-            selected={selectedDays}
-            onchange={(v) => selectedDays = v}
-            disabled={isBusy}
-            selectAll
-            reset
-          />
-        </div>
+        {#if mode !== 'images'}
+          <div class="sidebar-section">
+            <span class="sidebar-label">Days <span class="sidebar-count">{selectedDays.length}/{ALL_DAYS.length}</span></span>
+            <MultiPill
+              options={ALL_DAYS}
+              selected={selectedDays}
+              onchange={(v) => selectedDays = v}
+              disabled={isBusy}
+              selectAll
+              reset
+            />
+          </div>
 
-        <div class="sidebar-section">
-          <span class="sidebar-label">Regions <span class="sidebar-count">{selectedRegions.length}/{ALL_REGIONS.length}</span></span>
-          <MultiPill
-            options={ALL_REGIONS}
-            selected={selectedRegions}
-            onchange={(v) => selectedRegions = v}
-            disabled={isBusy}
-            selectAll
-            reset
-          />
-        </div>
+          <div class="sidebar-section">
+            <span class="sidebar-label">Regions <span class="sidebar-count">{selectedRegions.length}/{ALL_REGIONS.length}</span></span>
+            <MultiPill
+              options={ALL_REGIONS}
+              selected={selectedRegions}
+              onchange={(v) => selectedRegions = v}
+              disabled={isBusy}
+              selectAll
+              reset
+            />
+          </div>
+        {/if}
 
         <div class="sidebar-section">
           <span class="sidebar-label">Classes <span class="sidebar-count">{selectedClasses.length}/{ALL_CLASSES.length}</span></span>

@@ -31,7 +31,9 @@
       "Bash(Remove-Item \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\lib\\\\face_grid.ts\")",
       "Bash(Get-ChildItem -Recurse -Filter \"*.scss\")",
       "Bash(Select-Object FullName)",
-      "Bash(ConvertTo-Json)"
+      "Bash(ConvertTo-Json)",
+      "Bash(git restore *)",
+      "Bash(pnpm svelte-check *)"
     ]
   }
 }

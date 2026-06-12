@@ -177,6 +177,32 @@ impl PresetRepository {
         Ok(rows)
     }
 
+    /// Top `limit_per_class` pending downloads restricted to the given class IDs.
+    /// Results are ordered by (rn, class_id) to naturally interleave across classes.
+    pub async fn get_pending_for_classes(
+        pool:            &PgPool,
+        class_ids:       &[i32],
+        limit_per_class: i64,
+    ) -> Result<Vec<(i64, i32, Option<String>, Option<String>, i64, i64, i64, Option<String>)>> {
+        let rows = sqlx::query_as::<_, (i64, i32, Option<String>, Option<String>, i64, i64, i64, Option<String>)>(
+            "SELECT id, class_id, image_1, image_2, downloads, views, likes, character_name
+             FROM (
+               SELECT *, ROW_NUMBER() OVER (PARTITION BY class_id ORDER BY downloads DESC) AS rn
+               FROM scraper_presets
+               WHERE ((image_1_url IS NULL AND image_1 IS NOT NULL AND image_1 != 'not_found')
+                   OR (image_2_url IS NULL AND image_2 IS NOT NULL AND image_2 != 'not_found'))
+                 AND class_id = ANY($1)
+             ) t
+             WHERE rn <= $2
+             ORDER BY rn, class_id",
+        )
+        .bind(class_ids)
+        .bind(limit_per_class)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
+
     /// Fetches a preset with its class display name. Used by the PAB importer.
     pub async fn get_with_class(pool: &PgPool, id: i64) -> Result<Option<(i64, String)>> {
         let row = sqlx::query_as::<_, (i64, String)>(
@@ -205,27 +231,45 @@ impl PresetRepository {
              WHERE image_1 = 'not_found' AND COALESCE(image_2, 'not_found') = 'not_found'",
         ).fetch_one(pool).await?;
 
-        let by_class: Vec<(i32, i64, i64, i64)> = sqlx::query_as(
+        let pending: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM scraper_presets
+             WHERE (image_1_url IS NULL AND image_1 IS NOT NULL AND image_1 != 'not_found')
+                OR (image_2_url IS NULL AND image_2 IS NOT NULL AND image_2 != 'not_found')",
+        ).fetch_one(pool).await?;
+
+        let has_image_data: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM scraper_presets
+             WHERE (image_1 IS NOT NULL AND image_1 != 'not_found')
+                OR (image_2 IS NOT NULL AND image_2 != 'not_found')",
+        ).fetch_one(pool).await?;
+
+        let by_class: Vec<(i32, i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT class_id,
                     COUNT(*) AS total,
                     COUNT(image_1_url) AS with_images,
                     COUNT(*) FILTER (
                         WHERE image_1 = 'not_found'
                           AND COALESCE(image_2, 'not_found') = 'not_found'
-                    ) AS not_found
+                    ) AS not_found,
+                    COUNT(*) FILTER (
+                        WHERE (image_1 IS NOT NULL AND image_1 != 'not_found')
+                           OR (image_2 IS NOT NULL AND image_2 != 'not_found')
+                    ) AS has_image_data
              FROM scraper_presets GROUP BY class_id ORDER BY total DESC",
         ).fetch_all(pool).await?;
 
         Ok(serde_json::json!({
-            "total":       total,
-            "with_images": with_images,
-            "not_found":   not_found,
-            "pending":     total - with_images - not_found,
-            "by_class":    by_class.into_iter().map(|(class_id, t, img, nf)| serde_json::json!({
-                "class_id":    class_id,
-                "total":       t,
-                "with_images": img,
-                "not_found":   nf,
+            "total":          total,
+            "with_images":    with_images,
+            "not_found":      not_found,
+            "pending":        pending,
+            "has_image_data": has_image_data,
+            "by_class":    by_class.into_iter().map(|(class_id, t, img, nf, hid)| serde_json::json!({
+                "class_id":       class_id,
+                "total":          t,
+                "with_images":    img,
+                "not_found":      nf,
+                "has_image_data": hid,
             })).collect::<Vec<_>>(),
         }))
     }

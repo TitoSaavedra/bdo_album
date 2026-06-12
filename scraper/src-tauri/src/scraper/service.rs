@@ -103,13 +103,32 @@ pub async fn run_session(
         let img_done  = Arc::new(AtomicUsize::new(0));
         let (tx, rx)  = mpsc::channel::<ImageTask>(512);
 
+        // Parse specific class IDs from the filter (integers only; "all" string → empty = ALL mode).
+        let specific_class_ids: Vec<i32> = classes.iter()
+            .filter_map(|v| v.as_i64().map(|n| n as i32))
+            .collect();
+        let limit_per_class = if specific_class_ids.is_empty() {
+            10i64
+        } else {
+            (310i64 / specific_class_ids.len() as i64).max(1)
+        };
+
         if mode == "images" {
             LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch").await.ok();
             Events::sync_loading(&app, "Downloading images...");
-            let (dl, _) = tokio::join!(
-                run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
-                run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
-            );
+            let (dl, _) = if specific_class_ids.is_empty() {
+                // ALL: use original fairness-based loop
+                tokio::join!(
+                    run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
+                    run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
+                )
+            } else {
+                // Specific classes: interleaved loop, no fairness
+                tokio::join!(
+                    run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
+                    run_class_filter_loop(&app, &pool, session_id, cancel.clone(), tx, img_total, specific_class_ids, limit_per_class),
+                )
+            };
             (FetchResult { total_fetched: 0, total_updated: 0, total_errors: 0, total_skipped: 0 }, dl)
         } else {
             LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started").await.ok();
@@ -739,6 +758,96 @@ async fn insert_preset_and_queue(
     }
 }
 
+
+// ── Phase: Class-filter image loop ───────────────────────────
+//
+// Used when specific classes are selected in images mode.
+// Each round queries top-(310/N) pending presets from each selected class,
+// interleaved by (rn, class_id). No fairness mechanism — the user explicitly
+// chose which classes to prioritize.
+
+async fn run_class_filter_loop(
+    app:        &AppHandle,
+    pool:       &PgPool,
+    session_id: i64,
+    cancel:     Arc<AtomicBool>,
+    tx:         mpsc::Sender<ImageTask>,
+    img_total:  Arc<AtomicUsize>,
+    class_ids:  Vec<i32>,
+    limit_per_class: i64,
+) {
+    use std::collections::HashSet;
+
+    if cancel.load(Ordering::Relaxed) { return; }
+
+    let class_name_map: std::collections::HashMap<i32, String> =
+        ClassRepository::get_all(pool).await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|c| (c.id, c.display))
+            .collect();
+
+    let mut all_sent: HashSet<i64> = HashSet::new();
+    let mut round = 0usize;
+
+    loop {
+        if cancel.load(Ordering::Relaxed) { return; }
+
+        let batch: Vec<_> = PresetRepository::get_pending_for_classes(pool, &class_ids, limit_per_class)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(id, ..)| !all_sent.contains(id))
+            .collect();
+
+        if batch.is_empty() {
+            if round > 0 {
+                LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+                    "No more pending images for selected classes — done",
+                ).await.ok();
+            }
+            return;
+        }
+
+        round += 1;
+        let batch_ids: HashSet<i64> = batch.iter().map(|(id, ..)| *id).collect();
+        all_sent.extend(&batch_ids);
+
+        LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+            &format!("Class-filter round {}: queuing {} preset(s) (top-{} per class, interleaved)",
+                round, batch.len(), limit_per_class),
+        ).await.ok();
+
+        for (id, class_id, image_1, image_2, downloads, views, likes, character_name) in batch {
+            if cancel.load(Ordering::Relaxed) { return; }
+            img_total.fetch_add(1, Ordering::Relaxed);
+            let class_name = class_name_map.get(&class_id).cloned().unwrap_or_default();
+            if tx.send(ImageTask {
+                preset_id: id,
+                class_id,
+                class_name,
+                image_1,
+                image_2,
+                downloads,
+                views,
+                likes,
+                character_name,
+            }).await.is_err() { return; }
+        }
+
+        // Wait for this batch to complete before querying next round.
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30 * 60);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            if cancel.load(Ordering::Relaxed) { return; }
+            let still_pending = PresetRepository::get_pending_for_classes(pool, &class_ids, limit_per_class)
+                .await
+                .unwrap_or_default();
+            let any_in_batch = still_pending.iter().any(|(id, ..)| batch_ids.contains(id));
+            if !any_in_batch || tokio::time::Instant::now() >= deadline { break; }
+        }
+    }
+}
 
 // ── Phase: Pending image loop ─────────────────────────────────
 //

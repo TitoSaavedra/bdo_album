@@ -23,8 +23,10 @@
     <div
       class="toast toast-{t.type}"
       class:clickable={!!t.onClick}
-      role="alert"
+      role="button"
+      tabindex="0"
       onclick={() => { t.onClick?.(); ondismiss?.(t.id); }}
+      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { t.onClick?.(); ondismiss?.(t.id); } }}
     >
       <span class="toast-icon">{ICONS[t.type]}</span>
       <span class="toast-text">{t.text}</span>

@@ -107,7 +107,7 @@
 
 {#if open}
   <div class="pab-backdrop" onclick={close} role="presentation">
-    <div class="pab-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Import PAB files">
+    <div class="pab-modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Import PAB files" tabindex="-1">
 
       <!-- Loading bar -->
       {#if processing}

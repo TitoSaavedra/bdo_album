@@ -22,7 +22,7 @@
     disabled = false,
   }: Props = $props();
 
-  let selected = $state(value);
+  let selected = $state<string | number>('');
 
   $effect(() => { selected = value; });
 

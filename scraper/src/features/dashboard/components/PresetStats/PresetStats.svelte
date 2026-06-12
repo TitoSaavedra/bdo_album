@@ -5,11 +5,12 @@
   import { getClassIcons, getStatus, getDbReady } from '../../../scraper/state/scraper.svelte';
 
   interface Stats {
-    total:       number;
-    with_images: number;
-    not_found:   number;
-    pending:     number;
-    by_class:    { class_id: number; total: number; with_images: number; not_found: number }[];
+    total:          number;
+    with_images:    number;
+    not_found:      number;
+    pending:        number;
+    has_image_data: number;
+    by_class:       { class_id: number; total: number; with_images: number; not_found: number; has_image_data: number }[];
   }
 
   let stats = $state<Stats | null>(null);
@@ -85,16 +86,16 @@
     <!-- ── Progress bar global ── -->
     <div class="ps-global-bar">
       <div class="ps-bar-track">
-        <div class="ps-bar-fill" style="width: {pct(stats.with_images, stats.total - stats.not_found)}%"></div>
+        <div class="ps-bar-fill" style="width: {pct(stats.with_images, stats.has_image_data)}%"></div>
       </div>
-      <span class="ps-bar-label">{pct(stats.with_images, stats.total - stats.not_found)}% images ready</span>
+      <span class="ps-bar-label">{pct(stats.with_images, stats.has_image_data)}% images ready</span>
     </div>
 
     <!-- ── Per class ── -->
     <div class="ps-class-list">
       {#each stats.by_class as row (row.class_id)}
         {@const name   = classMap[row.class_id] ?? `Class ${row.class_id}`}
-        {@const imgPct = pct(row.with_images, row.total - row.not_found)}
+        {@const imgPct = pct(row.with_images, row.has_image_data)}
         <div class="ps-class-row">
           <div class="ps-class-icon">
             {#if classIcons[row.class_id]}
