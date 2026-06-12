@@ -120,24 +120,6 @@ impl FaceGridRepository {
         }).collect())
     }
 
-    pub async fn upsert_character_face(
-        pool:          &PgPool,
-        character_no:  &str,
-        image_url:     &str,
-    ) -> Result<()> {
-        sqlx::query(
-            r#"INSERT INTO album_character_faces (character_no, image_url)
-               VALUES ($1, $2)
-               ON CONFLICT (character_no)
-               DO UPDATE SET image_url = EXCLUDED.image_url, updated_at = NOW()"#,
-        )
-        .bind(character_no)
-        .bind(image_url)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
     pub async fn get_all_character_faces(pool: &PgPool) -> Result<Vec<(String, String)>> {
         let rows = sqlx::query_as::<_, (String, String)>(
             "SELECT character_no, image_url FROM album_character_faces ORDER BY updated_at DESC"

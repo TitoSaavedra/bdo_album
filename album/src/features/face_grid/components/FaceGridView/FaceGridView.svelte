@@ -1,10 +1,13 @@
 <script lang="ts">
-  import './FaceGridView.scss';
   import { onMount } from 'svelte';
   import Button from '../../../../ui/Button/Button.svelte';
   import {
-    activeAccount,
-    faceGrid,
+    getLoading,
+    getError,
+    getAccounts,
+    getActiveAccountId,
+    getShowAccountPicker,
+    getActiveAccount,
     loadAccounts,
     openSaveGridDialog,
     openAccountPicker,
@@ -14,9 +17,9 @@
   import FaceGridSidebar from '../FaceGridSidebar/FaceGridSidebar.svelte';
   import GridAccountPicker from '../GridAccountPicker/GridAccountPicker.svelte';
 
-  onMount(() => loadAccounts());
-
-  const account = $derived(activeAccount());
+  onMount(async () => {
+    await loadAccounts();
+  });
 </script>
 
 <div class="face-grid-view">
@@ -24,11 +27,11 @@
     <FaceGridSidebar />
 
     <div class="fg-center">
-      {#if faceGrid.loading}
+      {#if getLoading()}
         <div class="fg-loading">Reading BDO configuration...</div>
-      {:else if faceGrid.error}
-        <div class="fg-error">{faceGrid.error}</div>
-      {:else if faceGrid.accounts.length === 0}
+      {:else if getError()}
+        <div class="fg-error">{getError()}</div>
+      {:else if getAccounts().length === 0}
         <div class="fg-empty">
           <span>No BDO accounts found</span>
           <span class="fg-empty-hint">
@@ -37,25 +40,30 @@
         </div>
       {:else}
         <div class="fg-toolbar">
-          <div class="toolbar-left">
-            <span class="account-name">Account {faceGrid.activeAccountId}</span>
-            <div class="toolbar-actions">
-              <Button variant="primary" onclick={openSaveGridDialog} title="Save current grid as preset">Save</Button>
-              <Button variant="ghost" onclick={loadAccounts} title="Refresh accounts">Refresh</Button>
-            </div>
+          <button class="account-chip" onclick={openAccountPicker} title="Change account">
+            <span class="chip-label">Account</span>
+            <span class="chip-id">{getActiveAccountId()}</span>
+            <span class="chip-arrow">&#x25BE;</span>
+          </button>
+          <div class="toolbar-actions">
+            <Button variant="primary" onclick={openSaveGridDialog}>Save Preset</Button>
+            <Button variant="ghost" onclick={loadAccounts} title="Reload from disk">Refresh</Button>
           </div>
-          <Button variant="icon" title="Select accounts" onclick={openAccountPicker}>⚙</Button>
         </div>
 
-        {#if account}
-          <CharacterGrid characters={account.characters} />
+        {#if getActiveAccount()}
+          <CharacterGrid characters={getActiveAccount()!.characters} />
         {/if}
       {/if}
     </div>
   </div>
 
   <Dialog />
-  {#if faceGrid.showAccountPicker}
-    <GridAccountPicker accounts={faceGrid.accounts} />
+  {#if getShowAccountPicker()}
+    <GridAccountPicker />
   {/if}
 </div>
+
+<style lang="scss">
+  @use './FaceGridView.scss';
+</style>

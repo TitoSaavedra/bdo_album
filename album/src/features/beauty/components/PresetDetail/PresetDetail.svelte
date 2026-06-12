@@ -18,6 +18,16 @@
     activeImage = images[0] ?? '';
   });
 
+  $effect(() => {
+    if (images.length <= 1) return;
+    const cur = activeImage;
+    const timer = setTimeout(() => {
+      const idx = images.indexOf(cur);
+      activeImage = images[(idx + 1) % images.length];
+    }, 900);
+    return () => clearTimeout(timer);
+  });
+
   const p         = $derived(beauty.presetDetail);
   const title     = $derived(p ? (p.title || p.character_name || `#${p.preset_id}`) : '');
   const id        = $derived(p?.preset_id ?? '');
@@ -25,9 +35,11 @@
   const downloads = $derived(p?.downloads ?? 0);
   const views     = $derived(p?.views ?? 0);
   const likes     = $derived(p?.likes ?? 0);
-  const className = $derived(p?.class_display ?? '');
-  const isWanted  = $derived(p ? beauty.wantedPresets.has(p.preset_id) : false);
-  const uploadedAt = $derived(
+  const className     = $derived(p?.class_display ?? '');
+  const characterName = $derived(p?.character_name || null);
+  const region        = $derived(p?.region || null);
+  const isWanted      = $derived(p ? beauty.wantedPresets.has(p.preset_id) : false);
+  const uploadedAt    = $derived(
     p?.creation_at ? new Date(p.creation_at * 1000).toLocaleDateString('en-CA') : null
   );
   const syncedAt  = $derived(
@@ -57,6 +69,7 @@
 
   let exporting     = $state(false);
   let exportError   = $state('');
+  let sharpenOn     = $state(true);
 
   async function handleExport() {
     if (!p?.pab_url) return;
@@ -77,6 +90,19 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
+
+<!-- Sharpen kernel: mild unsharp mask applied in-browser, no image reprocessing -->
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <filter id="detail-sharpen" color-interpolation-filters="sRGB">
+      <feConvolveMatrix
+        order="3"
+        kernelMatrix="0 -0.4 0 -0.4 2.6 -0.4 0 -0.4 0"
+        preserveAlpha="true"
+      />
+    </filter>
+  </defs>
+</svg>
 
 {#if p}
   <div
@@ -100,27 +126,40 @@
       <div class="panel-left">
         <div class="main-preview">
           {#if activeImage}
-            <img src={activeImage} alt={title} class="main-img" onerror={onImgError} />
+            {#key activeImage}
+              <img
+                src={activeImage}
+                alt={title}
+                class="main-img"
+                class:sharpen={sharpenOn}
+                onerror={onImgError}
+                in:fade={{ duration: 100 }}
+                out:fade={{ duration: 100 }}
+              />
+            {/key}
           {:else}
             <span class="no-media">NO MEDIA</span>
           {/if}
+          <button
+            class="sharpen-toggle"
+            class:active={sharpenOn}
+            onclick={() => (sharpenOn = !sharpenOn)}
+            title={sharpenOn ? 'Sharpen: ON' : 'Sharpen: OFF'}
+          >⬡</button>
+
+          {#if images.length > 1}
+            <div class="carousel-dots">
+              {#each images as img, i}
+                <button
+                  class="dot"
+                  class:dot-active={img === activeImage}
+                  onclick={() => (activeImage = img)}
+                  aria-label="Image {i + 1}"
+                ></button>
+              {/each}
+            </div>
+          {/if}
         </div>
-        {#if images.length > 1}
-          <div class="thumbs custom-scroll">
-            {#each images as img}
-              <div
-                class="thumb"
-                class:thumb-active={img === activeImage}
-                onclick={() => (activeImage = img)}
-                role="button"
-                tabindex="0"
-                onkeydown={(e) => e.key === 'Enter' && (activeImage = img)}
-              >
-                <img src={img} alt="" class="thumb-img" onerror={onImgError} />
-              </div>
-            {/each}
-          </div>
-        {/if}
       </div>
 
       <!-- RIGHT: info -->
@@ -164,18 +203,30 @@
           </div>
         </div>
 
-        {#if uploadedAt || syncedAt}
-          <div class="meta-grid">
-            {#if uploadedAt}
-              <span class="meta-key">Uploaded</span>
-              <span class="meta-val">{uploadedAt}</span>
-            {/if}
-            {#if syncedAt}
-              <span class="meta-key">Synced</span>
-              <span class="meta-val">{syncedAt}</span>
-            {/if}
-          </div>
-        {/if}
+        <div class="meta-grid">
+          {#if characterName && characterName !== title}
+            <span class="meta-key">Character</span>
+            <span class="meta-val">{characterName}</span>
+          {/if}
+          {#if region}
+            <span class="meta-key">Region</span>
+            <span class="meta-val region-val">{region}</span>
+          {/if}
+          {#if uploadedAt}
+            <span class="meta-key">Uploaded</span>
+            <span class="meta-val">{uploadedAt}</span>
+          {/if}
+          {#if syncedAt}
+            <span class="meta-key">Synced</span>
+            <span class="meta-val">{syncedAt}</span>
+          {/if}
+          <span class="meta-key">Images</span>
+          <span class="meta-val">{images.length}</span>
+          <span class="meta-key">PAB</span>
+          <span class="meta-val" class:pab-yes={p?.has_pab} class:pab-no={!p?.has_pab}>
+            {p?.has_pab ? 'Available' : 'Not available'}
+          </span>
+        </div>
 
         <div class="actions">
           <div class="want-row">

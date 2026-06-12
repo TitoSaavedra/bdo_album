@@ -17,12 +17,22 @@ export interface ListenerStatus {
   connected: boolean;
 }
 
+// ── Face Grid ─────────────────────────────────────────────────
+
+export interface FaceGridProgress {
+  current:      number;
+  total:        number;
+  character_no: string;
+}
+
 // ── Event → Payload map  (extend here to add new events) ─────
 
 export interface RustEventMap {
-  'db_ready':         DbReady;
-  'preset_uploaded':  PresetUploaded;
-  'listener_status':  ListenerStatus;
+  'db_ready':           DbReady;
+  'preset_uploaded':    PresetUploaded;
+  'listener_status':    ListenerStatus;
+  'face_grid_progress': FaceGridProgress;
+  'face_apply_done':    string;
 }
 
 export type RustEventName = keyof RustEventMap;

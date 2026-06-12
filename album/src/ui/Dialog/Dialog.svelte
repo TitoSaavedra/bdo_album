@@ -100,7 +100,3 @@
     </div>
   </div>
 </div>
-
-<style lang="scss">
-  @use './Dialog.scss';
-</style>

@@ -1,12 +1,8 @@
 <script lang="ts">
   import { Dialog } from '../../../../ui';
-  import { closeDialog, faceGrid } from '../../state/face_grid.svelte';
+  import { getDialog, closeDialog } from '../../state/face_grid.svelte';
 
-  const d = $derived(faceGrid.dialog);
-
-  const inputs = $derived(
-    (d.inputs ?? []).map(i => ({ placeholder: i.placeholder }))
-  );
+  const d = $derived(getDialog());
 
   async function handleSubmit(values: string[]) {
     await d.onSubmit?.(values);
@@ -17,7 +13,7 @@
   <Dialog
     title={d.title}
     message={d.message ?? undefined}
-    {inputs}
+    inputs={(d.inputs ?? []).map(i => ({ placeholder: i.placeholder }))}
     error={d.error ?? undefined}
     submitting={d.submitting}
     submitText={d.submitText || 'Confirm'}

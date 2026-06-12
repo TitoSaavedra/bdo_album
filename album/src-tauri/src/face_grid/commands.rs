@@ -15,29 +15,20 @@ pub async fn list_face_textures() -> Result<Vec<FaceTextureEntry>, String> {
 }
 
 #[tauri::command]
-pub async fn apply_face_to_slot(
-    character_no: String,
-    image_url:    String,
-) -> Result<(), String> {
-    FaceGridService::apply_face_to_slot(&character_no, &image_url)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 pub async fn save_face_grid(
     name:       String,
     account_id: String,
     slots:      Vec<SlotAssignment>,
     state:      State<'_, AppState>,
+    app:        tauri::AppHandle,
 ) -> Result<FaceGridRow, String> {
     FaceGridService::save_face_grid(
         &state.pool,
         state.r2_client.as_ref(),
-        &state.r2_public_url,
         &name,
         &account_id,
         &slots,
+        &app,
     )
     .await
     .map_err(|e| e.to_string())
@@ -64,8 +55,9 @@ pub async fn get_face_grid_slots(
 pub async fn apply_face_grid(
     grid_id: i64,
     state:   State<'_, AppState>,
+    app:     tauri::AppHandle,
 ) -> Result<(), String> {
-    FaceGridService::apply_face_grid(&state.pool, grid_id, &state.r2_public_url)
+    FaceGridService::apply_face_grid(&state.pool, grid_id, &state.r2_public_url, &app)
         .await
         .map_err(|e| e.to_string())
 }
@@ -81,19 +73,18 @@ pub async fn delete_face_grid(
 }
 
 #[tauri::command]
-pub async fn upload_character_face(
-    character_no: String,
-    image_b64:    String,
-    state:        State<'_, AppState>,
-) -> Result<String, String> {
-    FaceGridService::upload_character_face(&state.pool, state.r2_client.as_ref(), &character_no, &image_b64)
+pub async fn get_character_faces(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
+    FaceGridService::get_character_faces(&state.pool)
         .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn get_character_faces(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
-    FaceGridService::get_character_faces(&state.pool)
+pub async fn save_face_to_disk(
+    character_no: String,
+    file_path:    String,
+) -> Result<(), String> {
+    FaceGridService::save_face_to_disk(&character_no, &file_path)
         .await
         .map_err(|e| e.to_string())
 }

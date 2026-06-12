@@ -42,7 +42,3 @@
     </div>
   {/if}
 </div>
-
-<style lang="scss">
-  @use './TabBar.scss';
-</style>

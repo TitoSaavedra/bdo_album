@@ -1,6 +1,4 @@
 <script lang="ts">
-  import './ImageCard.scss';
-
   interface Props {
     src?:    string | null;
     badge?:  string | number;
@@ -28,3 +26,7 @@
     <span class="card-badge">{badge}</span>
   {/if}
 </div>
+
+<style lang="scss">
+  @use './ImageCard.scss';
+</style>

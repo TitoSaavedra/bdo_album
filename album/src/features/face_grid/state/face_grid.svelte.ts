@@ -1,299 +1,318 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { BdoAccount, FaceGridRow, FaceGridSlotRow, FaceTextureEntry, SlotAssignment } from '../../../lib/face_grid';
+import type { FaceGridProgress } from '../../../lib/events/types';
+import type {
+  BdoAccount,
+  CharacterEntry,
+  DialogState,
+  FaceGridRow,
+  FaceGridSlotRow,
+  FaceTextureEntry,
+  SlotAssignment,
+} from '../../../lib/face_grid/types';
 import {
-  applyFaceGrid as cmdApplyFaceGrid,
-  deleteFaceGrid as cmdDeleteFaceGrid,
+  applyFaceGrid    as cmdApplyFaceGrid,
+  deleteFaceGrid   as cmdDeleteFaceGrid,
+  getCharacterFaces,
   getFaceGrids,
   getFaceGridSlots,
   listFaceTextures,
-  saveFaceGrid as cmdSaveFaceGrid,
+  saveFaceGrid     as cmdSaveFaceGrid,
+  saveFaceToDisk   as cmdSaveFaceToDisk,
   scanBdoAccounts,
-  uploadCharacterFace as cmdUploadCharacterFace,
-  getCharacterFaces,
-} from '../../../lib/face_grid';
+} from '../../../lib/face_grid/commands';
 
-export const faceGrid = $state({
-  accounts:         [] as BdoAccount[],
-  activeAccountId:  null as string | null,
-  visibleAccountIds: null as string[] | null,
-  showAccountPicker: false,
-  faceTextures:     [] as FaceTextureEntry[],
-  customFaces:      {} as Record<string, string>,  // character_no → image_url
-  accountThumbs:    {} as Record<string, string[]>, // account_id → [image_urls]
-  pendingSlots:     {} as Record<string, string>,  // character_no → image_url (unused for now)
-  savedGrids:       [] as FaceGridRow[],
-  activeGridId:     null as number | null,
-  activeGridSlots:  [] as FaceGridSlotRow[],
-  loading:          false,
-  error:            null as string | null,
-  applyingGrid:     false,
-  dialog: {
-    open:       false,
-    title:      '',
-    message:    '' as string | null,
-    inputs:     [] as Array<{ value: string; placeholder: string }>,
-    error:      null as string | null,
-    submitText: '',
-    submitting: false,
-    onSubmit:   null as ((values: string[]) => void | Promise<void>) | null,
-  },
+// ── State ─────────────────────────────────────────────────────
+
+let accounts         = $state<BdoAccount[]>([]);
+let activeAccountId  = $state<string | null>(null);
+let showAccountPicker = $state(false);
+
+let faceTextures     = $state<FaceTextureEntry[]>([]);
+let customFaces      = $state<Record<string, string>>({});   // character_no → r2 url
+let bmpTimestamps    = $state<Record<string, number>>({});   // character_no → cache-bust ts
+let accountThumbs    = $state<Record<string, string[]>>({});
+
+let savedGrids       = $state<FaceGridRow[]>([]);
+let activeGridId     = $state<number | null>(null);
+let activeGridSlots  = $state<FaceGridSlotRow[]>([]);
+
+let loading          = $state(false);
+let error            = $state<string | null>(null);
+let applyingGrid     = $state(false);
+let applyingChars    = $state<Set<string>>(new Set());
+let creatingPreset   = $state(false);
+
+let createProgress   = $state<FaceGridProgress>({ current: 0, total: 0, character_no: '' });
+
+let dialog           = $state<DialogState>({
+  open:       false,
+  title:      '',
+  message:    null,
+  inputs:     [],
+  error:      null,
+  submitText: '',
+  submitting: false,
+  onSubmit:   null,
 });
+
+// ── Getters ───────────────────────────────────────────────────
+
+export const getAccounts        = () => accounts;
+export const getActiveAccountId = () => activeAccountId;
+export const getShowAccountPicker = () => showAccountPicker;
+
+export const getFaceTextures    = () => faceTextures;
+export const getCustomFaces     = () => customFaces;
+export const getBmpTimestamps   = () => bmpTimestamps;
+export const getAccountThumbs   = () => accountThumbs;
+
+export const getSavedGrids      = () => savedGrids;
+export const getActiveGridId    = () => activeGridId;
+export const getActiveGridSlots = () => activeGridSlots;
+
+export const getLoading         = () => loading;
+export const getError           = () => error;
+export const getApplyingGrid    = () => applyingGrid;
+export const getApplyingChars   = () => applyingChars;
+export const getCreatingPreset  = () => creatingPreset;
+export const getCreateProgress  = () => createProgress;
+
+export const getDialog          = () => dialog;
+
+export const getActiveAccount = (): BdoAccount | undefined =>
+  accounts.find(a => a.account_id === activeAccountId);
+
+export const getBmpPathFor = (characterNo: string): string | null =>
+  faceTextures.find(t => t.character_no === characterNo)?.path ?? null;
+
+export const getCharacterSrc = (char: CharacterEntry): string | null => {
+  const custom = customFaces[char.character_no];
+  if (custom) return custom;
+  const path = getBmpPathFor(char.character_no) ?? char.bmp_path;
+  if (!path) return null;
+  const ts = bmpTimestamps[char.character_no];
+  return convertFileSrc(path) + (ts ? `?t=${ts}` : '');
+};
+
+export const getGridThumb = (accountId: string): string | null => {
+  const account = accounts.find(a => a.account_id === accountId);
+  if (!account) return null;
+  const first = [...account.characters].sort((a, b) => a.order - b.order)[0];
+  if (!first) return null;
+  return getCharacterSrc(first);
+};
+
+// ── Event handler (called from event bus) ─────────────────────
+
+export function onFaceGridProgress(p: FaceGridProgress): void {
+  createProgress = p;
+}
+
+export function onFaceApplyDone(characterNo: string): void {
+  const next = new Set(applyingChars);
+  next.delete(characterNo);
+  applyingChars = next;
+  bmpTimestamps = { ...bmpTimestamps, [characterNo]: Date.now() };
+}
 
 // ── Loaders ───────────────────────────────────────────────────
 
-export async function loadAccounts() {
-  faceGrid.loading = true;
-  faceGrid.error   = null;
+export async function loadAccounts(): Promise<void> {
+  loading = true;
+  error   = null;
   try {
-    const [accounts, textures, grids, customFaces] = await Promise.all([
+    const [accs, textures, grids, faces] = await Promise.all([
       scanBdoAccounts(),
       listFaceTextures(),
       getFaceGrids(),
       getCharacterFaces(),
     ]);
-    faceGrid.accounts     = accounts;
-    faceGrid.faceTextures = textures;
-    faceGrid.savedGrids   = grids;
-    faceGrid.customFaces  = Object.fromEntries(customFaces);
 
-    // Generate thumbnails for each account (first 5 characters)
-    faceGrid.accountThumbs = {};
-    for (const acc of accounts) {
-      const thumbs = acc.characters
+    accounts      = accs;
+    faceTextures  = textures;
+    savedGrids    = grids;
+    customFaces   = Object.fromEntries(faces);
+    // Bust cache for all known BMPs so the grid reloads images from disk
+    const now = Date.now();
+    const busted: Record<string, number> = {};
+    for (const t of textures) busted[t.character_no] = now;
+    bmpTimestamps = busted;
+
+    // Build account thumbnails (first 5 characters)
+    const thumbs: Record<string, string[]> = {};
+    for (const acc of accs) {
+      thumbs[acc.account_id] = acc.characters
         .slice(0, 5)
         .map(char => {
-          const custom = faceGrid.customFaces[char.character_no];
+          const custom = customFaces[char.character_no];
           if (custom) return custom;
           const bmp = textures.find(t => t.character_no === char.character_no);
           return bmp?.path ? convertFileSrc(bmp.path) : '';
         })
-        .filter(url => url);
-      faceGrid.accountThumbs[acc.account_id] = thumbs;
+        .filter(Boolean);
     }
+    accountThumbs = thumbs;
 
-    loadVisibleAccounts(accounts);
+    _restoreAccountSelection(accs);
   } catch (e) {
-    faceGrid.error = String(e);
+    error = String(e);
   } finally {
-    faceGrid.loading = false;
+    loading = false;
   }
 }
 
-function loadVisibleAccounts(accounts: BdoAccount[]) {
-  const saved = localStorage.getItem('fg_selected_accounts');
-  if (saved) {
-    try {
-      faceGrid.visibleAccountIds = JSON.parse(saved);
-      // Ensure active account is in visible list
-      if (faceGrid.visibleAccountIds && faceGrid.visibleAccountIds.length > 0) {
-        faceGrid.activeAccountId = faceGrid.visibleAccountIds[0];
-      }
-      return;
-    } catch (_) {}
+function _restoreAccountSelection(accs: BdoAccount[]): void {
+  const saved = localStorage.getItem('fg_selected_account');
+  if (saved && accs.some(a => a.account_id === saved)) {
+    activeAccountId = saved;
+    return;
   }
   // No saved selection → open picker
-  faceGrid.showAccountPicker = true;
+  showAccountPicker = true;
 }
 
 // ── Account picker ────────────────────────────────────────────
 
-export function openAccountPicker() {
-  faceGrid.showAccountPicker = true;
+export function openAccountPicker(): void {
+  showAccountPicker = true;
 }
 
-export function closeAccountPicker() {
-  faceGrid.showAccountPicker = false;
+export function closeAccountPicker(): void {
+  showAccountPicker = false;
 }
 
-export function setVisibleAccounts(accountIds: string[]) {
-  faceGrid.visibleAccountIds = accountIds;
-  localStorage.setItem('fg_selected_accounts', JSON.stringify(accountIds));
-  if (accountIds.length > 0) {
-    faceGrid.activeAccountId = accountIds[0];
-    // Create default preset for this account if it doesn't have one
-    createDefaultPreset(accountIds[0]).catch(e => console.error('Failed to create default preset:', e));
-  }
-  faceGrid.showAccountPicker = false;
+export function selectAccount(accountId: string): void {
+  activeAccountId = accountId;
+  localStorage.setItem('fg_selected_account', accountId);
+  showAccountPicker = false;
+  _ensureDefaultPreset(accountId);
 }
 
-async function createDefaultPreset(accountId: string) {
-  const account = faceGrid.accounts.find(a => a.account_id === accountId);
-  if (!account) return;
-
-  // Check if account already has a preset
-  const existingPresets = faceGrid.savedGrids.filter(g => g.account_id === accountId);
-  if (existingPresets.length > 0) return; // Already has presets
-
-  // Create default preset with current character images
-  const slots: SlotAssignment[] = account.characters.map(c => {
-    const custom = faceGrid.customFaces[c.character_no];
-    if (custom) return { character_no: c.character_no, slot_order: c.order, image_url: custom };
-
-    const bmp = faceGrid.faceTextures.find(t => t.character_no === c.character_no);
-    const bmpPath = bmp?.path ? convertFileSrc(bmp.path) : '';
-    return { character_no: c.character_no, slot_order: c.order, image_url: bmpPath };
-  });
+async function _ensureDefaultPreset(accountId: string): Promise<void> {
+  if (creatingPreset) return;
+  if (savedGrids.some(g => g.account_id === accountId && g.name === '_default')) return;
 
   try {
-    const grid = await cmdSaveFaceGrid(`Default`, accountId, slots);
-    faceGrid.savedGrids = [grid, ...faceGrid.savedGrids];
-    faceGrid.activeGridId = grid.id;
-    faceGrid.activeGridSlots = await getFaceGridSlots(grid.id);
+    creatingPreset = true;
+    const grid = await cmdSaveFaceGrid('_default', accountId, []);
+    savedGrids   = [grid, ...savedGrids];
+    activeGridId  = grid.id;
+    activeGridSlots = await getFaceGridSlots(grid.id);
   } catch (e) {
     console.error('Failed to create default preset:', e);
+  } finally {
+    creatingPreset = false;
   }
 }
 
-export async function loadGrid(gridId: number) {
-  try {
-    faceGrid.activeGridId = gridId;
-    faceGrid.activeGridSlots = await getFaceGridSlots(gridId);
-  } catch (e) {
-    console.error('Failed to load grid:', e);
-  }
+// ── Grid actions ──────────────────────────────────────────────
+
+export async function loadGrid(gridId: number): Promise<void> {
+  activeGridId    = gridId;
+  activeGridSlots = await getFaceGridSlots(gridId);
 }
-
-export function visibleAccounts(): BdoAccount[] {
-  if (faceGrid.visibleAccountIds === null) {
-    return faceGrid.accounts;
-  }
-  return faceGrid.accounts.filter(a => faceGrid.visibleAccountIds!.includes(a.account_id));
-}
-
-// ── Active account ────────────────────────────────────────────
-
-export function selectAccount(accountId: string) {
-  faceGrid.activeAccountId = accountId;
-}
-
-export function removeAccount(accountId: string) {
-  faceGrid.accounts = faceGrid.accounts.filter(a => a.account_id !== accountId);
-  if (faceGrid.activeAccountId === accountId) {
-    faceGrid.activeAccountId = faceGrid.accounts[0]?.account_id ?? null;
-  }
-}
-
-export function activeAccount(): BdoAccount | undefined {
-  return faceGrid.accounts.find(a => a.account_id === faceGrid.activeAccountId);
-}
-
-// ── Face texture lookup ───────────────────────────────────────
-
-export function bmpPathFor(characterNo: string): string | null {
-  return faceGrid.faceTextures.find(t => t.character_no === characterNo)?.path ?? null;
-}
-
-// ── Custom character faces ───────────────────────────────────
-
-export function setCustomFace(characterNo: string, imageUrl: string) {
-  faceGrid.customFaces[characterNo] = imageUrl;
-}
-
-export async function uploadCharacterFace(characterNo: string, imageB64: string): Promise<string> {
-  const url = await cmdUploadCharacterFace(characterNo, imageB64);
-  setCustomFace(characterNo, url);
-  return url;
-}
-
-// ── Save grid (snapshot of current account's characters) ──────
 
 export async function saveGrid(name: string): Promise<void> {
-  const account = activeAccount();
+  const account = getActiveAccount();
   if (!account) return;
 
   const slots: SlotAssignment[] = account.characters.map(c => ({
     character_no: c.character_no,
     slot_order:   c.order,
-    image_url:    faceGrid.customFaces[c.character_no] ?? '',
+    image_url:    customFaces[c.character_no] ?? '',
   }));
 
-  const grid = await cmdSaveFaceGrid(name, account.account_id, slots);
-  faceGrid.savedGrids = [grid, ...faceGrid.savedGrids];
-  faceGrid.dialog.open = false;
+  const grid  = await cmdSaveFaceGrid(name, account.account_id, slots);
+  savedGrids  = [grid, ...savedGrids];
+  dialog.open = false;
 }
 
-// ── Apply saved grid ──────────────────────────────────────────
-
 export async function applyGrid(gridId: number): Promise<void> {
-  faceGrid.applyingGrid = true;
+  const slots = await getFaceGridSlots(gridId);
+  const chars = slots.filter(s => s.image_url).map(s => s.character_no);
+  applyingChars = new Set(chars);
+  applyingGrid  = true;
   try {
     await cmdApplyFaceGrid(gridId);
-    faceGrid.faceTextures = await listFaceTextures();
+    faceTextures = await listFaceTextures();
   } finally {
-    faceGrid.applyingGrid = false;
+    applyingGrid  = false;
+    applyingChars = new Set();
   }
 }
 
-// ── Delete grid ───────────────────────────────────────────────
-
 export async function deleteGrid(gridId: number): Promise<void> {
   await cmdDeleteFaceGrid(gridId);
-  faceGrid.savedGrids = faceGrid.savedGrids.filter(g => g.id !== gridId);
+  savedGrids = savedGrids.filter(g => g.id !== gridId);
+  if (activeGridId === gridId) activeGridId = null;
 }
 
-// ── Grid slots ────────────────────────────────────────────────
+// ── Character face ────────────────────────────────────────────
 
-export async function loadGridSlots(gridId: number): Promise<void> {
-  faceGrid.activeGridSlots = await getFaceGridSlots(gridId);
+export async function saveFaceToDisk(characterNo: string, filePath: string): Promise<void> {
+  await cmdSaveFaceToDisk(characterNo, filePath);
+  bmpTimestamps = { ...bmpTimestamps, [characterNo]: Date.now() };
 }
 
-// ── UI ────────────────────────────────────────────────────────
+// ── Dialog ────────────────────────────────────────────────────
 
 export function openDialog(
   title: string,
   options?: {
-    message?: string;
-    inputs?: Array<{ placeholder: string }>;
+    message?:    string;
+    inputs?:     Array<{ placeholder: string }>;
     submitText?: string;
-    onSubmit?: (values: string[]) => void | Promise<void>;
+    onSubmit?:   (values: string[]) => void | Promise<void>;
   }
-) {
-  faceGrid.dialog.title = title;
-  faceGrid.dialog.message = options?.message ?? null;
-  faceGrid.dialog.inputs = options?.inputs?.map(i => ({ value: '', placeholder: i.placeholder })) ?? [];
-  faceGrid.dialog.submitText = options?.submitText || 'Confirm';
-  faceGrid.dialog.submitting = false;
-  faceGrid.dialog.error = null;
-  faceGrid.dialog.onSubmit = options?.onSubmit || null;
-  faceGrid.dialog.open = true;
+): void {
+  dialog = {
+    open:       true,
+    title,
+    message:    options?.message ?? null,
+    inputs:     options?.inputs?.map(i => ({ value: '', placeholder: i.placeholder })) ?? [],
+    error:      null,
+    submitText: options?.submitText ?? 'Confirm',
+    submitting: false,
+    onSubmit:   options?.onSubmit ?? null,
+  };
 }
 
-export function closeDialog() {
-  faceGrid.dialog.open = false;
+export function closeDialog(): void {
+  dialog.open = false;
 }
 
-export function openSaveGridDialog() {
+export function openSaveGridDialog(): void {
   openDialog('Save Grid', {
-    inputs: [{ placeholder: 'Grid name' }],
+    inputs:     [{ placeholder: 'Grid name' }],
     submitText: 'Save',
-    onSubmit: async (values) => {
+    onSubmit:   async (values) => {
       try {
-        faceGrid.dialog.submitting = true;
+        dialog.submitting = true;
         await saveGrid(values[0]);
       } catch (e) {
-        faceGrid.dialog.error = String(e);
-        faceGrid.dialog.submitting = false;
+        dialog.error      = String(e);
+        dialog.submitting = false;
       }
     },
   });
 }
 
 export function openConfirmDialog(
-  title: string,
-  message: string,
-  onConfirm: () => void | Promise<void>,
-  confirmText = 'Confirm'
-) {
+  title:       string,
+  message:     string,
+  onConfirm:   () => void | Promise<void>,
+  confirmText = 'Confirm',
+): void {
   openDialog(title, {
     message,
     submitText: confirmText,
-    onSubmit: async () => {
+    onSubmit:   async () => {
       try {
-        faceGrid.dialog.submitting = true;
+        dialog.submitting = true;
         await onConfirm();
       } catch (e) {
-        faceGrid.dialog.error = String(e);
-        faceGrid.dialog.submitting = false;
+        dialog.error      = String(e);
+        dialog.submitting = false;
       }
     },
   });

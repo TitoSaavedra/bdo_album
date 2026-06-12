@@ -11,7 +11,6 @@ pub enum AppError {
     Xml(String),
     Http(String),
     Env(String),
-    R2NotConfigured,
 }
 
 impl From<SqlxError> for AppError {
@@ -42,7 +41,6 @@ impl std::fmt::Display for AppError {
             AppError::Xml(s)        => write!(f, "XML error: {}", s),
             AppError::Http(s)       => write!(f, "HTTP error: {}", s),
             AppError::Env(s)        => write!(f, "Env error: {}", s),
-            AppError::R2NotConfigured => write!(f, "R2 not configured"),
         }
     }
 }

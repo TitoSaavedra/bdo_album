@@ -1,5 +1,4 @@
 <script lang="ts">
-  import './AccountTabs.scss';
   import TabBar from '../../../../ui/TabBar/TabBar.svelte';
   import type { TabItem } from '../../../../ui/TabBar/TabBar.svelte';
   import type { BdoAccount } from '../../../../lib/face_grid';
@@ -38,3 +37,7 @@
   onremove={id => removeAccount(String(id))}
   actions={tabActions}
 />
+
+<style lang="scss">
+  @use './AccountTabs.scss';
+</style>

@@ -1,83 +1,211 @@
 .sidebar-grids {
   display:        flex;
   flex-direction: column;
-  width:          200px;
+  width:          220px;
+  min-width:      220px;
   border-right:   1px solid var(--color-border);
   background:     var(--color-bg-secondary);
   overflow:       hidden;
 }
 
 .sidebar-heading {
-  padding:     12px;
-  font-size:   0.85rem;
-  font-weight: 600;
-  color:       var(--color-text-secondary);
+  padding:        10px 12px;
+  font-size:      0.75rem;
+  font-weight:    700;
+  color:          var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--color-border);
+  letter-spacing: 0.08em;
+  border-bottom:  1px solid var(--color-border);
+  flex-shrink:    0;
 }
 
 .grids-list {
-  display:       flex;
-  flex-direction: column;
-  gap:           4px;
-  padding:       8px;
-  flex:          1;
-  overflow-y:    auto;
+  flex:       1;
+  overflow-y: auto;
+  padding:    10px;
 }
 
-.sidebar-empty {
-  padding:  12px;
-  text-align: center;
-  color:    var(--color-text-muted);
-  font-size: 0.85rem;
-}
+// ── Progress ─────────────────────────────────────────────────────
 
-.grid-item {
+.sidebar-creating {
   display:        flex;
   flex-direction: column;
   gap:            6px;
-  padding:        8px;
-  border:         1px solid var(--color-border);
-  border-radius:  4px;
-  background:     var(--color-bg-input);
-  cursor:         pointer;
-  transition:     background 0.15s, border-color 0.15s;
+  padding:        10px 4px;
+}
+
+.creating-label {
+  font-size:   0.8rem;
+  font-weight: 600;
+  color:       var(--color-text-secondary);
+}
+
+.creating-char {
+  font-size:     0.7rem;
+  color:         var(--color-text-muted);
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  white-space:   nowrap;
+}
+
+.progress-track {
+  width:         100%;
+  height:        3px;
+  background:    var(--color-border);
+  border-radius: 2px;
+  overflow:      hidden;
+}
+
+.progress-fill {
+  height:     100%;
+  background: var(--color-accent);
+  transition: width 0.2s ease;
+}
+
+// ── Empty ─────────────────────────────────────────────────────────
+
+.sidebar-empty {
+  padding:    20px 8px;
+  text-align: center;
+  color:      var(--color-text-muted);
+  font-size:  0.8rem;
+}
+
+// ── Cards grid ────────────────────────────────────────────────────
+
+.cards-grid {
+  display:               grid;
+  grid-template-columns: 1fr 1fr;
+  gap:                   8px;
+}
+
+// ── Preset card ───────────────────────────────────────────────────
+
+.preset-card {
+  display:       flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow:      hidden;
+  border:        2px solid var(--color-border);
+  cursor:        pointer;
+  transition:    border-color 0.15s, box-shadow 0.15s;
 
   &:hover {
-    border-color: var(--color-accent);
-    background:   rgba(var(--color-accent-rgb), 0.05);
+    border-color: var(--color-border-hover);
+
+    .card-hover-actions { opacity: 1; }
   }
 
   &.active {
-    background:    rgba(var(--color-accent-rgb), 0.15);
-    border-color:  var(--color-accent);
+    border-color: var(--color-accent);
+    box-shadow:   0 0 0 1px rgba(var(--color-accent-rgb), 0.3);
 
-    .item-title {
-      color: var(--color-accent);
-      font-weight: 600;
-    }
+    .card-name { color: var(--color-accent); }
+  }
+
+  &.is-default .card-thumb {
+    background-image: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%) !important;
   }
 }
 
-.item-info {
-  display:       flex;
+// ── Thumb area ────────────────────────────────────────────────────
+
+.card-thumb {
+  position:    relative;
+  width:       100%;
+  aspect-ratio: 1 / 1.3;
+  overflow:    hidden;
+  background:  var(--color-bg-input);
+}
+
+.thumb-img {
+  position:   absolute;
+  inset:      0;
+  width:      100%;
+  height:     100%;
+  object-fit: cover;
+}
+
+.default-badge {
+  position:       absolute;
+  top:            6px;
+  left:           6px;
+  font-size:      0.6rem;
+  font-weight:    700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color:          rgba(255,255,255,0.9);
+  background:     rgba(var(--color-accent-rgb), 0.7);
+  padding:        2px 5px;
+  border-radius:  3px;
+}
+
+.card-hover-actions {
+  position:        absolute;
+  inset:           0;
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  justify-content: center;
+  gap:             6px;
+  background:      rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  opacity:         0;
+  transition:      opacity 0.15s;
+}
+
+.action-btn {
+  border:        none;
+  border-radius: 4px;
+  cursor:        pointer;
+  font-size:     0.75rem;
+  font-weight:   600;
+  transition:    background 0.12s, opacity 0.12s;
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.apply-btn {
+  padding:    5px 14px;
+  background: var(--color-accent);
+  color:      #fff;
+
+  &:hover:not(:disabled) { filter: brightness(1.15); }
+}
+
+.delete-btn {
+  position:   absolute;
+  top:        4px;
+  right:      4px;
+  padding:    3px 6px;
+  background: rgba(180, 30, 30, 0.75);
+  color:      #fff;
+  font-size:  0.7rem;
+
+  &:hover:not(:disabled) { background: rgba(220, 40, 40, 0.9); }
+}
+
+// ── Footer ────────────────────────────────────────────────────────
+
+.card-footer {
+  padding:        5px 7px;
+  background:     var(--color-bg-input);
+  display:        flex;
   flex-direction: column;
-  gap:           2px;
+  gap:            1px;
 }
 
-.item-title {
-  font-size:  0.9rem;
-  font-weight: 500;
-  color:      var(--color-text-primary);
+.card-name {
+  font-size:     0.78rem;
+  font-weight:   600;
+  color:         var(--color-text-primary);
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  transition:    color 0.15s;
 }
 
-.item-subtitle {
-  font-size: 0.75rem;
-  color:     var(--color-text-secondary);
-}
-
-.item-actions {
-  display:   flex;
-  gap:       4px;
+.card-account {
+  font-size: 0.65rem;
+  color:     var(--color-text-muted);
 }

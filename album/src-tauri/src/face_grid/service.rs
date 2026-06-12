@@ -1,10 +1,18 @@
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use tauri::{AppHandle, Emitter};
 
 use crate::core::errors::{AppError, Result};
 use crate::core::r2::R2Client;
 use crate::db::repositories::face_grid_repo::{FaceGridRepository, FaceGridRow, FaceGridSlotRow};
+
+#[derive(Clone, Serialize)]
+pub struct FaceGridProgress {
+    pub current:      usize,
+    pub total:        usize,
+    pub character_no: String,
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,10 +36,9 @@ pub struct FaceTextureEntry {
     pub path:         String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SlotAssignment {
     pub character_no: String,
-    pub preset_id:    String,
     pub slot_order:   i32,
     pub image_url:    String,
 }
@@ -137,22 +144,61 @@ impl FaceGridService {
         Ok(())
     }
 
-    /// Saves a named face grid to the DB. Optionally uploads a thumbnail to R2.
+    /// Saves a named face grid to the DB. If slots are empty, reads BMPs from disk and uploads to R2.
     pub async fn save_face_grid(
         pool:       &PgPool,
         r2_client:  Option<&R2Client>,
-        r2_pub:     &str,
         name:       &str,
         account_id: &str,
         slots:      &[SlotAssignment],
+        app:        &AppHandle,
     ) -> Result<FaceGridRow> {
-        // Create the grid record first (thumbnail_url updated after upload if needed)
+        // If slots are empty, prepare them from BMPs
+        let mut final_slots = if slots.is_empty() {
+            Self::prepare_slots_from_bmps(account_id).await?
+        } else {
+            slots.to_vec()
+        };
+
+        // Create the grid record first
         let grid = FaceGridRepository::create(pool, name, account_id, None).await?;
+
+        // If slots were prepared from BMPs, upload images to R2 with organized structure
+        if slots.is_empty() && !final_slots.is_empty() {
+            let face_dir = face_texture_path();
+            let total = final_slots.len();
+            for (i, slot) in final_slots.iter_mut().enumerate() {
+                app.emit("face_grid_progress", FaceGridProgress {
+                    current:      i,
+                    total,
+                    character_no: slot.character_no.clone(),
+                }).ok();
+
+                let bmp_path = face_dir.join(format!("{}.bmp", slot.character_no));
+                if bmp_path.exists() {
+                    let bytes = std::fs::read(&bmp_path).map_err(|e| AppError::Io(e))?;
+                    let url = Self::process_and_store_face(
+                        r2_client,
+                        &slot.character_no,
+                        &bytes,
+                        Some(account_id),
+                        Some(grid.id),
+                    ).await.unwrap_or_default();
+                    slot.image_url = url;
+                }
+            }
+            // Emit 100% done
+            app.emit("face_grid_progress", FaceGridProgress {
+                current:      total,
+                total,
+                character_no: String::new(),
+            }).ok();
+        }
 
         // Upload thumbnail from the first slot's image (slot_order 0)
         let mut thumbnail_url: Option<String> = None;
         if let Some(r2) = r2_client {
-            if let Some(first) = slots.iter().min_by_key(|s| s.slot_order) {
+            if let Some(first) = final_slots.iter().min_by_key(|s| s.slot_order) {
                 if !first.image_url.is_empty() {
                     match Self::fetch_and_upload_thumb(r2, grid.id, &first.image_url).await {
                         Ok(url) => thumbnail_url = Some(url),
@@ -173,7 +219,7 @@ impl FaceGridService {
         }
 
         // Upsert all slots
-        for slot in slots {
+        for slot in &final_slots {
             FaceGridRepository::upsert_slot(pool, grid.id, &slot.character_no, &slot.image_url, slot.slot_order).await?;
         }
 
@@ -209,16 +255,18 @@ impl FaceGridService {
         FaceGridRepository::get_all(pool).await
     }
 
-    pub async fn get_face_grid_slots(pool: &PgPool, grid_id: i64, r2_pub: &str) -> Result<Vec<FaceGridSlotRow>> {
-        FaceGridRepository::get_slots(pool, grid_id, r2_pub).await
+    pub async fn get_face_grid_slots(pool: &PgPool, grid_id: i64, r2_public_url: &str) -> Result<Vec<FaceGridSlotRow>> {
+        FaceGridRepository::get_slots(pool, grid_id, r2_public_url).await
     }
 
     /// Applies all slots of a saved grid: downloads images and writes BMPs to FaceTexture.
-    pub async fn apply_face_grid(pool: &PgPool, grid_id: i64, r2_pub: &str) -> Result<()> {
-        let slots = FaceGridRepository::get_slots(pool, grid_id, r2_pub).await?;
+    /// Emits `face_apply_done` after each character is written to disk.
+    pub async fn apply_face_grid(pool: &PgPool, grid_id: i64, r2_public_url: &str, app: &AppHandle) -> Result<()> {
+        let slots = FaceGridRepository::get_slots(pool, grid_id, r2_public_url).await?;
         for slot in slots {
             if !slot.image_url.is_empty() {
                 Self::apply_face_to_slot(&slot.character_no, &slot.image_url).await.ok();
+                app.emit("face_apply_done", &slot.character_no).ok();
             }
         }
         Ok(())
@@ -228,48 +276,89 @@ impl FaceGridService {
         FaceGridRepository::delete(pool, grid_id).await
     }
 
-    /// Uploads a character face image to R2 and stores the URL in DB
-    pub async fn upload_character_face(
-        pool:      &PgPool,
-        r2_client: Option<&R2Client>,
+    /// Helper: Process image (validate, convert to BMP, upload to R2)
+    /// If account_id and grid_id are provided, use organized structure.
+    /// Otherwise, use temp location for drag & drop.
+    async fn process_and_store_face(
+        r2_client:    Option<&R2Client>,
         character_no: &str,
-        image_b64: &str,
+        image_bytes:  &[u8],
+        account_id:   Option<&str>,
+        grid_id:      Option<i64>,
     ) -> Result<String> {
-        if r2_client.is_none() {
-            return Err(AppError::Internal("R2 client not configured".to_string()));
-        }
-        let r2 = r2_client.unwrap();
-
-        // Decode base64
-        use base64::{engine::general_purpose::STANDARD, Engine};
-        let bytes = STANDARD
-            .decode(image_b64)
-            .map_err(|e| AppError::Internal(format!("base64 decode: {}", e)))?;
-
-        // Load and resize image
-        let img = image::load_from_memory(&bytes)
-            .map_err(|e| AppError::Internal(format!("image decode: {}", e)))?;
+        // Load and validate image
+        let img = image::load_from_memory(image_bytes)
+            .map_err(|e| AppError::Internal(format!("invalid image: {}", e)))?;
         let resized = img.thumbnail(512, 512);
 
-        // Encode as WebP
-        let mut buf: Vec<u8> = Vec::new();
-        resized.write_to(
-            &mut std::io::Cursor::new(&mut buf),
-            image::ImageFormat::WebP,
-        ).map_err(|e| AppError::Internal(format!("image encode: {}", e)))?;
+        // Save to disk as BMP
+        let face_dir = face_texture_path();
+        let disk_path = face_dir.join(format!("{}.bmp", character_no));
+        resized.to_rgb8()
+            .save_with_format(&disk_path, image::ImageFormat::Bmp)
+            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
 
-        // Upload to R2
-        let key = format!("character-faces/{}.webp", character_no);
-        let _ = r2.upload(&key, buf).await?;
+        // Upload to R2 as WebP with organized path
+        let key = if let (Some(acc_id), Some(gid)) = (account_id, grid_id) {
+            format!("face-grids/{}/{}/{}.webp", acc_id, gid, character_no)
+        } else {
+            // Temp location for drag & drop
+            format!("character-faces/{}.webp", character_no)
+        };
 
-        // Save to DB (only the relative path, not the full URL)
-        FaceGridRepository::upsert_character_face(pool, character_no, &key).await?;
+        if let Some(r2) = r2_client {
+            let mut buf: Vec<u8> = Vec::new();
+            resized.write_to(
+                &mut std::io::Cursor::new(&mut buf),
+                image::ImageFormat::WebP,
+            ).map_err(|e| AppError::Internal(format!("image encode: {}", e)))?;
+            let _ = r2.upload(&key, buf).await?;
+        }
 
         Ok(key)
     }
 
     pub async fn get_character_faces(pool: &PgPool) -> Result<Vec<(String, String)>> {
         FaceGridRepository::get_all_character_faces(pool).await
+    }
+
+    /// Drag & drop: read image from file_path, convert to BMP, save to disk. No R2 upload.
+    pub async fn save_face_to_disk(character_no: &str, file_path: &str) -> Result<()> {
+        let bytes = std::fs::read(file_path).map_err(AppError::Io)?;
+
+        let img = image::load_from_memory(&bytes)
+            .map_err(|e| AppError::Internal(format!("invalid image: {}", e)))?;
+
+        let disk_path = face_texture_path().join(format!("{}.bmp", character_no));
+        img.thumbnail(512, 512)
+            .to_rgb8()
+            .save_with_format(&disk_path, image::ImageFormat::Bmp)
+            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+
+        Ok(())
+    }
+
+    /// Prepares slots from BMPs on disk (without uploading to R2 yet).
+    async fn prepare_slots_from_bmps(
+        account_id: &str,
+    ) -> Result<Vec<SlotAssignment>> {
+        let accounts = Self::scan_bdo_accounts()?;
+        let account = accounts
+            .into_iter()
+            .find(|a| a.account_id == account_id)
+            .ok_or_else(|| AppError::NotFound(format!("account {} not found", account_id)))?;
+
+        let mut slots = Vec::new();
+
+        for char_entry in account.characters {
+            slots.push(SlotAssignment {
+                character_no: char_entry.character_no,
+                slot_order:   char_entry.order as i32,
+                image_url:    String::new(),
+            });
+        }
+
+        Ok(slots)
     }
 }
 

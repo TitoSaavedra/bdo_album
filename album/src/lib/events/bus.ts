@@ -2,6 +2,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type { RustEventMap, RustEventName } from './types';
 import { setDbReady, onPresetUploaded, setListenerConnected } from '../../features/beauty/state/beauty.svelte';
+import { onFaceGridProgress, onFaceApplyDone } from '../../features/face_grid/state/face_grid.svelte';
 import { getPreset } from '../album';
 import type { PresetEntry } from '../album';
 
@@ -48,7 +49,9 @@ class AlbumEventBus {
         };
         onPresetUploaded(sparse);
       }),
-      this.on('listener_status', (p) => setListenerConnected(p.connected)),
+      this.on('listener_status',    (p) => setListenerConnected(p.connected)),
+      this.on('face_grid_progress', (p) => onFaceGridProgress(p)),
+      this.on('face_apply_done',    (p) => onFaceApplyDone(p)),
     ]);
     const alreadyReady = await invoke<boolean>('is_db_ready');
     if (alreadyReady) {

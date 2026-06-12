@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { convertFileSrc } from '@tauri-apps/api/core';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { onMount, onDestroy } from 'svelte';
   import type { CharacterEntry } from '../../../../lib/face_grid';
   import ImageCard from '../../../../ui/ImageCard/ImageCard.svelte';
-  import { bmpPathFor, faceGrid, uploadCharacterFace } from '../../state/face_grid.svelte';
+  import { getCharacterSrc, getApplyingChars, saveFaceToDisk } from '../../state/face_grid.svelte';
 
   interface Props {
     characters: CharacterEntry[];
@@ -11,46 +12,76 @@
 
   const ordered = $derived([...characters].sort((a, b) => a.order - b.order));
 
-  function getSrc(char: CharacterEntry): string | null {
-    const custom = faceGrid.customFaces[char.character_no];
-    if (custom) return custom;
-    const path = bmpPathFor(char.character_no) ?? char.bmp_path;
-    return path ? convertFileSrc(path) : null;
+  let hoveredChar = $state<string | null>(null);
+  let isDragging  = $state(false);
+
+  let _unlisteners: UnlistenFn[] = [];
+
+  const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'bmp', 'webp', 'gif', 'tiff']);
+
+  function charAtPoint(x: number, y: number): string | null {
+    const dpr = window.devicePixelRatio || 1;
+    const el  = document.elementFromPoint(x / dpr, y / dpr);
+    return (el?.closest('[data-char]') as HTMLElement | null)?.dataset.char ?? null;
   }
 
-  function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  onMount(() => {
+    Promise.all([
+      listen('tauri://drag-enter', () => { isDragging = true; }),
+      listen('tauri://drag-leave', () => { isDragging = false; hoveredChar = null; }),
 
-  async function handleDrop(char: CharacterEntry, e: DragEvent) {
-    const file = e.dataTransfer?.files[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    try {
-      const b64 = await fileToBase64(file);
-      await uploadCharacterFace(char.character_no, b64);
-    } catch (err) {
-      console.error('Failed to upload character face:', err);
-    }
-  }
+      listen<{ paths: string[]; position: { x: number; y: number } }>(
+        'tauri://drag-over',
+        (e) => {
+          isDragging  = true;
+          hoveredChar = charAtPoint(e.payload.position.x, e.payload.position.y);
+        },
+      ),
+
+      listen<{ paths: string[]; position: { x: number; y: number } }>(
+        'tauri://drag-drop',
+        async (e) => {
+          isDragging  = false;
+          const char  = hoveredChar;
+          hoveredChar = null;
+          if (!char) return;
+
+          const path = e.payload.paths[0];
+          if (!path) return;
+
+          const ext = path.split('.').pop()?.toLowerCase() ?? '';
+          if (!IMAGE_EXTS.has(ext)) return;
+
+          try {
+            await saveFaceToDisk(char, path);
+          } catch (err) {
+            console.error('Failed to save face to disk:', err);
+          }
+        },
+      ),
+    ]).then(fns => { _unlisteners = fns; });
+  });
+
+  onDestroy(() => _unlisteners.forEach(fn => fn()));
 </script>
 
 <div class="grid-wrap">
   <div class="char-grid">
     {#each ordered as char (char.character_no)}
-      <ImageCard
-        src={getSrc(char)}
-        badge={char.order}
-        ondrop={(e) => handleDrop(char, e)}
-      />
+      <div
+        data-char={char.character_no}
+        class="card-wrap"
+        class:drag-over={isDragging && hoveredChar === char.character_no}
+      >
+        {#if getApplyingChars().has(char.character_no)}
+          <div class="skeleton-card"></div>
+        {:else}
+          <ImageCard
+            src={getCharacterSrc(char)}
+            badge={char.order}
+          />
+        {/if}
+      </div>
     {/each}
   </div>
 </div>
