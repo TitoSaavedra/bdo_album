@@ -27,8 +27,8 @@ impl ClassRepository {
                     SELECT 1 FROM album_class_favorites f
                     WHERE f.class_id = c.id
                 )                                                        AS is_favorite
-            FROM scrapper_classes c
-            LEFT JOIN scrapper_presets p ON p.class_id = c.id
+            FROM scraper_classes c
+            LEFT JOIN scraper_presets p ON p.class_id = c.id
                 AND (p.image_1_url IS NOT NULL OR p.image_2_url IS NOT NULL)
             GROUP BY c.id, c.display, c.icon_svg
             ORDER BY is_favorite DESC, preset_count DESC
@@ -43,7 +43,7 @@ impl ClassRepository {
         let rows = sqlx::query_scalar::<_, String>(
             r#"
             SELECT c.display
-            FROM scrapper_classes c
+            FROM scraper_classes c
             JOIN album_class_favorites f ON f.class_id = c.id
             "#,
         )
@@ -57,7 +57,7 @@ impl ClassRepository {
             sqlx::query(
                 r#"
                 INSERT INTO album_class_favorites (class_id)
-                SELECT id FROM scrapper_classes WHERE display = $1
+                SELECT id FROM scraper_classes WHERE display = $1
                 ON CONFLICT DO NOTHING
                 "#,
             )
@@ -68,7 +68,7 @@ impl ClassRepository {
             sqlx::query(
                 r#"
                 DELETE FROM album_class_favorites
-                WHERE class_id = (SELECT id FROM scrapper_classes WHERE display = $1)
+                WHERE class_id = (SELECT id FROM scraper_classes WHERE display = $1)
                 "#,
             )
             .bind(class_name)

@@ -6,7 +6,7 @@
   <div
     class="live-dot"
     class:connected={beauty.listenerConnected}
-    title={beauty.listenerConnected ? 'Scrapper listener connected' : 'Scrapper listener disconnected'}
+    title={beauty.listenerConnected ? 'Scraper listener connected' : 'Scraper listener disconnected'}
   ></div>
 {/if}
 

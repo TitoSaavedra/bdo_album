@@ -37,7 +37,7 @@ export const beauty = $state({
   searchCounts:       {} as Record<number, number>,
   searchCountsLoaded: false,
 
-  // Live upload tracking (from scrapper via PG LISTEN/NOTIFY)
+  // Live upload tracking (from sscraper via PG LISTEN/NOTIFY)
   liveUploaded:      {} as Record<number, number>,
   livePresets:       {} as Record<number, PresetEntry[]>,
   listenerConnected: false,

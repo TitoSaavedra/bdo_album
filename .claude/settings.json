@@ -8,7 +8,7 @@
       "Read(//x/Github/Personal/**)",
       "Bash(cd /x/Github/Personal/bdo_album/album && find . -type f \\\\\\( -name \"*.svelte\" -o -name \"*.ts\" -o -name \"*.rs\" \\\\\\) | grep -v node_modules | sort)",
       "Read(//x/x/Github/Personal/bdo_album/**)",
-      "Bash(powershell.exe -Command \"Copy-Item 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\scrapper\\\\src-tauri\\\\icons' -Destination 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' -Recurse -Force; Get-ChildItem 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' | Select-Object Name\")",
+      "Bash(powershell.exe -Command \"Copy-Item 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\sscraper\\\\src-tauri\\\\icons' -Destination 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' -Recurse -Force; Get-ChildItem 'x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src-tauri\\\\icons' | Select-Object Name\")",
       "Bash(pnpm add *)",
       "Bash(python3 -c ' *)",
       "Bash(pnpm tauri *)",
@@ -24,7 +24,14 @@
       "Bash(grep -rn --include=\"*.svelte\" --include=\"*.ts\" --include=\"*.rs\" -E \"'[^']*[áéíóúñü¿¡][^']*'|\\\\\"[^\\\\\"]*[áéíóúñü¿¡][^\\\\\"]*\\\\\"|>[^<]*[áéíóúñü¿¡][^<]*<|\\\\/\\\\/[^\\\\n]*[áéíóúñü¿¡]|#[^\\\\n]*[áéíóúñü¿¡]\" \"x:/Github/Personal/bdo_album/album/src\")",
       "Bash(ls \"x:\\\\Github\\\\Personal\\\\\" 2>/dev/null || dir \"x:\\\\Github\\\\Personal\\\\\")",
       "Read(//x/Github/Personal\" 2>/dev/**)",
-      "Bash(dir \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\" /b)"
+      "Bash(dir \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\features\" /b)",
+      "Bash(Get-ChildItem -Path \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\sscraper\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(Remove-Item \"x:\\\\Github\\\\Personal\\\\bdo_album\\\\album\\\\src\\\\lib\\\\face_grid.ts\")",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.scss\")",
+      "Bash(Select-Object FullName)",
+      "Bash(ConvertTo-Json)"
     ]
   }
 }

@@ -6,15 +6,15 @@ Dos proyectos Tauri/Rust completamente independientes. Sin crates compartidos, s
 
 ## Proyectos
 
-### `scrapper/` — Dashboard + Scrapper
+### `scraper/` — Dashboard + Scraper
 - Descarga presets populares de Garmoth
 - Sube imágenes a Cloudflare R2
 - Guarda metadata en PostgreSQL
 - Muestra progreso y logs en tiempo real
-- **Dev**: `cd scrapper && pnpm tauri dev`
+- **Dev**: `cd scraper && pnpm tauri dev`
 
 ### `album/` — Beauty Album Viewer
-- Muestra presets descargados por el scrapper
+- Muestra presets descargados por el scraper
 - Lee de la misma PostgreSQL
 - Gestiona preferencias del usuario (favoritos, descartados)
 - **Dev**: `cd album && pnpm tauri dev`
@@ -27,7 +27,7 @@ Dos proyectos Tauri/Rust completamente independientes. Sin crates compartidos, s
 docker compose up -d   # PostgreSQL en localhost:5432
 ```
 
-Ambos proyectos se conectan a la misma DB (`bdo_album`). El scrapper escribe, el album lee.
+Ambos proyectos se conectan a la misma DB (`bdo_album`). El scraper escribe, el album lee.
 
 ---
 
@@ -45,7 +45,7 @@ Ambos proyectos se conectan a la misma DB (`bdo_album`). El scrapper escribe, el
 
 Cada proyecto tiene su propio `src-tauri/.env` (ignorado por git).
 
-### scrapper/src-tauri/.env
+### scraper/src-tauri/.env
 ```env
 DATABASE_URL=postgresql://bdo:bdo@localhost:5432/bdo_album
 R2_ACCOUNT_ID=...

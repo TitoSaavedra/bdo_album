@@ -67,10 +67,10 @@ impl PresetRepository {
                 COALESCE(u.is_discarded, false)                   AS is_discarded,
                 p.creation_at,
                 EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at
-            FROM scrapper_presets p
+            FROM scraper_presets p
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             LEFT JOIN LATERAL (
-                SELECT url FROM scrapper_preset_pabs
+                SELECT url FROM scraper_preset_pabs
                 WHERE preset_id = p.id
                 ORDER BY id
                 LIMIT 1
@@ -130,10 +130,10 @@ impl PresetRepository {
                 COALESCE(u.is_discarded, false)                   AS is_discarded,
                 p.creation_at,
                 EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at
-            FROM scrapper_presets p
+            FROM scraper_presets p
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             LEFT JOIN LATERAL (
-                SELECT url FROM scrapper_preset_pabs
+                SELECT url FROM scraper_preset_pabs
                 WHERE preset_id = p.id
                 ORDER BY id
                 LIMIT 1
@@ -152,7 +152,7 @@ impl PresetRepository {
         let regions = sqlx::query_scalar::<_, String>(
             r#"
             SELECT DISTINCT region
-            FROM scrapper_presets
+            FROM scraper_presets
             WHERE region IS NOT NULL AND region != ''
               AND (image_1_url IS NOT NULL OR image_2_url IS NOT NULL)
             ORDER BY region
@@ -165,7 +165,7 @@ impl PresetRepository {
 
     pub async fn get_class_id(pool: &PgPool, class_name: &str) -> Result<Option<i32>> {
         let id = sqlx::query_scalar::<_, i32>(
-            "SELECT id FROM scrapper_classes WHERE display = $1",
+            "SELECT id FROM scraper_classes WHERE display = $1",
         )
         .bind(class_name)
         .fetch_optional(pool)
@@ -212,7 +212,7 @@ impl PresetRepository {
             FROM album_user_prefs u
             WHERE u.is_wanted = true
               AND NOT EXISTS (
-                SELECT 1 FROM scrapper_preset_pabs WHERE preset_id = u.preset_id
+                SELECT 1 FROM scraper_preset_pabs WHERE preset_id = u.preset_id
               )
             "#,
         )
@@ -226,10 +226,10 @@ impl PresetRepository {
             r#"
             SELECT 'https://garmoth.com/beauty-album/preset/' || p.id::TEXT
             FROM album_user_prefs u
-            JOIN scrapper_presets p ON p.id = u.preset_id
+            JOIN scraper_presets p ON p.id = u.preset_id
             WHERE u.is_wanted = true
               AND NOT EXISTS (
-                SELECT 1 FROM scrapper_preset_pabs WHERE preset_id = p.id
+                SELECT 1 FROM scraper_preset_pabs WHERE preset_id = p.id
               )
             ORDER BY p.id
             "#,
@@ -261,10 +261,10 @@ impl PresetRepository {
                 p.creation_at,
                 EXTRACT(EPOCH FROM p.updated_at)::BIGINT                      AS updated_at
             FROM album_user_prefs u
-            JOIN scrapper_presets p ON p.id = u.preset_id
+            JOIN scraper_presets p ON p.id = u.preset_id
             WHERE u.is_wanted = true
               AND NOT EXISTS (
-                SELECT 1 FROM scrapper_preset_pabs WHERE preset_id = p.id
+                SELECT 1 FROM scraper_preset_pabs WHERE preset_id = p.id
               )
             ORDER BY p.id
             "#,
@@ -284,7 +284,7 @@ impl PresetRepository {
         let rows = sqlx::query_as::<_, (i32, i64)>(
             r#"
             SELECT p.class_id, COUNT(*)::BIGINT
-            FROM scrapper_presets p
+            FROM scraper_presets p
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             WHERE (p.image_1_url IS NOT NULL OR p.image_2_url IS NOT NULL)
               AND COALESCE(u.is_discarded, false) = false

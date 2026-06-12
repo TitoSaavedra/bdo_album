@@ -2,8 +2,8 @@
   "name": "bdo-album",
   "private": true,
   "scripts": {
-    "tauri:dev": "concurrently -n scrapper,album -c cyan,green \"npm run tauri:scrapper\" \"npm run tauri:album\"",
-    "tauri:scrapper": "cd scrapper && pnpm tauri dev",
+    "tauri:dev": "concurrently -n scraper,album -c cyan,green \"npm run tauri:scraper\" \"npm run tauri:album\"",
+    "tauri:scraper": "cd scraper && pnpm tauri dev",
     "tauri:album": "cd album && pnpm tauri dev"
   },
   "devDependencies": {
