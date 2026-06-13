@@ -33,7 +33,8 @@
       "Bash(Select-Object FullName)",
       "Bash(ConvertTo-Json)",
       "Bash(git restore *)",
-      "Bash(pnpm svelte-check *)"
+      "Bash(pnpm svelte-check *)",
+      "Bash(pnpm run *)"
     ]
   }
 }

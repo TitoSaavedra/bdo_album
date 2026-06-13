@@ -73,6 +73,24 @@ pub async fn delete_face_grid(
 }
 
 #[tauri::command]
+pub async fn overwrite_face_grid(
+    grid_id:    i64,
+    account_id: String,
+    state:      State<'_, AppState>,
+    app:        tauri::AppHandle,
+) -> Result<FaceGridRow, String> {
+    FaceGridService::overwrite_face_grid(
+        &state.pool,
+        state.r2_client.as_ref(),
+        grid_id,
+        &account_id,
+        &app,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_character_faces(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
     FaceGridService::get_character_faces(&state.pool)
         .await

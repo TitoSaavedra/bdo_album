@@ -1,28 +1,77 @@
 .sidebar-grids {
   display:        flex;
   flex-direction: column;
-  width:          220px;
-  min-width:      220px;
-  border-right:   1px solid var(--color-border);
-  background:     var(--color-bg-secondary);
+  width:          200px;
+  min-width:      200px;
+  border-left:    1px solid var(--color-border);
+  background:     var(--color-bg-surface);
   overflow:       hidden;
 }
 
+// ── Heading ───────────────────────────────────────────────────────
+
 .sidebar-heading {
-  padding:        10px 12px;
-  font-size:      0.75rem;
-  font-weight:    700;
-  color:          var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  border-bottom:  1px solid var(--color-border);
-  flex-shrink:    0;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  padding:         10px 10px 6px;
+  flex-shrink:     0;
 }
+
+.sidebar-heading-pill {
+  display:         flex;
+  align-items:     center;
+  gap:             6px;
+  padding:         5px 11px 5px 9px;
+  border-radius:   20px;
+  border:          1px solid var(--color-border);
+  background:      rgba(7, 10, 14, 0.72);
+  backdrop-filter: blur(10px);
+  color:           var(--color-text-muted);
+  font-size:       11px;
+  font-weight:     700;
+  cursor:          default;
+  transition:      border-color 0.15s, color 0.15s;
+
+  svg {
+    width:       13px;
+    height:      13px;
+    flex-shrink: 0;
+  }
+
+  span:not(.sidebar-count) {
+    color:         var(--color-text-primary);
+    white-space:   nowrap;
+  }
+}
+
+.sidebar-count {
+  display:         inline-flex;
+  align-items:     center;
+  justify-content: center;
+  min-width:       18px;
+  height:          16px;
+  padding:         0 5px;
+  font-size:       10px;
+  font-family:     monospace;
+  font-weight:     700;
+  letter-spacing:  0;
+  text-transform:  none;
+  border-radius:   10px;
+  background:      rgba(var(--color-accent-rgb), 0.15);
+  color:           var(--color-accent);
+  border:          1px solid rgba(var(--color-accent-rgb), 0.3);
+}
+
+// ── Scrollable list ───────────────────────────────────────────────
 
 .grids-list {
   flex:       1;
   overflow-y: auto;
   padding:    10px;
+  display:    flex;
+  flex-direction: column;
+  gap:        6px;
 }
 
 // ── Progress ─────────────────────────────────────────────────────
@@ -30,19 +79,25 @@
 .sidebar-creating {
   display:        flex;
   flex-direction: column;
-  gap:            6px;
-  padding:        10px 4px;
+  gap:            8px;
+  padding:        10px 12px;
+  background:     var(--color-bg-elevated);
+  border:         1px solid var(--color-border);
+  border-radius:  8px;
 }
 
 .creating-label {
-  font-size:   0.8rem;
-  font-weight: 600;
-  color:       var(--color-text-secondary);
+  font-size:   10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color:       var(--color-text-muted);
 }
 
 .creating-char {
   font-size:     0.7rem;
-  color:         var(--color-text-muted);
+  font-family:   monospace;
+  color:         var(--color-accent);
   overflow:      hidden;
   text-overflow: ellipsis;
   white-space:   nowrap;
@@ -60,6 +115,7 @@
   height:     100%;
   background: var(--color-accent);
   transition: width 0.2s ease;
+  border-radius: 2px;
 }
 
 // ── Empty ─────────────────────────────────────────────────────────
@@ -68,7 +124,9 @@
   padding:    20px 8px;
   text-align: center;
   color:      var(--color-text-muted);
-  font-size:  0.8rem;
+  font-size:  11px;
+  font-family: monospace;
+  letter-spacing: 0.04em;
 }
 
 // ── Cards grid ────────────────────────────────────────────────────
@@ -76,19 +134,20 @@
 .cards-grid {
   display:               grid;
   grid-template-columns: 1fr 1fr;
-  gap:                   8px;
+  gap:                   6px;
 }
 
 // ── Preset card ───────────────────────────────────────────────────
 
 .preset-card {
-  display:       flex;
+  display:        flex;
   flex-direction: column;
-  border-radius: 6px;
-  overflow:      hidden;
-  border:        2px solid var(--color-border);
-  cursor:        pointer;
-  transition:    border-color 0.15s, box-shadow 0.15s;
+  border-radius:  6px;
+  overflow:       hidden;
+  border:         1px solid var(--color-border);
+  cursor:         pointer;
+  transition:     border-color 0.15s, box-shadow 0.15s;
+  background:     var(--color-bg-elevated);
 
   &:hover {
     border-color: var(--color-border-hover);
@@ -97,25 +156,26 @@
   }
 
   &.active {
-    border-color: var(--color-accent);
-    box-shadow:   0 0 0 1px rgba(var(--color-accent-rgb), 0.3);
+    border-color: rgba(var(--color-accent-rgb), 0.6);
+    box-shadow:   0 0 0 1px rgba(var(--color-accent-rgb), 0.15),
+                  inset 0 0 0 1px rgba(var(--color-accent-rgb), 0.06);
 
     .card-name { color: var(--color-accent); }
   }
 
   &.is-default .card-thumb {
-    background-image: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%) !important;
+    background: linear-gradient(135deg, #0d1219 0%, #111827 100%) !important;
   }
 }
 
-// ── Thumb area ────────────────────────────────────────────────────
+// ── Thumb ─────────────────────────────────────────────────────────
 
 .card-thumb {
-  position:    relative;
-  width:       100%;
+  position:     relative;
+  width:        100%;
   aspect-ratio: 1 / 1.3;
-  overflow:    hidden;
-  background:  var(--color-bg-input);
+  overflow:     hidden;
+  background:   var(--color-bg-input);
 }
 
 .thumb-img {
@@ -128,14 +188,14 @@
 
 .default-badge {
   position:       absolute;
-  top:            6px;
-  left:           6px;
-  font-size:      0.6rem;
+  top:            5px;
+  left:           5px;
+  font-size:      9px;
   font-weight:    700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color:          rgba(255,255,255,0.9);
-  background:     rgba(var(--color-accent-rgb), 0.7);
+  letter-spacing: 0.08em;
+  color:          rgba(255, 255, 255, 0.85);
+  background:     rgba(var(--color-accent-rgb), 0.65);
   padding:        2px 5px;
   border-radius:  3px;
 }
@@ -147,28 +207,31 @@
   flex-direction:  column;
   align-items:     center;
   justify-content: center;
-  gap:             6px;
-  background:      rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(2px);
+  gap:             5px;
+  background:      rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
   opacity:         0;
   transition:      opacity 0.15s;
 }
 
 .action-btn {
-  border:        none;
-  border-radius: 4px;
-  cursor:        pointer;
-  font-size:     0.75rem;
-  font-weight:   600;
-  transition:    background 0.12s, opacity 0.12s;
+  border:         none;
+  border-radius:  4px;
+  cursor:         pointer;
+  font-size:      10px;
+  font-weight:    700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:     background 0.12s, opacity 0.12s;
 
   &:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 .apply-btn {
-  padding:    5px 14px;
+  padding:    4px 14px;
   background: var(--color-accent);
-  color:      #fff;
+  color:      var(--color-btn-text-on-accent);
+  border:     1px solid transparent;
 
   &:hover:not(:disabled) { filter: brightness(1.15); }
 }
@@ -177,12 +240,13 @@
   position:   absolute;
   top:        4px;
   right:      4px;
-  padding:    3px 6px;
-  background: rgba(180, 30, 30, 0.75);
+  padding:    2px 6px;
+  background: rgba(180, 30, 30, 0.8);
+  border:     1px solid rgba(220, 60, 60, 0.4);
   color:      #fff;
-  font-size:  0.7rem;
+  font-size:  9px;
 
-  &:hover:not(:disabled) { background: rgba(220, 40, 40, 0.9); }
+  &:hover:not(:disabled) { background: rgba(220, 40, 40, 0.95); }
 }
 
 // ── Footer ────────────────────────────────────────────────────────
@@ -193,10 +257,11 @@
   display:        flex;
   flex-direction: column;
   gap:            1px;
+  border-top:     1px solid var(--color-border);
 }
 
 .card-name {
-  font-size:     0.78rem;
+  font-size:     11px;
   font-weight:   600;
   color:         var(--color-text-primary);
   white-space:   nowrap;
@@ -206,6 +271,8 @@
 }
 
 .card-account {
-  font-size: 0.65rem;
-  color:     var(--color-text-muted);
+  font-size:   9px;
+  font-family: monospace;
+  color:       var(--color-text-muted);
+  letter-spacing: 0.04em;
 }

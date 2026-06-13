@@ -131,6 +131,7 @@ pub fn run() {
             face_grid::commands::get_face_grid_slots,
             face_grid::commands::apply_face_grid,
             face_grid::commands::delete_face_grid,
+            face_grid::commands::overwrite_face_grid,
             face_grid::commands::get_character_faces,
             face_grid::commands::save_face_to_disk,
         ])

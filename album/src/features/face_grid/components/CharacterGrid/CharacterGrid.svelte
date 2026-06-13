@@ -12,6 +12,52 @@
 
   const ordered = $derived([...characters].sort((a, b) => a.order - b.order));
 
+  const COLS           = 7;
+  const MAX_ROWS_FILL  = 7;
+  const GAP            = 6;
+  const PADDING        = 32; // 16px each side
+  const PORTRAIT_RATIO = 220 / 154;
+
+  let wrapEl   = $state<HTMLElement | null>(null);
+  let rowHeight = $state(0);
+  let colWidth  = $state<number | null>(null); // null = 1fr (default)
+
+  function calcDimensions(el: HTMLElement, numItems: number) {
+    const w       = el.clientWidth  - PADDING;
+    const h       = el.clientHeight - PADDING;
+    const colW    = (w - GAP * (COLS - 1)) / COLS;
+    const idealH  = colW * PORTRAIT_RATIO;
+    const numRows = Math.ceil(numItems / COLS);
+
+    if (numRows <= MAX_ROWS_FILL) {
+      const maxH = (h - GAP * (numRows - 1)) / numRows;
+      if (idealH <= maxH) {
+        // Width is the constraint → full columns, portrait height
+        rowHeight = Math.floor(idealH);
+        colWidth  = null;
+      } else {
+        // Height is the constraint → shrink columns to maintain portrait ratio
+        const cardH = Math.floor(maxH);
+        const cardW = Math.floor(cardH / PORTRAIT_RATIO);
+        rowHeight   = cardH;
+        colWidth    = cardW;
+      }
+    } else {
+      rowHeight = Math.floor(idealH);
+      colWidth  = null;
+    }
+  }
+
+  $effect(() => {
+    const el = wrapEl;
+    if (!el) return;
+    const n = ordered.length;
+    const ro = new ResizeObserver(() => calcDimensions(el, ordered.length));
+    ro.observe(el);
+    calcDimensions(el, n);
+    return () => ro.disconnect();
+  });
+
   let hoveredChar = $state<string | null>(null);
   let isDragging  = $state(false);
 
@@ -65,8 +111,14 @@
   onDestroy(() => _unlisteners.forEach(fn => fn()));
 </script>
 
-<div class="grid-wrap">
-  <div class="char-grid">
+<div class="grid-wrap" bind:this={wrapEl}>
+  <div
+    class="char-grid"
+    style={[
+      rowHeight ? `grid-auto-rows: ${rowHeight}px` : '',
+      colWidth  ? `grid-template-columns: repeat(${COLS}, ${colWidth}px)` : '',
+    ].filter(Boolean).join('; ')}
+  >
     {#each ordered as char (char.character_no)}
       <div
         data-char={char.character_no}

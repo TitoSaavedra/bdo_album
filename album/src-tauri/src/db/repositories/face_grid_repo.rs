@@ -73,6 +73,13 @@ impl FaceGridRepository {
         Ok(())
     }
 
+    pub async fn clear_slots(pool: &PgPool, grid_id: i64) -> Result<()> {
+        sqlx::query!("DELETE FROM album_face_grid_slots WHERE grid_id = $1", grid_id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn upsert_slot(
         pool:         &PgPool,
         grid_id:      i64,

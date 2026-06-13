@@ -1,0 +1,44 @@
+.preset-thumb {
+  position: relative;
+  width:    100%;
+  height:   100%;
+}
+
+.thumb-img {
+  position:   absolute;
+  inset:      0;
+  width:      100%;
+  height:     100%;
+  object-fit: cover;
+  opacity:    1;
+  transition: opacity 0.3s ease;
+
+  &.fade-out { opacity: 0; }
+}
+
+.thumb-empty {
+  position:  absolute;
+  inset:     0;
+  background: var(--color-bg-input);
+}
+
+.thumb-dots {
+  position:        absolute;
+  bottom:          5px;
+  left:            0;
+  right:           0;
+  display:         flex;
+  justify-content: center;
+  gap:             4px;
+  pointer-events:  none;
+}
+
+.dot {
+  width:         4px;
+  height:        4px;
+  border-radius: 50%;
+  background:    rgba(255, 255, 255, 0.35);
+  transition:    background 0.3s;
+
+  &.active { background: rgba(255, 255, 255, 0.9); }
+}

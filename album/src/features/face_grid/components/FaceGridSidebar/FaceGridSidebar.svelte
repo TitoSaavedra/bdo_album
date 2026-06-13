@@ -46,7 +46,20 @@
 </script>
 
 <aside class="sidebar-grids">
-  <div class="sidebar-heading">Presets</div>
+  <div class="sidebar-heading">
+    <div class="sidebar-heading-pill">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="1" width="5" height="5" rx="1"/>
+        <rect x="8" y="1" width="5" height="5" rx="1"/>
+        <rect x="1" y="8" width="5" height="5" rx="1"/>
+        <rect x="8" y="8" width="5" height="5" rx="1"/>
+      </svg>
+      <span>Presets</span>
+      {#if getSavedGrids().length > 0}
+        <span class="sidebar-count">{getSavedGrids().length}</span>
+      {/if}
+    </div>
+  </div>
 
   <div class="grids-list custom-scroll">
     {#if getCreatingPreset()}

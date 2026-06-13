@@ -32,6 +32,9 @@ export const applyFaceGrid = (gridId: number): Promise<void> =>
 export const deleteFaceGrid = (gridId: number): Promise<void> =>
   invoke('delete_face_grid', { gridId });
 
+export const overwriteFaceGrid = (gridId: number, accountId: string): Promise<FaceGridRow> =>
+  invoke('overwrite_face_grid', { gridId, accountId });
+
 export const getCharacterFaces = (): Promise<Array<[string, string]>> =>
   invoke('get_character_faces');
 

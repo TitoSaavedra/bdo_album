@@ -239,11 +239,10 @@ impl PresetRepository {
 
         let has_image_data: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM scraper_presets
-             WHERE (image_1 IS NOT NULL AND image_1 != 'not_found')
-                OR (image_2 IS NOT NULL AND image_2 != 'not_found')",
+             WHERE image_1 IS NOT NULL OR image_2 IS NOT NULL",
         ).fetch_one(pool).await?;
 
-        let by_class: Vec<(i32, i64, i64, i64, i64)> = sqlx::query_as(
+        let by_class: Vec<(i32, i64, i64, i64, i64, i64)> = sqlx::query_as(
             "SELECT class_id,
                     COUNT(*) AS total,
                     COUNT(image_1_url) AS with_images,
@@ -252,9 +251,12 @@ impl PresetRepository {
                           AND COALESCE(image_2, 'not_found') = 'not_found'
                     ) AS not_found,
                     COUNT(*) FILTER (
-                        WHERE (image_1 IS NOT NULL AND image_1 != 'not_found')
-                           OR (image_2 IS NOT NULL AND image_2 != 'not_found')
-                    ) AS has_image_data
+                        WHERE image_1 IS NOT NULL OR image_2 IS NOT NULL
+                    ) AS has_image_data,
+                    COUNT(*) FILTER (
+                        WHERE (image_1_url IS NULL AND image_1 IS NOT NULL AND image_1 != 'not_found')
+                           OR (image_2_url IS NULL AND image_2 IS NOT NULL AND image_2 != 'not_found')
+                    ) AS pending
              FROM scraper_presets GROUP BY class_id ORDER BY total DESC",
         ).fetch_all(pool).await?;
 
@@ -264,12 +266,13 @@ impl PresetRepository {
             "not_found":      not_found,
             "pending":        pending,
             "has_image_data": has_image_data,
-            "by_class":    by_class.into_iter().map(|(class_id, t, img, nf, hid)| serde_json::json!({
+            "by_class":    by_class.into_iter().map(|(class_id, t, img, nf, hid, pnd)| serde_json::json!({
                 "class_id":       class_id,
                 "total":          t,
                 "with_images":    img,
                 "not_found":      nf,
                 "has_image_data": hid,
+                "pending":        pnd,
             })).collect::<Vec<_>>(),
         }))
     }

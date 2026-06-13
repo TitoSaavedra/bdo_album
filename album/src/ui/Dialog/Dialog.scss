@@ -5,7 +5,7 @@
   display:         flex;
   align-items:     center;
   justify-content: center;
-  z-index:         100;
+  z-index:         2000;
   backdrop-filter: blur(4px);
 }
 
@@ -64,10 +64,35 @@
     margin:    0;
   }
 
+  .loading-bar {
+    position:      relative;
+    height:        3px;
+    background:    rgba(var(--color-accent-rgb), 0.18);
+    border-radius: 2px;
+    overflow:      hidden;
+    margin-bottom: -4px;
+  }
+
+  .loading-bar-fill {
+    position:      absolute;
+    top:           0;
+    left:          0;
+    height:        100%;
+    width:         45%;
+    background:    var(--color-accent);
+    border-radius: 2px;
+    animation:     loading-slide 1.4s ease-in-out infinite;
+  }
+
   .actions {
     display:         flex;
     justify-content: flex-end;
     gap:             8px;
     margin-top:      4px;
   }
+}
+
+@keyframes loading-slide {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(260%); }
 }

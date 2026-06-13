@@ -163,20 +163,28 @@ impl FaceGridService {
         // Create the grid record first
         let grid = FaceGridRepository::create(pool, name, account_id, None).await?;
 
-        // If slots were prepared from BMPs, upload images to R2 with organized structure
-        if slots.is_empty() && !final_slots.is_empty() {
+        // Upload BMPs to R2 for any slot with an empty image_url
+        let needs_upload: Vec<usize> = final_slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.image_url.is_empty())
+            .map(|(i, _)| i)
+            .collect();
+
+        if !needs_upload.is_empty() {
             let face_dir = face_texture_path();
-            let total = final_slots.len();
-            for (i, slot) in final_slots.iter_mut().enumerate() {
+            let total    = needs_upload.len();
+            for (progress, &slot_idx) in needs_upload.iter().enumerate() {
+                let slot = &mut final_slots[slot_idx];
                 app.emit("face_grid_progress", FaceGridProgress {
-                    current:      i,
+                    current:      progress,
                     total,
                     character_no: slot.character_no.clone(),
                 }).ok();
 
                 let bmp_path = face_dir.join(format!("{}.bmp", slot.character_no));
                 if bmp_path.exists() {
-                    let bytes = std::fs::read(&bmp_path).map_err(|e| AppError::Io(e))?;
+                    let bytes = std::fs::read(&bmp_path).map_err(AppError::Io)?;
                     let url = Self::process_and_store_face(
                         r2_client,
                         &slot.character_no,
@@ -187,7 +195,6 @@ impl FaceGridService {
                     slot.image_url = url;
                 }
             }
-            // Emit 100% done
             app.emit("face_grid_progress", FaceGridProgress {
                 current:      total,
                 total,
@@ -249,6 +256,55 @@ impl FaceGridService {
         let key = format!("face-grids/{}/thumb.webp", grid_id);
         let _ = r2.upload(&key, buf).await?;
         Ok(key)
+    }
+
+    /// Overwrites an existing grid: clears old slots and re-uploads all BMPs from disk.
+    pub async fn overwrite_face_grid(
+        pool:       &PgPool,
+        r2_client:  Option<&R2Client>,
+        grid_id:    i64,
+        account_id: &str,
+        app:        &AppHandle,
+    ) -> Result<FaceGridRow> {
+        FaceGridRepository::clear_slots(pool, grid_id).await?;
+
+        let mut slots = Self::prepare_slots_from_bmps(account_id).await?;
+
+        let face_dir = face_texture_path();
+        let total    = slots.len();
+        for (i, slot) in slots.iter_mut().enumerate() {
+            app.emit("face_grid_progress", FaceGridProgress {
+                current:      i,
+                total,
+                character_no: slot.character_no.clone(),
+            }).ok();
+
+            let bmp_path = face_dir.join(format!("{}.bmp", slot.character_no));
+            if bmp_path.exists() {
+                let bytes = std::fs::read(&bmp_path).map_err(AppError::Io)?;
+                let url = Self::process_and_store_face(
+                    r2_client,
+                    &slot.character_no,
+                    &bytes,
+                    Some(account_id),
+                    Some(grid_id),
+                ).await.unwrap_or_default();
+                slot.image_url = url;
+            }
+        }
+        app.emit("face_grid_progress", FaceGridProgress {
+            current:      total,
+            total,
+            character_no: String::new(),
+        }).ok();
+
+        for slot in &slots {
+            FaceGridRepository::upsert_slot(pool, grid_id, &slot.character_no, &slot.image_url, slot.slot_order).await?;
+        }
+
+        let updated = FaceGridRepository::get_all(pool).await?;
+        updated.into_iter().find(|g| g.id == grid_id)
+            .ok_or_else(|| AppError::NotFound(format!("grid {}", grid_id)))
     }
 
     pub async fn get_face_grids(pool: &PgPool) -> Result<Vec<FaceGridRow>> {

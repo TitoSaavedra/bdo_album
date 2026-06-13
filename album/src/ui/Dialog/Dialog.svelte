@@ -92,6 +92,10 @@
       <div class="error">{error}</div>
     {/if}
 
+    {#if submitting}
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    {/if}
+
     <div class="actions">
       <Button variant="ghost" onclick={oncancel}>{cancelText}</Button>
       <Button variant="primary" disabled={submitDisabled} onclick={handleSubmit}>

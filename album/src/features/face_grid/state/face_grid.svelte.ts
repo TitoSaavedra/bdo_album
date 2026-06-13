@@ -7,17 +7,17 @@ import type {
   FaceGridRow,
   FaceGridSlotRow,
   FaceTextureEntry,
-  SlotAssignment,
 } from '../../../lib/face_grid/types';
 import {
-  applyFaceGrid    as cmdApplyFaceGrid,
-  deleteFaceGrid   as cmdDeleteFaceGrid,
+  applyFaceGrid      as cmdApplyFaceGrid,
+  deleteFaceGrid     as cmdDeleteFaceGrid,
+  overwriteFaceGrid  as cmdOverwriteFaceGrid,
   getCharacterFaces,
   getFaceGrids,
   getFaceGridSlots,
   listFaceTextures,
-  saveFaceGrid     as cmdSaveFaceGrid,
-  saveFaceToDisk   as cmdSaveFaceToDisk,
+  saveFaceGrid       as cmdSaveFaceGrid,
+  saveFaceToDisk     as cmdSaveFaceToDisk,
   scanBdoAccounts,
 } from '../../../lib/face_grid/commands';
 
@@ -26,6 +26,8 @@ import {
 let accounts         = $state<BdoAccount[]>([]);
 let activeAccountId  = $state<string | null>(null);
 let showAccountPicker = $state(false);
+let showPresetPicker  = $state(false);
+let showSavePicker    = $state(false);
 
 let faceTextures     = $state<FaceTextureEntry[]>([]);
 let customFaces      = $state<Record<string, string>>({});   // character_no → r2 url
@@ -35,6 +37,7 @@ let accountThumbs    = $state<Record<string, string[]>>({});
 let savedGrids       = $state<FaceGridRow[]>([]);
 let activeGridId     = $state<number | null>(null);
 let activeGridSlots  = $state<FaceGridSlotRow[]>([]);
+let allGridSlots     = $state<Record<number, FaceGridSlotRow[]>>({});
 
 let loading          = $state(false);
 let error            = $state<string | null>(null);
@@ -60,6 +63,8 @@ let dialog           = $state<DialogState>({
 export const getAccounts        = () => accounts;
 export const getActiveAccountId = () => activeAccountId;
 export const getShowAccountPicker = () => showAccountPicker;
+export const getShowPresetPicker  = () => showPresetPicker;
+export const getShowSavePicker    = () => showSavePicker;
 
 export const getFaceTextures    = () => faceTextures;
 export const getCustomFaces     = () => customFaces;
@@ -69,6 +74,7 @@ export const getAccountThumbs   = () => accountThumbs;
 export const getSavedGrids      = () => savedGrids;
 export const getActiveGridId    = () => activeGridId;
 export const getActiveGridSlots = () => activeGridSlots;
+export const getAllGridSlots     = () => allGridSlots;
 
 export const getLoading         = () => loading;
 export const getError           = () => error;
@@ -132,6 +138,11 @@ export async function loadAccounts(): Promise<void> {
     faceTextures  = textures;
     savedGrids    = grids;
     customFaces   = Object.fromEntries(faces);
+
+    const slotsResults = await Promise.all(grids.map(g => getFaceGridSlots(g.id)));
+    const slots: Record<number, FaceGridSlotRow[]> = {};
+    grids.forEach((g, i) => { slots[g.id] = slotsResults[i]; });
+    allGridSlots = slots;
     // Bust cache for all known BMPs so the grid reloads images from disk
     const now = Date.now();
     const busted: Record<string, number> = {};
@@ -181,6 +192,26 @@ export function closeAccountPicker(): void {
   showAccountPicker = false;
 }
 
+// ── Preset picker ─────────────────────────────────────────────
+
+export function openPresetPicker(): void {
+  showPresetPicker = true;
+}
+
+export function closePresetPicker(): void {
+  showPresetPicker = false;
+}
+
+// ── Save picker ───────────────────────────────────────────────
+
+export function openSavePicker(): void {
+  showSavePicker = true;
+}
+
+export function closeSavePicker(): void {
+  showSavePicker = false;
+}
+
 export function selectAccount(accountId: string): void {
   activeAccountId = accountId;
   localStorage.setItem('fg_selected_account', accountId);
@@ -216,22 +247,36 @@ export async function saveGrid(name: string): Promise<void> {
   const account = getActiveAccount();
   if (!account) return;
 
-  const slots: SlotAssignment[] = account.characters.map(c => ({
-    character_no: c.character_no,
-    slot_order:   c.order,
-    image_url:    customFaces[c.character_no] ?? '',
-  }));
+  const grid      = await cmdSaveFaceGrid(name, account.account_id, []);
+  const gridSlots = await getFaceGridSlots(grid.id);
+  savedGrids   = [grid, ...savedGrids];
+  allGridSlots = { ...allGridSlots, [grid.id]: gridSlots };
+  dialog.open  = false;
+}
 
-  const grid  = await cmdSaveFaceGrid(name, account.account_id, slots);
-  savedGrids  = [grid, ...savedGrids];
-  dialog.open = false;
+export async function overwriteGrid(gridId: number): Promise<void> {
+  const account = getActiveAccount();
+  if (!account) return;
+  creatingPreset   = true;
+  showSavePicker   = false;
+  try {
+    const updated    = await cmdOverwriteFaceGrid(gridId, account.account_id);
+    savedGrids       = savedGrids.map(g => g.id === gridId ? updated : g);
+    const gridSlots  = await getFaceGridSlots(gridId);
+    allGridSlots     = { ...allGridSlots, [gridId]: gridSlots };
+    activeGridId     = gridId;
+  } finally {
+    creatingPreset = false;
+  }
 }
 
 export async function applyGrid(gridId: number): Promise<void> {
   const slots = await getFaceGridSlots(gridId);
   const chars = slots.filter(s => s.image_url).map(s => s.character_no);
-  applyingChars = new Set(chars);
-  applyingGrid  = true;
+  applyingChars    = new Set(chars);
+  applyingGrid     = true;
+  showPresetPicker = false;
+  showAccountPicker = false;
   try {
     await cmdApplyFaceGrid(gridId);
     faceTextures = await listFaceTextures();
@@ -282,8 +327,8 @@ export function closeDialog(): void {
 }
 
 export function openSaveGridDialog(): void {
-  openDialog('Save Grid', {
-    inputs:     [{ placeholder: 'Grid name' }],
+  openDialog('Save as New Preset', {
+    inputs:     [{ placeholder: 'Preset name' }],
     submitText: 'Save',
     onSubmit:   async (values) => {
       try {
@@ -310,6 +355,7 @@ export function openConfirmDialog(
       try {
         dialog.submitting = true;
         await onConfirm();
+        dialog.open = false;
       } catch (e) {
         dialog.error      = String(e);
         dialog.submitting = false;
