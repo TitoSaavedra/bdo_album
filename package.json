@@ -1,6 +1,7 @@
 {
   "name": "bdo-album",
   "private": true,
+  "packageManager": "pnpm@10.12.1",
   "scripts": {
     "tauri:dev": "concurrently -n scraper,album -c cyan,green \"npm run tauri:scraper\" \"npm run tauri:album\"",
     "tauri:scraper": "cd scraper && pnpm tauri dev",
