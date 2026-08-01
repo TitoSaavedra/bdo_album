@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capability for BDO Dashboard","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open"]}}
+{"default":{"identifier":"default","description":"Default capability for BDO Dashboard","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","updater:default","process:default"]}}
