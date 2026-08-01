@@ -10,6 +10,7 @@
   interface PabFile { name: string; path: string; }
   interface ImportResult {
     found:           number;
+    patched:         number;
     not_found_count: number;
     not_found_names: string[];
     zip_base64:      string | null;
@@ -163,6 +164,12 @@
             <span class="result-icon">✓</span>
             <span class="result-label">{result.found} preset{result.found !== 1 ? 's' : ''} imported to R2</span>
           </div>
+          {#if result.patched > 0}
+            <div class="result-row success">
+              <span class="result-icon">✎</span>
+              <span class="result-label">{result.patched} archivo{result.patched !== 1 ? 's' : ''} dejado{result.patched !== 1 ? 's' : ''} editable{result.patched !== 1 ? 's' : ''}</span>
+            </div>
+          {/if}
           {#if result.not_found_count > 0}
             <div class="result-row warn">
               <span class="result-icon">⬇</span>

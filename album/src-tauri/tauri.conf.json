@@ -22,13 +22,23 @@
       }
     ],
     "security": {
-      "csp": null,
-      "assetProtocol": { "enable": true, "scope": ["**"] }
+      "csp": "default-src 'self'; img-src 'self' asset: https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "assetProtocol": { "enable": true, "scope": ["$DOCUMENT/Black Desert/**"] }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzMDhBQjQ0OTIyODFERTcKUldUbkhTaVNSS3NJZzRmM1o3RmVzWEJKdzZUMXNPUUhpOHlkSy9TZ2VqZUhKUEZWMUN2bUVjVkYK",
+      "endpoints": [
+        "https://github.com/TitoSaavedra/bdo_album/releases/latest/download/album-latest.json"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "resources": [".env"],
     "icon": []
   }
 }

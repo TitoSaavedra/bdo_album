@@ -67,6 +67,11 @@ pub fn run() {
             }
             let app_h = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                if let Ok(exe) = std::env::current_exe() {
+                    if let Some(dir) = exe.parent() {
+                        dotenvy::from_path(dir.join(".env")).ok();
+                    }
+                }
                 dotenvy::dotenv().ok();
 
                 let db_url = match std::env::var("DATABASE_URL") {
@@ -85,10 +90,20 @@ pub fn run() {
                     .trim_end_matches('/')
                     .to_string();
 
+                let mut attempts = 0u32;
+                let mut warned = false;
                 let pool = loop {
                     match core::db::init(&db_url).await {
                         Ok(p) => break p,
                         Err(_) => {
+                            attempts += 1;
+                            if attempts == 5 && !warned {
+                                warned = true;
+                                Events::db_ready(&app_h, DbReady {
+                                    success: false,
+                                    error: Some("No se pudo conectar a la base de datos. ¿Está Docker corriendo? (docker compose up -d)".to_string()),
+                                });
+                            }
                             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                         }
                     }
@@ -107,6 +122,8 @@ pub fn run() {
             });
             Ok(())
         })
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             app::commands::is_db_ready,
             app::commands::is_listener_connected,

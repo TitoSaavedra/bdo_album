@@ -48,7 +48,7 @@ impl BrowserSession {
             };
         }
 
-        log!("INFO", "Verifying Chromium installation");
+        log!("INFO", "Verifying Chromium installation (may download ~150 MB on first run, requires internet)");
         install_browsers(Some(&["chromium"]))
             .await
             .map_err(|e| AppError::Scrape(format!("browser install: {:?}", e)))?;

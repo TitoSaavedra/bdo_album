@@ -2,6 +2,8 @@
   import './App.scss';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { check, type Update } from '@tauri-apps/plugin-updater';
+  import { relaunch } from '@tauri-apps/plugin-process';
   import { eventBus } from '$lib/events';
   import { getDbReady, getDbError, setDbReady, setClassIcons } from '../features/scraper/state/scraper.svelte';
   import Toast from '$ui/Toast/Toast.svelte';
@@ -20,13 +22,31 @@
   const dbReady = $derived(getDbReady());
   const dbError = $derived(getDbError());
 
-  const toasts = $derived<ToastItem[]>(
-    dbReady === false
-      ? [{ id: 1, type: 'error', text: `Database unavailable — ${dbError ?? 'check DATABASE_URL'}` }]
+  let pendingUpdate     = $state<Update | null>(null);
+  let updateInstalling  = $state(false);
+
+  async function installUpdate() {
+    if (!pendingUpdate || updateInstalling) return;
+    updateInstalling = true;
+    await pendingUpdate.downloadAndInstall();
+    await relaunch();
+  }
+
+  const toasts = $derived<ToastItem[]>([
+    ...(dbReady === false
+      ? [{ id: 1, type: 'error' as const, text: `Database unavailable — ${dbError ?? 'check DATABASE_URL'}` }]
       : dbReady === null
-        ? [{ id: 0, type: 'warning', text: 'Connecting to database...' }]
-        : []
-  );
+        ? [{ id: 0, type: 'warning' as const, text: 'Connecting to database...' }]
+        : []),
+    ...(pendingUpdate
+      ? [{
+          id:      2,
+          type:    'success' as const,
+          text:    updateInstalling ? 'Installing update...' : `Update ${pendingUpdate.version} available — click to install`,
+          onClick: installUpdate,
+        }]
+      : []),
+  ]);
 
   // ── Dock visibility ──
   let dockVisible = $state(false);
@@ -55,6 +75,8 @@
       }
     };
     poll();
+
+    check().then((u) => { if (u) pendingUpdate = u; }).catch(() => {});
   });
 </script>
 

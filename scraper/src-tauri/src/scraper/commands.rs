@@ -151,6 +151,7 @@ pub async fn get_preset_stats(
 #[derive(serde::Serialize)]
 pub struct ImportPabResult {
     pub found:           usize,
+    pub patched:         usize,
     pub not_found_count: usize,
     pub not_found_names: Vec<String>,
     pub zip_base64:      Option<String>,
@@ -192,7 +193,8 @@ pub async fn import_pab_files(
     .into_iter()
     .collect();
 
-    let mut found = 0usize;
+    let mut found   = 0usize;
+    let mut patched = 0usize;
     let mut not_found_files: Vec<(String, Vec<u8>)> = Vec::new();
 
     for path_str in &paths {
@@ -202,7 +204,7 @@ pub async fn import_pab_files(
             _ => continue,
         };
 
-        let bytes = match std::fs::read(path) {
+        let mut bytes = match std::fs::read(path) {
             Ok(b) => b,
             Err(e) => {
                 LogRepository::insert(&app, pool, None, "ERR", "pab_import",
@@ -211,6 +213,11 @@ pub async fn import_pab_files(
                 continue;
             }
         };
+
+        if bytes.len() > 0x44 {
+            bytes[0x44] = 0xCC;
+            patched += 1;
+        }
 
         let Some(preset_id) = extract_preset_id(&filename) else {
             LogRepository::insert(&app, pool, None, "WARN", "pab_import",
@@ -282,7 +289,7 @@ pub async fn import_pab_files(
         Some(base64::engine::general_purpose::STANDARD.encode(&buf))
     };
 
-    Ok(ImportPabResult { found, not_found_count, not_found_names, zip_base64 })
+    Ok(ImportPabResult { found, patched, not_found_count, not_found_names, zip_base64 })
 }
 
 #[tauri::command]

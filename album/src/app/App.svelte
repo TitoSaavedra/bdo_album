@@ -1,7 +1,11 @@
 <script lang="ts">
   import './App.scss';
   import { onMount, tick } from 'svelte';
+  import { check, type Update } from '@tauri-apps/plugin-updater';
+  import { relaunch } from '@tauri-apps/plugin-process';
   import { eventBus } from '../lib/events';
+  import Toast from '../ui/Toast/Toast.svelte';
+  import type { ToastItem } from '../ui/Toast/Toast.svelte';
   import { getPresets, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
   import {
     beauty,
@@ -55,10 +59,32 @@
     return all;
   });
 
+  let pendingUpdate    = $state<Update | null>(null);
+  let updateInstalling = $state(false);
+
+  async function installUpdate() {
+    if (!pendingUpdate || updateInstalling) return;
+    updateInstalling = true;
+    await pendingUpdate.downloadAndInstall();
+    await relaunch();
+  }
+
+  const toasts = $derived<ToastItem[]>(
+    pendingUpdate
+      ? [{
+          id:      2,
+          type:    'success' as const,
+          text:    updateInstalling ? 'Installing update...' : `Update ${pendingUpdate.version} available — click to install`,
+          onClick: installUpdate,
+        }]
+      : []
+  );
+
   onMount(async () => {
     await eventBus.init();
     const regions = await getRegions().catch(() => []);
     setAvailableRegions(regions);
+    check().then((u) => { if (u) pendingUpdate = u; }).catch(() => {});
     return () => eventBus.destroy();
   });
 
@@ -194,3 +220,5 @@
   <PresetDetail />
   <LiveDot />
 </div>
+
+<Toast {toasts} />

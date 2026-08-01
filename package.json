@@ -4,7 +4,10 @@
   "scripts": {
     "tauri:dev": "concurrently -n scraper,album -c cyan,green \"npm run tauri:scraper\" \"npm run tauri:album\"",
     "tauri:scraper": "cd scraper && pnpm tauri dev",
-    "tauri:album": "cd album && pnpm tauri dev"
+    "tauri:album": "cd album && pnpm tauri dev",
+    "build": "concurrently -n scraper,album -c cyan,green \"npm run build:scraper\" \"npm run build:album\"",
+    "build:scraper": "cd scraper && pnpm tauri build",
+    "build:album": "cd album && pnpm tauri build"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

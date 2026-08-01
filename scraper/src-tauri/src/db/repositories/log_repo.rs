@@ -45,6 +45,18 @@ impl LogRepository {
         Ok(())
     }
 
+    /// Deletes log rows older than `days` days. Called once at startup to keep
+    /// scraper_logs from growing unbounded over months of daily use.
+    pub async fn prune(pool: &PgPool, days: i64) -> Result<u64> {
+        let result = sqlx::query(
+            "DELETE FROM scraper_logs WHERE ts < now() - ($1 || ' days')::interval",
+        )
+        .bind(days)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     pub async fn get_recent(pool: &PgPool, limit: i64) -> Result<Vec<LogRow>> {
         let rows = sqlx::query_as::<_, LogRow>(
             "SELECT id, ts, session_id, tag, source, msg
