@@ -9,7 +9,41 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create_release.outputs.release_id }}
+      tag: ${{ steps.version.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # scraper and album ship in the same combined release — bump both
+      # tauri.conf.json "version" fields together before pushing to `releases`.
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(jq -r .version scraper/src-tauri/tauri.conf.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          RELEASE_JSON=$(gh api repos/${{ github.repository }}/releases \
+            -f tag_name="${{ steps.version.outputs.tag }}" \
+            -f name="BDO Suite ${{ steps.version.outputs.tag }}" \
+            -F draft=true \
+            -F prerelease=false)
+          echo "release_id=$(echo "$RELEASE_JSON" | jq -r .id)" >> "$GITHUB_OUTPUT"
+
+  build-scraper:
+    needs: prepare
     runs-on: windows-latest
 
     steps:
@@ -32,23 +66,11 @@ jobs:
         with:
           workspaces: scraper/src-tauri
 
-      - name: Rust cache (album)
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: album/src-tauri
-
       - name: Install scraper deps
         working-directory: scraper
         run: pnpm install
 
-      - name: Install album deps
-        working-directory: album
-        run: pnpm install
-
-      # scraper and album ship in the same combined release — bump both
-      # tauri.conf.json "version" fields together before pushing to `releases`.
       - name: Build & release scraper
-        id: rel_scraper
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,9 +78,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: scraper
-          tagName: v__VERSION__
-          releaseName: "BDO Suite v__VERSION__"
-          releaseDraft: false
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          releaseDraft: true
           prerelease: false
 
       # tauri-action always names the updater manifest "latest.json" — rename it
@@ -68,11 +89,38 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ASSET_ID=$(gh api repos/${{ github.repository }}/releases/${{ steps.rel_scraper.outputs.releaseId }}/assets --jq '.[] | select(.name=="latest.json") | .id')
+          ASSET_ID=$(gh api repos/${{ github.repository }}/releases/${{ needs.prepare.outputs.release_id }}/assets --jq '.[] | select(.name=="latest.json") | .id')
           gh api -X PATCH repos/${{ github.repository }}/releases/assets/$ASSET_ID -f name=scraper-latest.json
 
+  build-album:
+    needs: prepare
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache (album)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: album/src-tauri
+
+      - name: Install album deps
+        working-directory: album
+        run: pnpm install
+
       - name: Build & release album
-        id: rel_album
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,12 +128,24 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: album
-          releaseId: ${{ steps.rel_scraper.outputs.releaseId }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          releaseDraft: true
+          prerelease: false
 
       - name: Rename album updater manifest
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ASSET_ID=$(gh api repos/${{ github.repository }}/releases/${{ steps.rel_scraper.outputs.releaseId }}/assets --jq '.[] | select(.name=="latest.json") | .id')
+          ASSET_ID=$(gh api repos/${{ github.repository }}/releases/${{ needs.prepare.outputs.release_id }}/assets --jq '.[] | select(.name=="latest.json") | .id')
           gh api -X PATCH repos/${{ github.repository }}/releases/assets/$ASSET_ID -f name=album-latest.json
+
+  publish:
+    needs: [prepare, build-scraper, build-album]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Publish release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PATCH repos/${{ github.repository }}/releases/${{ needs.prepare.outputs.release_id }} -F draft=false
