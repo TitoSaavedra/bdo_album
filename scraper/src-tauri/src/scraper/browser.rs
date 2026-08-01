@@ -73,14 +73,15 @@ impl BrowserSession {
             .map_err(|e| AppError::Scrape(format!("browser launch: {:?}", e)))?;
 
         let context = browser
-            .new_context_with_options(BrowserContextOptions {
-                user_agent: Some(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-                     (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                        .to_string(),
-                ),
-                ..Default::default()
-            })
+            .new_context_with_options(
+                BrowserContextOptions::builder()
+                    .user_agent(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+                         (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                            .to_string(),
+                    )
+                    .build(),
+            )
             .await
             .map_err(|e| AppError::Scrape(format!("browser context: {:?}", e)))?;
 
@@ -92,11 +93,11 @@ impl BrowserSession {
 
         page.goto(
             "https://garmoth.com/",
-            Some(GotoOptions {
-                wait_until: Some(WaitUntil::Load),
-                timeout:    Some(Duration::from_secs(90)),
-                ..Default::default()
-            }),
+            Some(
+                GotoOptions::new()
+                    .wait_until(WaitUntil::Load)
+                    .timeout(Duration::from_secs(90)),
+            ),
         )
         .await
         .map_err(|e| AppError::Scrape(format!("warmup navigate: {:?}", e)))?;
@@ -178,11 +179,11 @@ impl BrowserSession {
         let preset_url = format!("https://garmoth.com/beauty-album/preset/{}", preset_id);
         if let Err(e) = page.goto(
             &preset_url,
-            Some(GotoOptions {
-                wait_until: Some(WaitUntil::DomContentLoaded),
-                timeout:    Some(Duration::from_secs(60)),
-                ..Default::default()
-            }),
+            Some(
+                GotoOptions::new()
+                    .wait_until(WaitUntil::DomContentLoaded)
+                    .timeout(Duration::from_secs(60)),
+            ),
         ).await {
             let _ = page.close().await;
             return Err(AppError::Scrape(format!("goto preset {}: {:?}", preset_id, e)));
@@ -214,13 +215,43 @@ impl BrowserSession {
         Ok((img1, img2))
     }
 
+    /// Fetches a URL through the browser's own network stack (real Chromium TLS
+    /// fingerprint) instead of a standalone HTTP client — used for API endpoints that
+    /// Cloudflare's WAF blocks based on connection fingerprinting regardless of headers.
+    pub async fn fetch_json(&self, url: &str) -> Result<Vec<u8>, AppError> {
+        let page = self.context.new_page().await
+            .map_err(|e| AppError::Scrape(format!("page: {:?}", e)))?;
+
+        let goto_result = page.goto(
+            url,
+            Some(GotoOptions::new().timeout(Duration::from_secs(30))),
+        ).await;
+
+        let resp = match goto_result {
+            Ok(Some(r)) => r,
+            Ok(None) => { let _ = page.close().await; return Err(AppError::Scrape("goto: no response".to_string())); }
+            Err(e)    => { let _ = page.close().await; return Err(AppError::Scrape(format!("goto: {:?}", e))); }
+        };
+
+        let status = resp.status();
+        let bytes  = resp.body().await.unwrap_or_default();
+        let _ = page.close().await;
+
+        if status >= 400 {
+            let snippet: String = String::from_utf8_lossy(&bytes).chars().take(300).collect();
+            return Err(AppError::Scrape(format!("HTTP {}: {}", status, snippet)));
+        }
+
+        Ok(bytes)
+    }
+
     async fn download_image(&self, pair: Option<(String, String)>) -> Option<(String, Vec<u8>)> {
         let (name, url) = pair?;
         let page = self.context.new_page().await.ok()?;
-        let resp = match page.goto(&url, Some(GotoOptions {
-            timeout: Some(Duration::from_secs(30)),
-            ..Default::default()
-        })).await {
+        let resp = match page.goto(
+            &url,
+            Some(GotoOptions::new().timeout(Duration::from_secs(30))),
+        ).await {
             Ok(Some(r)) => r,
             _ => { let _ = page.close().await; return None; }
         };

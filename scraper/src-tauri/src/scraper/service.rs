@@ -17,8 +17,9 @@ use crate::db::repositories::{
     session_repo::SessionRepository,
 };
 use crate::events::{
-    ClassStatsUpdated, Events, FetchProgress, ImageProgress, ProgressStatus, ProgressType,
-    PresetSynced, ScraperDone, ScraperError, ScraperPhase, ScraperProgress, UploadProgress,
+    ClassStatsUpdated, Events, FetchProgress, ImageProgress, LogCode, ProgressStatus,
+    ProgressType, PresetSynced, ScraperDone, ScraperError, ScraperPhase, ScraperProgress,
+    SyncPhase, UploadProgress,
 };
 
 use super::browser::BrowserSession;
@@ -68,10 +69,29 @@ pub async fn run_session(
     let started = Instant::now();
 
     let (fetch, dl) = if mode == "fetch" {
-        // Fetch-only: no browser, no R2, no image pipeline
-        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Fetch-only mode — updating stats, skipping browser and image download").await.ok();
-        Events::sync_loading(&app, "Fetching presets...");
-        let fetch_result = run_fetch(&app, &pool, String::new(), session_id, cancel.clone(), parallelism, days, regions, classes, true).await;
+        // Fetch-only: no R2, no image pipeline — but search-advanced needs a real
+        // Chromium fingerprint to pass Cloudflare's WAF, so it's queried through the
+        // browser (see GarmothClient/BrowserSession::fetch_json), same as images.
+        Events::sync_loading(&app, SyncPhase::StartingBrowser);
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser", Some(LogCode::BrowserStarting)).await.ok();
+        let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
+            Ok(b) => b,
+            Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
+        });
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Browser ready", Some(LogCode::BrowserReady)).await.ok();
+
+        Events::sync_loading(&app, SyncPhase::WaitingCfClearance);
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)", Some(LogCode::WaitingCfClearance)).await.ok();
+        let cf_token = browser.wait_for_cf_clearance(30).await.unwrap_or_default();
+        let cf_obtained = !cf_token.is_empty();
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser",
+            if cf_obtained { "CF clearance obtained" } else { "CF clearance not found — proceeding without it" },
+            Some(LogCode::CfClearanceObtained { obtained: cf_obtained }),
+        ).await.ok();
+
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "session", "Fetch-only mode — updating stats, skipping image download", Some(LogCode::FetchOnlyMode)).await.ok();
+        Events::sync_loading(&app, SyncPhase::FetchingPresets);
+        let fetch_result = run_fetch(&app, &pool, Arc::clone(&browser), session_id, cancel.clone(), parallelism, days, regions, classes, true).await;
         let fetch = match fetch_result {
             Ok(r) => r,
             Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
@@ -84,19 +104,21 @@ pub async fn run_session(
             Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
         };
 
-        Events::sync_loading(&app, "Starting browser");
-        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser").await.ok();
+        Events::sync_loading(&app, SyncPhase::StartingBrowser);
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser", Some(LogCode::BrowserStarting)).await.ok();
         let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
             Ok(b) => b,
             Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
         });
-        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Browser ready").await.ok();
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Browser ready", Some(LogCode::BrowserReady)).await.ok();
 
-        Events::sync_loading(&app, "Waiting for CF clearance");
-        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)").await.ok();
+        Events::sync_loading(&app, SyncPhase::WaitingCfClearance);
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Waiting for CF clearance (up to 30s)", Some(LogCode::WaitingCfClearance)).await.ok();
         let cf_token = browser.wait_for_cf_clearance(30).await.unwrap_or_default();
-        LogRepository::insert(&app, &pool, Some(session_id), "INFO", "browser",
-            if cf_token.is_empty() { "CF clearance not found — proceeding without it" } else { "CF clearance obtained" },
+        let cf_obtained = !cf_token.is_empty();
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser",
+            if cf_obtained { "CF clearance obtained" } else { "CF clearance not found — proceeding without it" },
+            Some(LogCode::CfClearanceObtained { obtained: cf_obtained }),
         ).await.ok();
 
         let img_total = Arc::new(AtomicUsize::new(0));
@@ -114,8 +136,8 @@ pub async fn run_session(
         };
 
         if mode == "images" {
-            LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch").await.ok();
-            Events::sync_loading(&app, "Downloading images...");
+            LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch", Some(LogCode::ImagesOnlyMode)).await.ok();
+            Events::sync_loading(&app, SyncPhase::DownloadingImages);
             let (dl, _) = if specific_class_ids.is_empty() {
                 // ALL: use original fairness-based loop
                 tokio::join!(
@@ -131,10 +153,10 @@ pub async fn run_session(
             };
             (FetchResult { total_fetched: 0, total_updated: 0, total_errors: 0, total_skipped: 0 }, dl)
         } else {
-            LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started").await.ok();
-            Events::sync_loading(&app, "Fetching & downloading...");
+            LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started", Some(LogCode::FetchPhaseStarted)).await.ok();
+            Events::sync_loading(&app, SyncPhase::FetchingAndDownloading);
             let (fetch_result, dl, _) = tokio::join!(
-                run_fetch(&app, &pool, cf_token, session_id, cancel.clone(), parallelism, days, regions, classes, false),
+                run_fetch(&app, &pool, Arc::clone(&browser), session_id, cancel.clone(), parallelism, days, regions, classes, false),
                 run_download_pipeline(&app, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
                 run_pending_loop(&app, &pool, session_id, cancel.clone(), tx, img_total),
             );
@@ -147,15 +169,18 @@ pub async fn run_session(
     };
 
     if mode == "fetch" {
-        LogRepository::insert(&app, &pool, Some(session_id), "UPDT", "fetch",
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "UPDT", "fetch",
             &format!("Fetch-only done — {} processed, {} errors", fetch.total_fetched, fetch.total_errors),
+            Some(LogCode::FetchOnlyDone { processed: fetch.total_fetched as i64, errors: fetch.total_errors as i64 }),
         ).await.ok();
     } else {
-        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "fetch",
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "fetch",
             &format!("Fetch done — {} new presets, {} errors", fetch.total_fetched, fetch.total_errors),
+            Some(LogCode::FetchDone { new: fetch.total_fetched as i64, errors: fetch.total_errors as i64 }),
         ).await.ok();
-        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "images",
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "images",
             &format!("Images done — {} done, {} uploaded, {} errors", dl.total_images, dl.total_uploaded, dl.total_errors),
+            Some(LogCode::ImagesDone { done: dl.total_images as i64, uploaded: dl.total_uploaded as i64, errors: dl.total_errors as i64 }),
         ).await.ok();
     }
 
@@ -167,12 +192,16 @@ pub async fn run_session(
     finish_session(&app, &pool, session_id, status, fetch.total_fetched, fetch.total_updated, dl.total_images, dl.total_uploaded, total_errors, fetch.total_skipped, started).await;
 
     if cancelled {
-        LogRepository::insert(&app, &pool, Some(session_id), "WARN", "session", "Session cancelled").await.ok();
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "WARN", "session", "Session cancelled", Some(LogCode::SessionCancelled)).await.ok();
         Events::scraper_cancelled(&app);
     } else {
-        LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session",
+        LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "session",
             &format!("Session #{} done in {}s — {} presets, {} images, {} errors",
                 session_id, elapsed, fetch.total_fetched, dl.total_uploaded, total_errors),
+            Some(LogCode::SessionDone {
+                session_id, elapsed: elapsed as i64, presets: fetch.total_fetched as i64,
+                images: dl.total_uploaded as i64, errors: total_errors as i64,
+            }),
         ).await.ok();
         Events::scraper_done(&app, ScraperDone {
             total_fetched:  fetch.total_fetched,
@@ -190,7 +219,7 @@ pub async fn run_session(
 pub async fn run_fetch(
     app:             &AppHandle,
     pool:            &PgPool,
-    cf_token:        String,
+    browser:         Arc<BrowserSession>,
     session_id:      i64,
     cancel:          Arc<AtomicBool>,
     parallelism:     usize,
@@ -200,7 +229,7 @@ pub async fn run_fetch(
     update_existing: bool,
 ) -> Result<FetchResult> {
     let all_db_classes = ClassRepository::get_all(pool).await?;
-    let client = Arc::new(GarmothClient::new(&cf_token));
+    let client = Arc::new(GarmothClient::new(browser));
 
     // Build class entries from the filter.
     // "all" → class=None (global ranking endpoint), numbers → class=Some(id).
@@ -222,22 +251,25 @@ pub async fn run_fetch(
     // is processed (we want to refresh their stats). Otherwise pre-seed from DB to skip them.
     let mut global_seen: HashSet<i64> = if !update_existing {
         let ids = PresetRepository::get_all_ids(pool).await.unwrap_or_default();
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+        LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch",
             &format!("Pre-loaded {} existing preset IDs from DB", ids.len()),
+            Some(LogCode::PreloadedIds { count: ids.len() as i64 }),
         ).await.ok();
         ids
     } else {
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+        LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch",
             "Fetch-only: skipping DB pre-seed — all returned presets will be processed",
+            Some(LogCode::SkippingDbPreseed),
         ).await.ok();
         HashSet::new()
     };
 
     let total_classes  = class_entries.len();
     let total_requests = total_classes * days.len() * regions.len();
-    LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+    LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch",
         &format!("{} classes × {} days × {} regions = {} requests total",
             total_classes, days.len(), regions.len(), total_requests),
+        Some(LogCode::RequestPlan { classes: total_classes as i64, days: days.len() as i64, regions: regions.len() as i64, total: total_requests as i64 }),
     ).await.ok();
 
     // Flatten all work: day → region → class order so classes interleave from the start.
@@ -281,8 +313,9 @@ pub async fn run_fetch(
                 let before = global_seen.len();
                 global_seen.extend(fresh_ids);
                 let added = global_seen.len() - before;
-                LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+                LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch",
                     &format!("DB refresh: +{} IDs ({} total seen)", added, global_seen.len()),
+                    Some(LogCode::DbRefresh { added: added as i64, total_seen: global_seen.len() as i64 }),
                 ).await.ok();
             }
         }
@@ -290,8 +323,9 @@ pub async fn run_fetch(
         let mut js: JoinSet<(i32, String, std::result::Result<Vec<GarmothPreset>, AppError>)> = JoinSet::new();
 
         let batch_remaining = work.len() - chunk_idx * parallelism;
-        LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
+        LogRepository::insert_coded(app, pool, Some(session_id), "FETCH", "fetch",
             &format!("→ {}/{}", batch_remaining, work.len()),
+            Some(LogCode::FetchBatchProgress { remaining: batch_remaining as i64, total: work.len() as i64 }),
         ).await.ok();
 
         for item in chunk {
@@ -350,12 +384,14 @@ pub async fn run_fetch(
                     batch_total_updated += batch_updated;
                     batch_total_skipped += batch_skipped;
                     if update_existing {
-                        LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch",
+                        LogRepository::insert_coded(app, pool, Some(session_id), "UPDT", "fetch",
                             &format!("{}: {} results → {} new, {} updated, {} skipped", label, presets.len(), batch_new, batch_updated, batch_skipped),
+                            Some(LogCode::ClassResultsUpdate { label: label.clone(), results: presets.len() as i64, new: batch_new as i64, updated: batch_updated as i64, skipped: batch_skipped as i64 }),
                         ).await.ok();
                     } else {
-                        LogRepository::insert(app, pool, Some(session_id), "FETCH", "fetch",
+                        LogRepository::insert_coded(app, pool, Some(session_id), "FETCH", "fetch",
                             &format!("{}: {} results → {} new, {} skipped", label, presets.len(), batch_new, batch_skipped),
+                            Some(LogCode::ClassResultsFetch { label: label.clone(), results: presets.len() as i64, new: batch_new as i64, skipped: batch_skipped as i64 }),
                         ).await.ok();
                     }
                 }
@@ -375,14 +411,16 @@ pub async fn run_fetch(
         chunk_idx += 1;
         let remaining = total_chunks - chunk_idx;
         if update_existing {
-            LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch",
+            LogRepository::insert_coded(app, pool, Some(session_id), "UPDT", "fetch",
                 &format!("Round {}/{} — {} remaining | {} new, {} updated, {} skipped",
                     chunk_idx, total_chunks, remaining, batch_total_new, batch_total_updated, batch_total_skipped),
+                Some(LogCode::RoundProgressUpdate { round: chunk_idx as i64, total_rounds: total_chunks as i64, remaining: remaining as i64, new: batch_total_new as i64, updated: batch_total_updated as i64, skipped: batch_total_skipped as i64 }),
             ).await.ok();
         } else {
-            LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+            LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch",
                 &format!("Round {}/{} — {} remaining | {} new, {} skipped",
                     chunk_idx, total_chunks, remaining, batch_total_new, batch_total_skipped),
+                Some(LogCode::RoundProgressFetch { round: chunk_idx as i64, total_rounds: total_chunks as i64, remaining: remaining as i64, new: batch_total_new as i64, skipped: batch_total_skipped as i64 }),
             ).await.ok();
         }
     }
@@ -395,15 +433,15 @@ pub async fn run_fetch(
     for (i, class) in class_entries.iter().enumerate() {
         let (fetched, skipped, errors, updated) = class_stats.get(&class.db_id).copied().unwrap_or((0, 0, 0, 0));
         if update_existing {
-            LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch", &format!(
+            LogRepository::insert_coded(app, pool, Some(session_id), "UPDT", "fetch", &format!(
                 "{}: {} new | {} updated | {} skipped | {} errors",
                 class.name, fetched, updated, skipped, errors,
-            )).await.ok();
+            ), Some(LogCode::ClassDoneUpdate { class: class.name.clone(), new: fetched as i64, updated: updated as i64, skipped: skipped as i64, errors: errors as i64 })).await.ok();
         } else {
-            LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch", &format!(
+            LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch", &format!(
                 "{}: {} new | {} skipped (DB) | {} errors",
                 class.name, fetched, skipped, errors,
-            )).await.ok();
+            ), Some(LogCode::ClassDoneFetch { class: class.name.clone(), new: fetched as i64, skipped: skipped as i64, errors: errors as i64 })).await.ok();
         }
 
         if class.db_id >= 0 {
@@ -429,14 +467,16 @@ pub async fn run_fetch(
     }
 
     if update_existing {
-        LogRepository::insert(app, pool, Some(session_id), "UPDT", "fetch",
+        LogRepository::insert_coded(app, pool, Some(session_id), "UPDT", "fetch",
             &format!("Fetch-only done — {} rounds, {} processed, {} errors",
                 total_chunks, total_fetched, total_errors),
+            Some(LogCode::FetchOnlyRoundsDone { rounds: total_chunks as i64, processed: total_fetched as i64, errors: total_errors as i64 }),
         ).await.ok();
     } else {
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "fetch",
+        LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "fetch",
             &format!("Fetch done — {} rounds, {} presets, {} errors",
                 total_chunks, total_fetched, total_errors),
+            Some(LogCode::FetchRoundsDone { rounds: total_chunks as i64, presets: total_fetched as i64, errors: total_errors as i64 }),
         ).await.ok();
     }
     Events::fetch_done(app);
@@ -499,7 +539,6 @@ pub async fn run_download_pipeline(
                 current:       img_done_h.load(Ordering::Relaxed),
                 total:         img_total_h.load(Ordering::Relaxed),
                 status:        ProgressStatus::Processing,
-                message:       format!("Downloading preset {}", task.preset_id),
                 progress_type: ProgressType::Popular,
             });
 
@@ -520,8 +559,9 @@ pub async fn run_download_pipeline(
                 Ok(pair) => pair,
                 Err(e) => {
                     // Navigation/timeout error — do NOT mark as not_found so the pending loop retries it next session
-                    LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
-                        &format!("preset {} page failed (will retry): {}", task.preset_id, e)).await.ok();
+                    LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
+                        &format!("preset {} page failed (will retry): {}", task.preset_id, e),
+                        Some(LogCode::ImgPageFailedRetry { preset_id: task.preset_id })).await.ok();
                     img_done_h.fetch_add(1, Ordering::Relaxed);
                     return (1, 0, 1);
                 }
@@ -553,16 +593,18 @@ pub async fn run_download_pipeline(
                         Err(e) => {
                             errors += 1;
                             nf1 = Some("not_found");
-                            LogRepository::insert(&app_h, &pool_h, Some(session_id), "ERR", "img_upload",
-                                &format!("preset {} img1 upload failed: {}", task.preset_id, e)).await.ok();
+                            LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "ERR", "img_upload",
+                                &format!("preset {} img1 upload failed: {}", task.preset_id, e),
+                                Some(LogCode::Img1UploadFailed { preset_id: task.preset_id })).await.ok();
                         }
                     }
                 }
                 None => {
                     if name1.is_some() {
                         nf1 = Some("not_found");
-                        LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
-                            &format!("preset {} img1 not found on page", task.preset_id)).await.ok();
+                        LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
+                            &format!("preset {} img1 not found on page", task.preset_id),
+                            Some(LogCode::Img1NotFound { preset_id: task.preset_id })).await.ok();
                     }
                 }
             }
@@ -586,24 +628,27 @@ pub async fn run_download_pipeline(
                         Err(e) => {
                             errors += 1;
                             nf2 = Some("not_found");
-                            LogRepository::insert(&app_h, &pool_h, Some(session_id), "ERR", "img_upload",
-                                &format!("preset {} img2 upload failed: {}", task.preset_id, e)).await.ok();
+                            LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "ERR", "img_upload",
+                                &format!("preset {} img2 upload failed: {}", task.preset_id, e),
+                                Some(LogCode::Img2UploadFailed { preset_id: task.preset_id })).await.ok();
                         }
                     }
                 }
                 None => {
                     if name2.is_some() {
                         nf2 = Some("not_found");
-                        LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
-                            &format!("preset {} img2 not found on page", task.preset_id)).await.ok();
+                        LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
+                            &format!("preset {} img2 not found on page", task.preset_id),
+                            Some(LogCode::Img2NotFound { preset_id: task.preset_id })).await.ok();
                     }
                 }
             }
 
             if db_path_1.is_some() || db_path_2.is_some() {
                 let img_count = db_path_1.is_some() as u8 + db_path_2.is_some() as u8;
-                LogRepository::insert(&app_h, &pool_h, Some(session_id), "SYNC", "img_upload",
-                    &format!("preset {} — {} image(s) uploaded", task.preset_id, img_count)).await.ok();
+                LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "SYNC", "img_upload",
+                    &format!("preset {} — {} image(s) uploaded", task.preset_id, img_count),
+                    Some(LogCode::ImagesUploaded { preset_id: task.preset_id, count: img_count as i64 })).await.ok();
                 PresetRepository::update_image_urls(&pool_h, task.preset_id, db_path_1.as_deref(), db_path_2.as_deref()).await.ok();
 
                 let pg_payload = serde_json::json!({
@@ -704,16 +749,18 @@ async fn upsert_preset_stats(
                 Ok(true)  => (0, 1, 0, 0),
                 Ok(false) => (0, 0, 1, 0),
                 Err(e) => {
-                    LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
+                    LogRepository::insert_coded(app, pool, Some(session_id), "ERR", "fetch",
                         &format!("preset {} stats update failed: {}", p.id, e),
+                        Some(LogCode::StatsUpdateFailed { preset_id: p.id }),
                     ).await.ok();
                     (0, 0, 0, 1)
                 }
             }
         }
         Err(e) => {
-            LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch",
+            LogRepository::insert_coded(app, pool, Some(session_id), "ERR", "fetch",
                 &format!("preset {} upsert failed: {}", p.id, e),
+                Some(LogCode::UpsertFailed { preset_id: p.id }),
             ).await.ok();
             (0, 0, 0, 1)
         }
@@ -751,8 +798,9 @@ async fn insert_preset_and_queue(
         }
         Ok(false) => (0, 0),
         Err(e) => {
-            LogRepository::insert(app, pool, Some(session_id), "ERR", "insert_new",
-                &format!("preset {} failed: {}", p.id, e)).await.ok();
+            LogRepository::insert_coded(app, pool, Some(session_id), "ERR", "insert_new",
+                &format!("preset {} failed: {}", p.id, e),
+                Some(LogCode::InsertFailed { preset_id: p.id })).await.ok();
             (0, 1)
         }
     }
@@ -802,8 +850,9 @@ async fn run_class_filter_loop(
 
         if batch.is_empty() {
             if round > 0 {
-                LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+                LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "pending",
                     "No more pending images for selected classes — done",
+                    Some(LogCode::NoPendingImagesClasses),
                 ).await.ok();
             }
             return;
@@ -813,9 +862,10 @@ async fn run_class_filter_loop(
         let batch_ids: HashSet<i64> = batch.iter().map(|(id, ..)| *id).collect();
         all_sent.extend(&batch_ids);
 
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+        LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "pending",
             &format!("Class-filter round {}: queuing {} preset(s) (top-{} per class, interleaved)",
                 round, batch.len(), limit_per_class),
+            Some(LogCode::ClassFilterRound { round: round as i64, count: batch.len() as i64, limit_per_class }),
         ).await.ok();
 
         for (id, class_id, image_1, image_2, downloads, views, likes, character_name) in batch {
@@ -897,8 +947,9 @@ async fn run_pending_loop(
                     format!("{}({})", n, cnt)
                 }))
                 .collect();
-            LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+            LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "pending",
                 &format!("Fairness: skipping {} — min={}, threshold={}", names.join(", "), min_dl, threshold),
+                Some(LogCode::FairnessSkip { names: names.join(", "), min_dl, threshold }),
             ).await.ok();
         }
 
@@ -925,8 +976,9 @@ async fn run_pending_loop(
                         continue;
                     }
                 }
-                LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+                LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "pending",
                     "No more pending images — pending loop done",
+                    Some(LogCode::NoPendingImages),
                 ).await.ok();
             }
             return;
@@ -936,8 +988,9 @@ async fn run_pending_loop(
         let batch_ids: HashSet<i64> = batch.iter().map(|(id, ..)| *id).collect();
         all_sent.extend(&batch_ids);
 
-        LogRepository::insert(app, pool, Some(session_id), "ORCH", "pending",
+        LogRepository::insert_coded(app, pool, Some(session_id), "ORCH", "pending",
             &format!("Pending round {}: queuing {} preset(s) (top-10 per class by downloads)", round, batch.len()),
+            Some(LogCode::PendingRound { round: round as i64, count: batch.len() as i64 }),
         ).await.ok();
 
         for (id, class_id, image_1, image_2, downloads, views, likes, character_name) in batch {

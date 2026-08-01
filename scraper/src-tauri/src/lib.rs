@@ -5,7 +5,7 @@ mod db;
 mod scraper;
 
 use core::state::AppState;
-use events::{DbReady, Events};
+use events::{DbErrorCode, DbReady, Events};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -36,9 +36,10 @@ pub fn run() {
                 let db_url = match std::env::var("DATABASE_URL") {
                     Ok(url) => url,
                     Err(e) => {
+                        eprintln!("[DEBUG] DATABASE_URL not set: {:?}", e);
                         Events::db_ready(&app_h, DbReady {
                             success: false,
-                            error: Some(format!("DATABASE_URL not set: {}", e)),
+                            error: Some(DbErrorCode::EnvVarMissing),
                         });
                         return;
                     }
@@ -49,13 +50,14 @@ pub fn run() {
                 let pool = loop {
                     match db::pool::init(&db_url).await {
                         Ok(p) => break p,
-                        Err(_) => {
+                        Err(e) => {
+                            eprintln!("[DEBUG] db::pool::init failed (attempt {}): {:?}", attempts + 1, e);
                             attempts += 1;
                             if attempts == 5 && !warned {
                                 warned = true;
                                 Events::db_ready(&app_h, DbReady {
                                     success: false,
-                                    error: Some("No se pudo conectar a la base de datos. ¿Está Docker corriendo? (docker compose up -d)".to_string()),
+                                    error: Some(DbErrorCode::DockerNotRunning),
                                 });
                             }
                             tokio::time::sleep(std::time::Duration::from_secs(3)).await;

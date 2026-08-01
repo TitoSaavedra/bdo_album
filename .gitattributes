@@ -1,0 +1,5 @@
+# sqlx checksums applied migrations by exact file bytes — line-ending drift
+# (e.g. Windows checkout normalizing LF -> CRLF) breaks that checksum and
+# blocks the app from starting. Force LF so it never drifts again.
+scraper/src-tauri/migrations/*.sql text eol=lf
+album/src-tauri/migrations/*.sql text eol=lf

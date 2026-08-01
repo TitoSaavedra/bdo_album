@@ -27,6 +27,89 @@ pub enum ScraperPhase {
     Upload,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum DbErrorCode {
+    DockerNotRunning,
+    EnvVarMissing,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncPhase {
+    FetchingPresets,
+    StartingBrowser,
+    WaitingCfClearance,
+    DownloadingImages,
+    FetchingAndDownloading,
+}
+
+/// Structured code for a subset of `LogEntry.msg` — lets the frontend render a
+/// localized sentence for the live "Logs" view. `scraper_logs.msg` in the DB always
+/// keeps the full English text (built at the call site) as the source of truth;
+/// this is only attached to the live Tauri event, never persisted. Messages that
+/// wrap an arbitrary underlying error (browser/network/db failures) intentionally
+/// have no code — there is no way to translate free-form diagnostic text.
+#[derive(Serialize, Clone)]
+#[serde(tag = "code", rename_all = "snake_case")]
+pub enum LogCode {
+    VerifyingChromium,
+    StartingPlaywright,
+    LaunchingChromium,
+    NavigatingGarmoth,
+    GarmothLoadedWaitingCookie,
+    FetchOnlyMode,
+    BrowserStarting,
+    BrowserReady,
+    WaitingCfClearance,
+    CfClearanceObtained { obtained: bool },
+    ImagesOnlyMode,
+    FetchPhaseStarted,
+    FetchOnlyDone { processed: i64, errors: i64 },
+    FetchDone { new: i64, errors: i64 },
+    ImagesDone { done: i64, uploaded: i64, errors: i64 },
+    SessionCancelled,
+    SessionDone { session_id: i64, elapsed: i64, presets: i64, images: i64, errors: i64 },
+    PreloadedIds { count: i64 },
+    SkippingDbPreseed,
+    RequestPlan { classes: i64, days: i64, regions: i64, total: i64 },
+    DbRefresh { added: i64, total_seen: i64 },
+    FetchBatchProgress { remaining: i64, total: i64 },
+    ClassResultsUpdate { label: String, results: i64, new: i64, updated: i64, skipped: i64 },
+    ClassResultsFetch { label: String, results: i64, new: i64, skipped: i64 },
+    RoundProgressUpdate { round: i64, total_rounds: i64, remaining: i64, new: i64, updated: i64, skipped: i64 },
+    RoundProgressFetch { round: i64, total_rounds: i64, remaining: i64, new: i64, skipped: i64 },
+    ClassDoneUpdate { class: String, new: i64, updated: i64, skipped: i64, errors: i64 },
+    ClassDoneFetch { class: String, new: i64, skipped: i64, errors: i64 },
+    FetchOnlyRoundsDone { rounds: i64, processed: i64, errors: i64 },
+    FetchRoundsDone { rounds: i64, presets: i64, errors: i64 },
+    ImgPageFailedRetry { preset_id: i64 },
+    Img1UploadFailed { preset_id: i64 },
+    Img1NotFound { preset_id: i64 },
+    Img2UploadFailed { preset_id: i64 },
+    Img2NotFound { preset_id: i64 },
+    ImagesUploaded { preset_id: i64, count: i64 },
+    StatsUpdateFailed { preset_id: i64 },
+    UpsertFailed { preset_id: i64 },
+    InsertFailed { preset_id: i64 },
+    NoPendingImagesClasses,
+    ClassFilterRound { round: i64, count: i64, limit_per_class: i64 },
+    FairnessSkip { names: String, min_dl: i64, threshold: i64 },
+    NoPendingImages,
+    PendingRound { round: i64, count: i64 },
+    SessionStarted { session_id: i64, mode: String, parallelism: i64, classes: String, days: String, regions: String },
+    ImportStarted { file_count: i64 },
+    ImportReadError { filename: String },
+    ImportNoPresetId { filename: String },
+    ImportAlreadyHasPab { filename: String, preset_id: i64 },
+    ImportUploaded { filename: String, db_path: String },
+    ImportR2UploadFailed { filename: String },
+    ImportPresetNotFound { filename: String, preset_id: i64 },
+    ImportDone { uploaded: i64, not_found: i64 },
+    DbConnectedRecovered { recovered: i64 },
+    DbConnectedReady,
+}
+
 // ── Payloads ─────────────────────────────────────────────────
 // Field names must match TypeScript interfaces in lib/events/types.ts.
 
@@ -38,7 +121,6 @@ pub struct ScraperProgress {
     pub current:       usize,
     pub total:         usize,
     pub status:        ProgressStatus,
-    pub message:       String,
     pub progress_type: ProgressType,
 }
 
@@ -110,12 +192,13 @@ pub struct LogEntry {
     pub tag:    String,
     pub source: String,
     pub msg:    String,
+    pub code:   Option<LogCode>,
 }
 
 #[derive(Serialize, Clone)]
 pub struct DbReady {
     pub success: bool,
-    pub error:   Option<String>,
+    pub error:   Option<DbErrorCode>,
 }
 
 // ── Event emitter ─────────────────────────────────────────────
@@ -177,8 +260,8 @@ impl Events {
         app.emit("log_entry", payload).ok();
     }
 
-    pub fn sync_loading(app: &AppHandle, msg: &str) {
-        app.emit("sync_loading", msg).ok();
+    pub fn sync_loading(app: &AppHandle, phase: SyncPhase) {
+        app.emit("sync_loading", phase).ok();
     }
 
     pub fn fetch_done(app: &AppHandle) {

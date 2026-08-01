@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::core::errors::{AppError, Result};
 use crate::core::state::AppState;
 use crate::db::repositories::{log_repo::LogRepository, session_repo::SessionRepository};
-use crate::events::Events;
+use crate::events::{Events, LogCode};
 
 #[tauri::command]
 pub async fn get_db_status(app: AppHandle) -> bool {
@@ -63,13 +63,17 @@ pub async fn run_scraper(
         else { "?".to_string() }
     }).collect();
 
-    LogRepository::insert(&app, &pool, Some(session_id), "ORCH", "session",
+    LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "session",
         &format!("Session #{} started — mode={} | parallelism={} | classes=[{}] | days=[{}] | regions=[{}]",
             session_id, mode, parallelism,
             classes_str.join(", "),
             days.join(", "),
             regions.join(", "),
         ),
+        Some(LogCode::SessionStarted {
+            session_id, mode: mode.clone(), parallelism: parallelism as i64,
+            classes: classes_str.join(", "), days: days.join(", "), regions: regions.join(", "),
+        }),
     ).await.ok();
 
     tauri::async_runtime::spawn(super::service::run_session(
@@ -179,8 +183,9 @@ pub async fn import_pab_files(
     let pool = &state.pool;
     let r2   = R2Client::from_env()?;
 
-    LogRepository::insert(&app, pool, None, "INFO", "pab_import",
+    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
         &format!("Import started — {} file(s)", paths.len()),
+        Some(LogCode::ImportStarted { file_count: paths.len() as i64 }),
     ).await.ok();
 
     // Pre-load all preset_ids that already have a PAB uploaded
@@ -207,8 +212,9 @@ pub async fn import_pab_files(
         let mut bytes = match std::fs::read(path) {
             Ok(b) => b,
             Err(e) => {
-                LogRepository::insert(&app, pool, None, "ERR", "pab_import",
+                LogRepository::insert_coded(&app, pool, None, "ERR", "pab_import",
                     &format!("{}: read error — {}", filename, e),
+                    Some(LogCode::ImportReadError { filename: filename.clone() }),
                 ).await.ok();
                 continue;
             }
@@ -220,8 +226,9 @@ pub async fn import_pab_files(
         }
 
         let Some(preset_id) = extract_preset_id(&filename) else {
-            LogRepository::insert(&app, pool, None, "WARN", "pab_import",
+            LogRepository::insert_coded(&app, pool, None, "WARN", "pab_import",
                 &format!("{}: no preset ID in filename", filename),
+                Some(LogCode::ImportNoPresetId { filename: filename.clone() }),
             ).await.ok();
             not_found_files.push((filename, bytes));
             continue;
@@ -233,38 +240,43 @@ pub async fn import_pab_files(
                 let db_path = format!("/{}", key);
 
                 if existing_preset_ids.contains(&id) {
-                    LogRepository::insert(&app, pool, None, "INFO", "pab_import",
+                    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
                         &format!("{}: preset {} already has a PAB, skipped", filename, id),
+                        Some(LogCode::ImportAlreadyHasPab { filename: filename.clone(), preset_id: id }),
                     ).await.ok();
                     found += 1;
                 } else {
                     match r2.upload(&key, bytes).await {
                         Ok(_) => {
                             PabRepository::insert(pool, id, &db_path).await.ok();
-                            LogRepository::insert(&app, pool, None, "SYNC", "pab_import",
+                            LogRepository::insert_coded(&app, pool, None, "SYNC", "pab_import",
                                 &format!("{}: uploaded → {}", filename, db_path),
+                                Some(LogCode::ImportUploaded { filename: filename.clone(), db_path: db_path.clone() }),
                             ).await.ok();
                             found += 1;
                         }
                         Err(e) => {
-                            LogRepository::insert(&app, pool, None, "ERR", "pab_import",
+                            LogRepository::insert_coded(&app, pool, None, "ERR", "pab_import",
                                 &format!("{}: R2 upload failed — {}", filename, e),
+                                Some(LogCode::ImportR2UploadFailed { filename: filename.clone() }),
                             ).await.ok();
                         }
                     }
                 }
             }
             _ => {
-                LogRepository::insert(&app, pool, None, "WARN", "pab_import",
+                LogRepository::insert_coded(&app, pool, None, "WARN", "pab_import",
                     &format!("{}: preset {} not found in DB", filename, preset_id),
+                    Some(LogCode::ImportPresetNotFound { filename: filename.clone(), preset_id }),
                 ).await.ok();
                 not_found_files.push((filename, bytes));
             }
         }
     }
 
-    LogRepository::insert(&app, pool, None, "INFO", "pab_import",
+    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
         &format!("Import done — {} uploaded, {} not found", found, not_found_files.len()),
+        Some(LogCode::ImportDone { uploaded: found as i64, not_found: not_found_files.len() as i64 }),
     ).await.ok();
 
     let not_found_count = not_found_files.len();

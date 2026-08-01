@@ -1,7 +1,10 @@
-use reqwest::header::{self, HeaderMap, HeaderValue};
+use std::sync::Arc;
+
 use serde::Deserialize;
 
 use crate::core::errors::{AppError, Result};
+
+use super::browser::BrowserSession;
 
 const API_BASE: &str = "https://api.garmoth.com";
 
@@ -65,30 +68,17 @@ impl From<RawPreset> for GarmothPreset {
     }
 }
 
+// Queries go through the browser's own Chromium network stack (see
+// BrowserSession::fetch_json) rather than a standalone reqwest client — Cloudflare's
+// WAF fingerprints the TLS handshake itself and blocks non-browser clients with a 403
+// regardless of what headers/cookies are attached.
 pub struct GarmothClient {
-    client: reqwest::Client,
+    browser: Arc<BrowserSession>,
 }
 
 impl GarmothClient {
-    pub fn new(cf_clearance: &str) -> Self {
-        let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0";
-        let mut headers = HeaderMap::new();
-        headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
-        headers.insert(header::REFERER, HeaderValue::from_static("https://garmoth.com/"));
-        headers.insert(header::ORIGIN, HeaderValue::from_static("https://garmoth.com"));
-        headers.insert("lang", HeaderValue::from_static("us"));
-        if !cf_clearance.is_empty() {
-            let cookie = format!("cf_clearance={}", cf_clearance);
-            if let Ok(val) = HeaderValue::from_str(&cookie) {
-                headers.insert(header::COOKIE, val);
-            }
-        }
-        let client = reqwest::Client::builder()
-            .user_agent(ua)
-            .default_headers(headers)
-            .build()
-            .expect("failed to build HTTP client");
-        Self { client }
+    pub fn new(browser: Arc<BrowserSession>) -> Self {
+        Self { browser }
     }
 
     pub async fn fetch_popular(
@@ -102,17 +92,8 @@ impl GarmothClient {
             "{}/api/beauty-album/search-advanced?class={}&past={}&region={}&sort=popular&limit=100",
             API_BASE, class_param, days, region
         );
-        let bytes = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| AppError::Scrape(format!("request failed: {}", e)))?
-            .error_for_status()
-            .map_err(|e| AppError::Scrape(format!("HTTP error: {}", e)))?
-            .bytes()
-            .await
-            .map_err(|e| AppError::Scrape(format!("read failed: {}", e)))?;
+
+        let bytes = self.browser.fetch_json(&url).await?;
 
         let val: serde_json::Value = serde_json::from_slice(&bytes)
             .map_err(|e| AppError::Scrape(format!("parse failed: {}", e)))?;

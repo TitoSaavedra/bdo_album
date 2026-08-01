@@ -2,7 +2,7 @@ use sqlx::PgPool;
 use tauri::AppHandle;
 
 use crate::core::errors::Result;
-use crate::events::{Events, LogEntry};
+use crate::events::{Events, LogCode, LogEntry};
 
 #[derive(sqlx::FromRow)]
 pub struct LogRow {
@@ -25,6 +25,21 @@ impl LogRepository {
         source:     &str,
         msg:        &str,
     ) -> Result<()> {
+        Self::insert_coded(app, pool, session_id, tag, source, msg, None).await
+    }
+
+    /// Same as [`insert`], but also attaches a [`LogCode`] to the live Tauri event
+    /// so the frontend can render a localized sentence. `msg` (English, built by the
+    /// caller) is always what's persisted to `scraper_logs` — `code` is never stored.
+    pub async fn insert_coded(
+        app:        &AppHandle,
+        pool:       &PgPool,
+        session_id: Option<i64>,
+        tag:        &str,
+        source:     &str,
+        msg:        &str,
+        code:       Option<LogCode>,
+    ) -> Result<()> {
         sqlx::query(
             "INSERT INTO scraper_logs (session_id, tag, source, msg) VALUES ($1, $2, $3, $4)",
         )
@@ -40,6 +55,7 @@ impl LogRepository {
             tag:    tag.to_string(),
             source: source.to_string(),
             msg:    msg.to_string(),
+            code,
         });
 
         Ok(())

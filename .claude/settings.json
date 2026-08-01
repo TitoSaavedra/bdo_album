@@ -34,7 +34,23 @@
       "Bash(ConvertTo-Json)",
       "Bash(git restore *)",
       "Bash(pnpm svelte-check *)",
-      "Bash(pnpm run *)"
+      "Bash(pnpm run *)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(24\\).toString\\('base64'\\)\\)\")",
+      "Bash(gh secret *)",
+      "Bash(gh auth *)",
+      "Bash(git ls-remote *)",
+      "Bash(pnpm --version)",
+      "Bash(git push *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(pnpm rebuild *)",
+      "Bash(bash \"C:\\\\Users\\\\TitoS\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\x--Github-Personal-bdo-album\\\\49152514-3157-4910-b30e-fe38f1d2a3d8\\\\scratchpad\\\\build_scraper.sh\")",
+      "Bash(bash \"C:\\\\Users\\\\TitoS\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\x--Github-Personal-bdo-album\\\\49152514-3157-4910-b30e-fe38f1d2a3d8\\\\scratchpad\\\\build_album.sh\")",
+      "Bash(git commit *)",
+      "Read(//c/Users/TitoS/.cargo/registry/src/**)",
+      "Bash(cargo update *)",
+      "Bash(find \"C:/Users/TitoS/.cargo/registry/src\" -maxdepth 1 -iname \"*playwright*\" 2>/dev/null; find \"C:/Users/TitoS/.cargo/registry/cache\" -iname \"*playwright-rs-0.15*\" 2>/dev/null)",
+      "Read(//c/Users/TitoS/.cargo/registry/cache/**)"
     ]
   }
 }
