@@ -60,7 +60,6 @@ jobs:
           releaseName: "BDO Suite v__VERSION__"
           releaseDraft: false
           prerelease: false
-          updaterJsonPreferNsis: true
 
       # tauri-action always names the updater manifest "latest.json" — rename it
       # right away so album's build (same release) doesn't collide with it.
@@ -82,7 +81,6 @@ jobs:
         with:
           projectPath: album
           releaseId: ${{ steps.rel_scraper.outputs.releaseId }}
-          updaterJsonPreferNsis: true
 
       - name: Rename album updater manifest
         shell: bash
