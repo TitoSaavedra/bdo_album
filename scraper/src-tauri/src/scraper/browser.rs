@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use playwright_rs::{
-    Browser, BrowserContext, BrowserContextOptions, GotoOptions, LaunchOptions,
-    Playwright, WaitUntil, install_browsers,
+    Browser, BrowserContext, BrowserContextOptions, Error as PlaywrightError, GotoOptions,
+    LaunchOptions, Playwright, WaitUntil, install_browsers,
 };
 
 use sqlx::PgPool;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::core::errors::AppError;
 use crate::db::repositories::log_repo::LogRepository;
@@ -31,6 +31,32 @@ mod hidden_console {
     }
 }
 
+/// Runs the bundled `playwright-rs` bootstrap CLI to fetch the Playwright
+/// driver into the user cache (`%LOCALAPPDATA%\playwright-rust\...`), the
+/// same location `playwright_rs`'s own runtime lookup checks. Only the
+/// small CLI binary ships in the installer — the ~90 MB driver itself is
+/// downloaded once, on first use, instead of bloating every install.
+async fn bootstrap_driver(app: &AppHandle) -> Result<(), AppError> {
+    let exe_path = app
+        .path()
+        .resolve(
+            "tools/playwright-rs-cli/bin/playwright-rs.exe",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|e| AppError::Scrape(format!("resolve driver installer: {e}")))?;
+
+    let status = tokio::process::Command::new(&exe_path)
+        .args(["install", "--driver-only"])
+        .status()
+        .await
+        .map_err(|e| AppError::Scrape(format!("run driver installer ({}): {e}", exe_path.display())))?;
+
+    if !status.success() {
+        return Err(AppError::Scrape(format!("driver installer exited with {status}")));
+    }
+    Ok(())
+}
+
 pub struct BrowserSession {
     _playwright: Playwright,
     _browser:    Browser,
@@ -49,9 +75,21 @@ impl BrowserSession {
         }
 
         log!("INFO", "Verifying Chromium installation (may download ~150 MB on first run, requires internet)");
-        install_browsers(Some(&["chromium"]))
-            .await
-            .map_err(|e| AppError::Scrape(format!("browser install: {:?}", e)))?;
+        match install_browsers(Some(&["chromium"])).await {
+            Ok(()) => {}
+            Err(PlaywrightError::ServerNotFound) => {
+                // The Playwright driver itself (node + cli.js) isn't bundled in the
+                // installer — only a small bootstrap CLI is. Fetch the driver into
+                // the user cache once; playwright-rs finds it there automatically
+                // from then on (same path `playwright-rs install` populates).
+                log!("INFO", "Playwright driver not found — downloading it now (first run, requires internet)");
+                bootstrap_driver(app).await?;
+                install_browsers(Some(&["chromium"]))
+                    .await
+                    .map_err(|e| AppError::Scrape(format!("browser install: {:?}", e)))?;
+            }
+            Err(e) => return Err(AppError::Scrape(format!("browser install: {:?}", e))),
+        }
 
         log!("INFO", "Starting Playwright runtime");
         let playwright = Playwright::launch()

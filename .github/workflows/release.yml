@@ -70,6 +70,20 @@ jobs:
         working-directory: scraper
         run: pnpm install
 
+      - name: Cache playwright-rs bootstrap CLI
+        id: playwright-cli-cache
+        uses: actions/cache@v4
+        with:
+          path: scraper/src-tauri/tools/playwright-rs-cli
+          key: playwright-rs-cli-${{ runner.os }}-v0.15.0
+
+      # Bundled into the installer so the app can fetch the actual Playwright
+      # driver on first run (see browser.rs::bootstrap_driver) instead of
+      # shipping the ~90 MB driver itself in every install.
+      - name: Install playwright-rs bootstrap CLI
+        if: steps.playwright-cli-cache.outputs.cache-hit != 'true'
+        run: cargo install playwright-rs --version 0.15.0 --locked --features cli --root scraper/src-tauri/tools/playwright-rs-cli --bin playwright-rs
+
       - name: Build & release scraper
         uses: tauri-apps/tauri-action@v0
         env:

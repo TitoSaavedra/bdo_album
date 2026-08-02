@@ -56,6 +56,14 @@ python scripts/migrate.py   # reads DATABASE_URL from scraper/src-tauri/.env
 
 No Rust/sqlx-cli involved — it's a standalone script that tracks applied migrations in `_sqlx_migrations` (same table/checksum scheme sqlx itself uses) and refuses to proceed if an already-applied migration's file changed underneath it.
 
+### Playwright driver bootstrap CLI (scraper only)
+
+The scraper bundles a small `playwright-rs` CLI binary in its installer, which it shells out to on first run to fetch the actual Playwright driver into the user's cache — see the TODO note below. Build it once (also required before `tauri build`/`pnpm tauri:build`, since the MSI resource has to exist on disk):
+
+```bash
+cargo install playwright-rs --version 0.15.0 --locked --features cli --root scraper/src-tauri/tools/playwright-rs-cli --bin playwright-rs
+```
+
 ### Run
 
 ```bash
@@ -82,4 +90,5 @@ Bump the `version` field in both `scraper/src-tauri/tauri.conf.json` and `album/
 
 ## TODO
 
-- [ ] **Figure out how to distribute `.env` config to end users.** Right now `.env` is bundled directly into each MSI as a Tauri bundle resource (`"resources": [".env"]` in `tauri.conf.json`), which means the database connection string — and, for the scraper, the R2 credentials — end up embedded in the installer shipped to users. This needs a real solution before this goes beyond personal/internal use: e.g. a first-run setup screen that stores config in the OS app-data dir, a remote config endpoint, or per-build secrets injection scoped to the intended user.
+- [ ] **Figure out how to distribute `.env` config to end users.** Neither MSI bundles `.env` anymore, which means an installed app has no `DATABASE_URL`/R2 credentials at all unless something places a `.env` next to the executable by hand. Needs a real solution before this goes beyond personal/internal use: e.g. a first-run setup screen that stores config in the OS app-data dir, a remote config endpoint, or per-build secrets injection scoped to the intended user.
+- [ ] **Playwright driver first-run download has no user-facing progress.** `browser.rs::bootstrap_driver` shells out to the bundled CLI and blocks until it's done (silent from the UI's perspective beyond the one log line) — fine for now, but a session that starts on a slow connection will look stuck rather than downloading.

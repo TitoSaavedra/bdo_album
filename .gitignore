@@ -12,6 +12,9 @@ apps/*/src-tauri/target/
 apps/*/src-tauri/WixTools/
 apps/*/src-tauri/gen/
 
+# Bootstrap CLI binary — fetched via `cargo install` before building, not committed
+scraper/src-tauri/tools/
+
 # Environment
 .env
 .env.*
