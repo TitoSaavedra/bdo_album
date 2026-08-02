@@ -88,6 +88,16 @@ Releases are built by [`.github/workflows/release.yml`](.github/workflows/releas
 
 Bump the `version` field in both `scraper/src-tauri/tauri.conf.json` and `album/src-tauri/tauri.conf.json` together before pushing to `releases` — they ship as one combined release.
 
+### Versioning
+
+Semantic versioning (`MAJOR.MINOR.PATCH`), one shared number for the whole suite:
+
+- **PATCH** (`0.2.0` → `0.2.1`) — bug fixes, CI/infra changes, anything that doesn't change what the app does. Most releases are this.
+- **MINOR** (`0.2.x` → `0.3.0`) — new features or a meaningfully-sized change (a new subsystem, a UI rework, a behavior change users would notice).
+- **MAJOR** — not in use yet; reserve for a post-1.0 breaking change (incompatible DB schema, config format, etc.).
+
+**Always bump before pushing to `releases`.** The Tauri updater compares version numbers, not content — pushing under an unchanged version silently ships a build nobody's app will ever detect as an update (this happened once already; see the `v0.1.0` → `v0.2.0` jump in git history).
+
 ## TODO
 
 - [ ] **Figure out how to distribute `.env` config to end users.** Neither MSI bundles `.env` anymore, which means an installed app has no `DATABASE_URL`/R2 credentials at all unless something places a `.env` next to the executable by hand. Needs a real solution before this goes beyond personal/internal use: e.g. a first-run setup screen that stores config in the OS app-data dir, a remote config endpoint, or per-build secrets injection scoped to the intended user.
