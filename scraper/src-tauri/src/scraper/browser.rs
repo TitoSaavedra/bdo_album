@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use playwright_rs::{
     Browser, BrowserContext, BrowserContextOptions, Error as PlaywrightError, GotoOptions,
-    LaunchOptions, Playwright, WaitUntil, install_browsers,
+    LaunchOptions, Page, Playwright, WaitUntil, install_browsers,
 };
 
 use sqlx::PgPool;
@@ -61,6 +61,10 @@ pub struct BrowserSession {
     _playwright: Playwright,
     _browser:    Browser,
     context:     BrowserContext,
+    /// The warmed-up garmoth.com page (already past the CF challenge), reused
+    /// by `fetch_json` to run `fetch()` in-page instead of opening a new tab
+    /// per request — see `fetch_json` for why.
+    api_page:    Page,
 }
 
 impl BrowserSession {
@@ -142,7 +146,7 @@ impl BrowserSession {
 
         log!("INFO", "garmoth.com loaded — waiting for CF cookie");
 
-        Ok(Self { _playwright: playwright, _browser: browser, context })
+        Ok(Self { _playwright: playwright, _browser: browser, context, api_page: page })
     }
 
     /// Polls for the cf_clearance cookie up to `timeout_secs` seconds.
@@ -256,31 +260,60 @@ impl BrowserSession {
     /// Fetches a URL through the browser's own network stack (real Chromium TLS
     /// fingerprint) instead of a standalone HTTP client — used for API endpoints that
     /// Cloudflare's WAF blocks based on connection fingerprinting regardless of headers.
+    ///
+    /// Runs `fetch()` in-page via `evaluate` on the shared warmed-up `api_page` rather
+    /// than `page.goto()`-ing a fresh tab per call: under concurrent load, many parallel
+    /// document-navigations to the same origin raced Chromium's HTTP/2 connection and
+    /// produced ERR_HTTP2_PROTOCOL_ERROR. A normal in-page `fetch()` multiplexes over
+    /// HTTP/2 the way a real browser tab issuing concurrent requests does.
     pub async fn fetch_json(&self, url: &str) -> Result<Vec<u8>, AppError> {
-        let page = self.context.new_page().await
-            .map_err(|e| AppError::Scrape(format!("page: {:?}", e)))?;
+        const MAX_ATTEMPTS: u32 = 3;
 
-        let goto_result = page.goto(
-            url,
-            Some(GotoOptions::new().timeout(Duration::from_secs(30))),
-        ).await;
+        let mut last_err = None;
+        for attempt in 1..=MAX_ATTEMPTS {
+            match self.fetch_json_once(url).await {
+                Ok(bytes) => return Ok(bytes),
+                Err(e) => {
+                    last_err = Some(e);
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                    }
+                }
+            }
+        }
+        Err(last_err.unwrap())
+    }
 
-        let resp = match goto_result {
-            Ok(Some(r)) => r,
-            Ok(None) => { let _ = page.close().await; return Err(AppError::Scrape("goto: no response".to_string())); }
-            Err(e)    => { let _ = page.close().await; return Err(AppError::Scrape(format!("goto: {:?}", e))); }
-        };
-
-        let status = resp.status();
-        let bytes  = resp.body().await.unwrap_or_default();
-        let _ = page.close().await;
-
-        if status >= 400 {
-            let snippet: String = String::from_utf8_lossy(&bytes).chars().take(300).collect();
-            return Err(AppError::Scrape(format!("HTTP {}: {}", status, snippet)));
+    async fn fetch_json_once(&self, url: &str) -> Result<Vec<u8>, AppError> {
+        #[derive(serde::Deserialize)]
+        struct FetchResult {
+            status: u16,
+            body:   String,
         }
 
-        Ok(bytes)
+        const FETCH_JS: &str = r#"async (u) => {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 30000);
+            try {
+                const r = await fetch(u, { signal: ctrl.signal });
+                const body = await r.text();
+                return { status: r.status, body };
+            } finally {
+                clearTimeout(t);
+            }
+        }"#;
+
+        let result: FetchResult = self.api_page
+            .evaluate(FETCH_JS, Some(&url))
+            .await
+            .map_err(|e| AppError::Scrape(format!("evaluate fetch: {:?}", e)))?;
+
+        if result.status >= 400 {
+            let snippet: String = result.body.chars().take(300).collect();
+            return Err(AppError::Scrape(format!("HTTP {}: {}", result.status, snippet)));
+        }
+
+        Ok(result.body.into_bytes())
     }
 
     async fn download_image(&self, pair: Option<(String, String)>) -> Option<(String, Vec<u8>)> {

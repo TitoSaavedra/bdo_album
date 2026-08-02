@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sqlx::PgPool;
 use tauri::{AppHandle, Manager};
@@ -294,7 +294,9 @@ pub async fn run_fetch(
     let mut total_errors  = 0usize;
     let mut total_skipped = 0usize;
     let mut class_stats: std::collections::HashMap<i32, (usize, usize, usize, usize)> = std::collections::HashMap::new();
-    let mut fatal_error: Option<String> = None;
+    // Set when a class exhausts all fetch_popular retries — stops the fetch phase early
+    // without touching `cancel` (shared with the image pipeline, which should keep going).
+    let mut stop_fetching = false;
 
     let total_chunks = (work.len() + parallelism - 1) / parallelism;
     let mut chunk_idx = 0usize;
@@ -304,7 +306,7 @@ pub async fn run_fetch(
     //   2. Spawn batch in parallel
     //   3. Drain + validate + insert
     for chunk in work.chunks(parallelism) {
-        if cancel.load(Ordering::Relaxed) { break; }
+        if cancel.load(Ordering::Relaxed) || stop_fetching { break; }
 
         // When updating existing presets we must NOT refresh from DB: it would add all existing
         // IDs to global_seen and cause us to skip presets we still want to update.
@@ -335,8 +337,25 @@ pub async fn run_fetch(
             let label  = item.label.clone();
             let d      = item.d.clone();
             let r      = item.r.clone();
+            let app_h  = app.clone();
+            let pool_h = pool.clone();
             js.spawn(async move {
-                let res = client.fetch_popular(gid, &d, &r).await;
+                const MAX_ATTEMPTS: u32 = 3;
+                let mut attempt = 1u32;
+                let res = loop {
+                    let res = client.fetch_popular(gid, &d, &r).await;
+                    match res {
+                        Ok(v) => break Ok(v),
+                        Err(e) if attempt < MAX_ATTEMPTS => {
+                            LogRepository::insert(&app_h, &pool_h, Some(session_id), "WARN", "fetch",
+                                &format!("{} failed (attempt {}/{}), retrying in 30s: {}", label, attempt, MAX_ATTEMPTS, e),
+                            ).await.ok();
+                            tokio::time::sleep(Duration::from_secs(30)).await;
+                            attempt += 1;
+                        }
+                        Err(e) => break Err(e),
+                    }
+                };
                 (db_id, label, res)
             });
         }
@@ -396,12 +415,11 @@ pub async fn run_fetch(
                     }
                 }
                 Err(e) => {
-                    let msg = format!("{} failed: {}", label, e);
+                    let msg = format!("{} failed after 3 attempts — stopping fetch phase (image downloads continue): {}", label, e);
                     stat.2 += 1;
                     total_errors += 1;
                     LogRepository::insert(app, pool, Some(session_id), "ERR", "fetch", &msg).await.ok();
-                    fatal_error = Some(msg);
-                    cancel.store(true, Ordering::Relaxed);
+                    stop_fetching = true;
                     js.abort_all();
                     break;
                 }
@@ -423,10 +441,6 @@ pub async fn run_fetch(
                 Some(LogCode::RoundProgressFetch { round: chunk_idx as i64, total_rounds: total_chunks as i64, remaining: remaining as i64, new: batch_total_new as i64, skipped: batch_total_skipped as i64 }),
             ).await.ok();
         }
-    }
-
-    if let Some(err_msg) = fatal_error {
-        return Err(AppError::Scrape(format!("Fetch aborted on error: {}", err_msg)));
     }
 
     // Per-class summaries + events
