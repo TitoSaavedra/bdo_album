@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import TabBar from '../../../../ui/TabBar/TabBar.svelte';
   import type { TabItem } from '../../../../ui/TabBar/TabBar.svelte';
   import type { BdoAccount } from '../../../../lib/face_grid';
@@ -14,20 +15,20 @@
   const tabs = $derived(
     accounts.map(acc => ({
       id:    acc.account_id,
-      label: `Account ${acc.account_id}`,
+      label: $_('face_grid.account_tabs.account_n', { values: { id: acc.account_id } }),
       badge: acc.characters.length,
     } satisfies TabItem))
   );
 </script>
 
 {#snippet tabActions()}
-  <button class="btn-reset" onclick={onReset} title="Reset">
+  <button class="btn-reset" onclick={onReset} title={$_('face_grid.account_tabs.reset')}>
     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
       <path d="M1 4v6h6M23 20v-6h-6M20.3 5a9 9 0 0 0-15.2 1.5M3.7 19a9 9 0 0 0 15.2-1.5"
             stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   </button>
-  <button class="btn-save" onclick={onSave}>Save Preset</button>
+  <button class="btn-save" onclick={onSave}>{$_('face_grid.account_tabs.save_preset')}</button>
 {/snippet}
 
 <TabBar

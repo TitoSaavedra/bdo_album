@@ -48,7 +48,7 @@
     try {
       const rows = await invoke<{ ts: number; tag: string; source: string; msg: string }[]>('get_logs', { limit: 500 });
       if (rows.length > 0) {
-        prependLogs(rows.map(r => ({ ts: Math.floor(r.ts / 1000), tag: r.tag, source: r.source, msg: r.msg })));
+        prependLogs(rows.map(r => ({ ts: Math.floor(r.ts / 1000), tag: r.tag, source: r.source, msg: r.msg, code: null })));
       }
     } catch (_) {}
   });

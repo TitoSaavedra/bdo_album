@@ -16,7 +16,15 @@
       "label": "Progreso",
       "of": "de",
       "class": "Clase",
-      "preset": "Preset"
+      "preset": "Preset",
+      "downloading_preset": "Descargando preset {preset_id}"
+    },
+    "loading": {
+      "fetching_presets": "Obteniendo presets...",
+      "starting_browser": "Iniciando navegador",
+      "waiting_cf_clearance": "Esperando validación de CF",
+      "downloading_images": "Descargando imágenes...",
+      "fetching_and_downloading": "Obteniendo y descargando..."
     },
     "actions": {
       "start": "Iniciar scrapping",
@@ -31,6 +39,67 @@
   "logs": {
     "title": "Logs",
     "empty": "Sin registros aún",
-    "clear": "Limpiar"
+    "clear": "Limpiar",
+    "codes": {
+      "verifying_chromium": "Verificando instalación de Chromium (puede descargar ~150 MB la primera vez, requiere internet)",
+      "starting_playwright": "Iniciando runtime de Playwright",
+      "launching_chromium": "Iniciando Chromium (headless)",
+      "navigating_garmoth": "Navegando a garmoth.com (desafío CF)",
+      "garmoth_loaded_waiting_cookie": "garmoth.com cargado — esperando cookie de CF",
+      "fetch_only_mode": "Modo solo-fetch — actualizando estadísticas, sin navegador ni descarga de imágenes",
+      "browser_starting": "Iniciando navegador",
+      "browser_ready": "Navegador listo",
+      "waiting_cf_clearance": "Esperando validación de CF (hasta 30s)",
+      "cf_clearance_obtained": "{obtained, select, true {Validación de CF obtenida} other {Validación de CF no encontrada — continuando sin ella}}",
+      "images_only_mode": "Modo solo-imágenes — sin fetch",
+      "fetch_phase_started": "Fase de fetch iniciada",
+      "fetch_only_done": "Fetch solo completado — {processed} procesados, {errors} errores",
+      "fetch_done": "Fetch completado — {new} presets nuevos, {errors} errores",
+      "images_done": "Imágenes completadas — {done} listas, {uploaded} subidas, {errors} errores",
+      "session_cancelled": "Sesión cancelada",
+      "session_done": "Sesión #{session_id} completada en {elapsed}s — {presets} presets, {images} imágenes, {errors} errores",
+      "preloaded_ids": "{count} IDs de presets existentes precargados desde la DB",
+      "skipping_db_preseed": "Solo-fetch: sin pre-carga de DB — se procesarán todos los presets devueltos",
+      "request_plan": "{classes} clases × {days} días × {regions} regiones = {total} solicitudes totales",
+      "db_refresh": "Actualización de DB: +{added} IDs ({total_seen} vistos en total)",
+      "fetch_batch_progress": "→ {remaining}/{total}",
+      "class_results_update": "{label}: {results} resultados → {new} nuevos, {updated} actualizados, {skipped} omitidos",
+      "class_results_fetch": "{label}: {results} resultados → {new} nuevos, {skipped} omitidos",
+      "round_progress_update": "Ronda {round}/{total_rounds} — {remaining} restantes | {new} nuevos, {updated} actualizados, {skipped} omitidos",
+      "round_progress_fetch": "Ronda {round}/{total_rounds} — {remaining} restantes | {new} nuevos, {skipped} omitidos",
+      "class_done_update": "{class}: {new} nuevos | {updated} actualizados | {skipped} omitidos | {errors} errores",
+      "class_done_fetch": "{class}: {new} nuevos | {skipped} omitidos (DB) | {errors} errores",
+      "fetch_only_rounds_done": "Fetch solo completado — {rounds} rondas, {processed} procesados, {errors} errores",
+      "fetch_rounds_done": "Fetch completado — {rounds} rondas, {presets} presets, {errors} errores",
+      "img_page_failed_retry": "Preset {preset_id}: falló la página (se reintentará)",
+      "img_upload_failed": "Preset {preset_id}: falló la subida de la imagen {image_num}",
+      "img_not_found": "Preset {preset_id}: imagen {image_num} no encontrada en la página",
+      "images_uploaded": "Preset {preset_id} — {count} imagen(es) subida(s)",
+      "stats_update_failed": "Preset {preset_id}: falló la actualización de estadísticas",
+      "upsert_failed": "Preset {preset_id}: falló el upsert",
+      "insert_failed": "Preset {preset_id}: falló",
+      "no_pending_images_classes": "No quedan imágenes pendientes para las clases seleccionadas — listo",
+      "class_filter_round": "Ronda de filtro por clase {round}: encolando {count} preset(s) (top-{limit_per_class} por clase, intercalado)",
+      "fairness_skip": "Equidad: omitiendo {names} — mín={min_dl}, umbral={threshold}",
+      "no_pending_images": "No quedan imágenes pendientes — loop de pendientes terminado",
+      "pending_round": "Ronda de pendientes {round}: encolando {count} preset(s) (top-10 por clase según descargas)",
+      "session_started": "Sesión #{session_id} iniciada — modo={mode} | paralelismo={parallelism} | clases=[{classes}] | días=[{days}] | regiones=[{regions}]",
+      "import_started": "Importación iniciada — {file_count} archivo(s)",
+      "import_read_error": "{filename}: error de lectura",
+      "import_no_preset_id": "{filename}: sin ID de preset en el nombre de archivo",
+      "import_already_has_pab": "{filename}: el preset {preset_id} ya tiene un PAB, omitido",
+      "import_uploaded": "{filename}: subido → {db_path}",
+      "import_r2_upload_failed": "{filename}: falló la subida a R2",
+      "import_preset_not_found": "{filename}: preset {preset_id} no encontrado en la DB",
+      "import_done": "Importación completada — {uploaded} subidos, {not_found} no encontrados",
+      "db_connected_recovered": "Base de datos conectada. {recovered} sesión(es) interrumpida(s) recuperada(s).",
+      "db_connected_ready": "Base de datos conectada. Lista para scrapear."
+    }
+  },
+  "errors": {
+    "db": {
+      "docker_not_running": "No se pudo conectar a la base de datos. ¿Está Docker corriendo? (docker compose up -d)",
+      "env_var_missing": "No está configurada DATABASE_URL"
+    }
   }
 }

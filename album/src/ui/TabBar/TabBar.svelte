@@ -1,6 +1,7 @@
 <script lang="ts">
   import './TabBar.scss';
   import type { Snippet } from 'svelte';
+  import { _ } from 'svelte-i18n';
 
   export interface TabItem {
     id:     string | number;
@@ -30,7 +31,7 @@
           {/if}
         </button>
         {#if onremove}
-          <button class="tab-remove" title="Remove" onclick={() => onremove(tab.id)}>✕</button>
+          <button class="tab-remove" title={$_('ui.remove')} onclick={() => onremove(tab.id)}>✕</button>
         {/if}
       </div>
     {/each}

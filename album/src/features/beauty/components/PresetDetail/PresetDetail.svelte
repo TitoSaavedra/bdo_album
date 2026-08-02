@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
+  import { _ } from 'svelte-i18n';
   import { openUrl, toggleWanted, discardPreset, exportToBdo } from '../../../../lib/album';
   import {
     beauty,
@@ -138,13 +139,13 @@
               />
             {/key}
           {:else}
-            <span class="no-media">NO MEDIA</span>
+            <span class="no-media">{$_('beauty.preset_detail.no_media')}</span>
           {/if}
           <button
             class="sharpen-toggle"
             class:active={sharpenOn}
             onclick={() => (sharpenOn = !sharpenOn)}
-            title={sharpenOn ? 'Sharpen: ON' : 'Sharpen: OFF'}
+            title={sharpenOn ? $_('beauty.preset_detail.sharpen_on') : $_('beauty.preset_detail.sharpen_off')}
           >⬡</button>
 
           {#if images.length > 1}
@@ -154,7 +155,7 @@
                   class="dot"
                   class:dot-active={img === activeImage}
                   onclick={() => (activeImage = img)}
-                  aria-label="Image {i + 1}"
+                  aria-label={$_('beauty.preset_detail.image_n', { values: { n: i + 1 } })}
                 ></button>
               {/each}
             </div>
@@ -187,62 +188,62 @@
           <div class="stat-item">
             <span class="stat-icon">↓</span>
             <span class="stat-val">{Number(downloads).toLocaleString()}</span>
-            <span class="stat-lbl">Downloads</span>
+            <span class="stat-lbl">{$_('beauty.preset_detail.downloads')}</span>
           </div>
           <div class="stat-divider"></div>
           <div class="stat-item">
             <span class="stat-icon">◉</span>
             <span class="stat-val">{Number(views).toLocaleString()}</span>
-            <span class="stat-lbl">Views</span>
+            <span class="stat-lbl">{$_('beauty.preset_detail.views')}</span>
           </div>
           <div class="stat-divider"></div>
           <div class="stat-item stat-fav">
             <span class="stat-icon">♥</span>
             <span class="stat-val">{Number(likes).toLocaleString()}</span>
-            <span class="stat-lbl">Likes</span>
+            <span class="stat-lbl">{$_('beauty.preset_detail.likes')}</span>
           </div>
         </div>
 
         <div class="meta-grid">
           {#if characterName && characterName !== title}
-            <span class="meta-key">Character</span>
+            <span class="meta-key">{$_('beauty.preset_detail.character')}</span>
             <span class="meta-val">{characterName}</span>
           {/if}
           {#if region}
-            <span class="meta-key">Region</span>
+            <span class="meta-key">{$_('beauty.preset_detail.region')}</span>
             <span class="meta-val region-val">{region}</span>
           {/if}
           {#if uploadedAt}
-            <span class="meta-key">Uploaded</span>
+            <span class="meta-key">{$_('beauty.preset_detail.uploaded')}</span>
             <span class="meta-val">{uploadedAt}</span>
           {/if}
           {#if syncedAt}
-            <span class="meta-key">Synced</span>
+            <span class="meta-key">{$_('beauty.preset_detail.synced')}</span>
             <span class="meta-val">{syncedAt}</span>
           {/if}
-          <span class="meta-key">Images</span>
+          <span class="meta-key">{$_('beauty.preset_detail.images')}</span>
           <span class="meta-val">{images.length}</span>
-          <span class="meta-key">PAB</span>
+          <span class="meta-key">{$_('beauty.preset_detail.pab')}</span>
           <span class="meta-val" class:pab-yes={p?.has_pab} class:pab-no={!p?.has_pab}>
-            {p?.has_pab ? 'Available' : 'Not available'}
+            {p?.has_pab ? $_('beauty.preset_detail.available') : $_('beauty.preset_detail.not_available')}
           </span>
         </div>
 
         <div class="actions">
           <div class="want-row">
-            <Button variant="icon" class="btn-want-sm" active={isWanted} onclick={handleToggleWant} title={isWanted ? 'Remove from wishlist' : 'Add to wishlist'}>♥</Button>
-            <Button variant="icon" class="btn-discard-sm" title="Discard" onclick={handleDiscard}>✕</Button>
+            <Button variant="icon" class="btn-want-sm" active={isWanted} onclick={handleToggleWant} title={isWanted ? $_('beauty.preset_detail.remove_wishlist') : $_('beauty.preset_detail.add_wishlist')}>♥</Button>
+            <Button variant="icon" class="btn-discard-sm" title={$_('beauty.preset_detail.discard')} onclick={handleDiscard}>✕</Button>
           </div>
           {#if p?.has_pab}
             <Button variant="ghost" class="btn-export" onclick={handleExport} disabled={exporting}>
-              <span class="icon">⬆</span> {exporting ? 'Exporting...' : 'Export to Black Desert'}
+              <span class="icon">⬆</span> {exporting ? $_('beauty.preset_detail.exporting') : $_('beauty.preset_detail.export_to_bdo')}
             </Button>
             {#if exportError}
               <p class="export-error">{exportError}</p>
             {/if}
           {:else}
             <Button variant="ghost" class="btn-garmoth" onclick={openOnGarmoth}>
-              <span class="icon">◈</span> View on Garmoth
+              <span class="icon">◈</span> {$_('beauty.preset_detail.view_on_garmoth')}
             </Button>
           {/if}
         </div>

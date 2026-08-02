@@ -1,0 +1,142 @@
+{
+  "app": {
+    "connecting": "Connecting to database...",
+    "tabs": {
+      "beauty": "Beauty",
+      "face_grid": "Grid"
+    },
+    "update": {
+      "installing": "Installing update...",
+      "available": "Update {version} available — click to install"
+    }
+  },
+  "beauty": {
+    "class_list": {
+      "search_placeholder": "Search title, author, character...",
+      "open_wanted_title": "Open all wanted PABs in browser ({count})",
+      "filter_sort": "Filter & Sort",
+      "sort_label": "Sort",
+      "region_label": "Region",
+      "uploaded_label": "Uploaded",
+      "pin_to_top": "Pin to top",
+      "waiting_db": "Waiting for database...",
+      "no_match_filters": "No classes match your filters",
+      "no_results": "No results",
+      "sort_downloads": "↓ DL",
+      "sort_views": "◉ Views",
+      "sort_likes": "♥ Likes",
+      "day_all": "All",
+      "day_20": "20d",
+      "day_30": "30d",
+      "day_60": "2mo",
+      "day_90": "3mo",
+      "day_180": "6mo",
+      "day_365": "1y"
+    },
+    "preset_card": {
+      "remove_wishlist": "Remove from wishlist",
+      "add_wishlist": "Add to wishlist",
+      "discard": "Discard",
+      "downloads": "Downloads",
+      "views": "Views",
+      "likes": "Likes"
+    },
+    "preset_grid": {
+      "select_class": "Select a class to browse presets",
+      "no_match_filters": "No presets match your filters",
+      "no_presets": "No presets found in this class"
+    },
+    "preset_detail": {
+      "sharpen_on": "Sharpen: ON",
+      "sharpen_off": "Sharpen: OFF",
+      "image_n": "Image {n}",
+      "downloads": "Downloads",
+      "views": "Views",
+      "likes": "Likes",
+      "character": "Character",
+      "region": "Region",
+      "uploaded": "Uploaded",
+      "synced": "Synced",
+      "images": "Images",
+      "pab": "PAB",
+      "available": "Available",
+      "not_available": "Not available",
+      "remove_wishlist": "Remove from wishlist",
+      "add_wishlist": "Add to wishlist",
+      "discard": "Discard",
+      "exporting": "Exporting...",
+      "export_to_bdo": "Export to Black Desert",
+      "view_on_garmoth": "View on Garmoth",
+      "no_media": "NO MEDIA"
+    },
+    "wanted_modal": {
+      "title": "Presets to download",
+      "remove_class": "Remove all {class} presets",
+      "empty": "No presets queued.",
+      "skip_this": "Skip this preset",
+      "cancel": "Cancel",
+      "open_in_browser": "Open {count} in browser"
+    }
+  },
+  "face_grid": {
+    "account_tabs": {
+      "account_n": "Account {id}",
+      "reset": "Reset",
+      "save_preset": "Save Preset"
+    },
+    "dialog": {
+      "confirm": "Confirm"
+    },
+    "sidebar": {
+      "presets": "Presets",
+      "creating_preset": "Creating preset... {pct}%",
+      "no_presets": "No presets saved",
+      "apply": "Apply",
+      "apply_title": "Apply preset",
+      "delete_title": "Delete preset",
+      "default": "Default",
+      "apply_grid_title": "Apply Grid",
+      "apply_grid_msg": "FaceTexture images will be overwritten. Continue?",
+      "delete_grid_title": "Delete Grid",
+      "delete_grid_msg": "Are you sure? This action cannot be undone.",
+      "apply_confirm": "Apply",
+      "delete_confirm": "Delete"
+    },
+    "view": {
+      "reading_config": "Reading BDO configuration…",
+      "no_accounts": "No BDO accounts found",
+      "no_accounts_hint": "Make sure BDO is installed and you've logged in at least once",
+      "accounts": "Accounts",
+      "presets": "Presets",
+      "reload_title": "Reload from disk",
+      "save_preset": "Save Preset"
+    },
+    "account_picker": {
+      "title": "Select Account",
+      "subtitle": "Choose your BDO account",
+      "account_n": "Account {id}"
+    },
+    "preset_picker": {
+      "save_title": "Save Preset",
+      "saved_title": "Saved Presets",
+      "save_as_new": "Save as New",
+      "empty": "No presets saved yet",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "select_a_preset": "Select a preset",
+      "overwrite": "Overwrite \"{name}\"",
+      "overwrite_title": "Overwrite Preset",
+      "overwrite_msg": "Overwrite \"{name}\" with the current grid?",
+      "overwrite_confirm": "Overwrite"
+    }
+  },
+  "ui": {
+    "remove": "Remove"
+  },
+  "errors": {
+    "db": {
+      "docker_not_running": "Could not connect to the database. Is Docker running? (docker compose up -d)",
+      "env_var_missing": "DATABASE_URL is not set"
+    }
+  }
+}

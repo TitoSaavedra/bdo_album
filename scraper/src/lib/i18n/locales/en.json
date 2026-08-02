@@ -16,7 +16,15 @@
       "label": "Progress",
       "of": "of",
       "class": "Class",
-      "preset": "Preset"
+      "preset": "Preset",
+      "downloading_preset": "Downloading preset {preset_id}"
+    },
+    "loading": {
+      "fetching_presets": "Fetching presets...",
+      "starting_browser": "Starting browser",
+      "waiting_cf_clearance": "Waiting for CF clearance",
+      "downloading_images": "Downloading images...",
+      "fetching_and_downloading": "Fetching & downloading..."
     },
     "actions": {
       "start": "Start scrapping",
@@ -31,6 +39,67 @@
   "logs": {
     "title": "Logs",
     "empty": "No logs yet",
-    "clear": "Clear"
+    "clear": "Clear",
+    "codes": {
+      "verifying_chromium": "Verifying Chromium installation (may download ~150 MB on first run, requires internet)",
+      "starting_playwright": "Starting Playwright runtime",
+      "launching_chromium": "Launching Chromium (headless)",
+      "navigating_garmoth": "Navigating to garmoth.com (CF challenge)",
+      "garmoth_loaded_waiting_cookie": "garmoth.com loaded — waiting for CF cookie",
+      "fetch_only_mode": "Fetch-only mode — updating stats, skipping browser and image download",
+      "browser_starting": "Starting browser",
+      "browser_ready": "Browser ready",
+      "waiting_cf_clearance": "Waiting for CF clearance (up to 30s)",
+      "cf_clearance_obtained": "{obtained, select, true {CF clearance obtained} other {CF clearance not found — proceeding without it}}",
+      "images_only_mode": "Images-only mode — skipping fetch",
+      "fetch_phase_started": "Fetch phase started",
+      "fetch_only_done": "Fetch-only done — {processed} processed, {errors} errors",
+      "fetch_done": "Fetch done — {new} new presets, {errors} errors",
+      "images_done": "Images done — {done} done, {uploaded} uploaded, {errors} errors",
+      "session_cancelled": "Session cancelled",
+      "session_done": "Session #{session_id} done in {elapsed}s — {presets} presets, {images} images, {errors} errors",
+      "preloaded_ids": "Pre-loaded {count} existing preset IDs from DB",
+      "skipping_db_preseed": "Fetch-only: skipping DB pre-seed — all returned presets will be processed",
+      "request_plan": "{classes} classes × {days} days × {regions} regions = {total} requests total",
+      "db_refresh": "DB refresh: +{added} IDs ({total_seen} total seen)",
+      "fetch_batch_progress": "→ {remaining}/{total}",
+      "class_results_update": "{label}: {results} results → {new} new, {updated} updated, {skipped} skipped",
+      "class_results_fetch": "{label}: {results} results → {new} new, {skipped} skipped",
+      "round_progress_update": "Round {round}/{total_rounds} — {remaining} remaining | {new} new, {updated} updated, {skipped} skipped",
+      "round_progress_fetch": "Round {round}/{total_rounds} — {remaining} remaining | {new} new, {skipped} skipped",
+      "class_done_update": "{class}: {new} new | {updated} updated | {skipped} skipped | {errors} errors",
+      "class_done_fetch": "{class}: {new} new | {skipped} skipped (DB) | {errors} errors",
+      "fetch_only_rounds_done": "Fetch-only done — {rounds} rounds, {processed} processed, {errors} errors",
+      "fetch_rounds_done": "Fetch done — {rounds} rounds, {presets} presets, {errors} errors",
+      "img_page_failed_retry": "Preset {preset_id} page failed (will retry)",
+      "img_upload_failed": "Preset {preset_id} image {image_num} upload failed",
+      "img_not_found": "Preset {preset_id} image {image_num} not found on page",
+      "images_uploaded": "Preset {preset_id} — {count} image(s) uploaded",
+      "stats_update_failed": "Preset {preset_id} stats update failed",
+      "upsert_failed": "Preset {preset_id} upsert failed",
+      "insert_failed": "Preset {preset_id} failed",
+      "no_pending_images_classes": "No more pending images for selected classes — done",
+      "class_filter_round": "Class-filter round {round}: queuing {count} preset(s) (top-{limit_per_class} per class, interleaved)",
+      "fairness_skip": "Fairness: skipping {names} — min={min_dl}, threshold={threshold}",
+      "no_pending_images": "No more pending images — pending loop done",
+      "pending_round": "Pending round {round}: queuing {count} preset(s) (top-10 per class by downloads)",
+      "session_started": "Session #{session_id} started — mode={mode} | parallelism={parallelism} | classes=[{classes}] | days=[{days}] | regions=[{regions}]",
+      "import_started": "Import started — {file_count} file(s)",
+      "import_read_error": "{filename}: read error",
+      "import_no_preset_id": "{filename}: no preset ID in filename",
+      "import_already_has_pab": "{filename}: preset {preset_id} already has a PAB, skipped",
+      "import_uploaded": "{filename}: uploaded → {db_path}",
+      "import_r2_upload_failed": "{filename}: R2 upload failed",
+      "import_preset_not_found": "{filename}: preset {preset_id} not found in DB",
+      "import_done": "Import done — {uploaded} uploaded, {not_found} not found",
+      "db_connected_recovered": "Database connected. {recovered} interrupted session(s) recovered.",
+      "db_connected_ready": "Database connected. Ready to scrape."
+    }
+  },
+  "errors": {
+    "db": {
+      "docker_not_running": "Could not connect to the database. Is Docker running? (docker compose up -d)",
+      "env_var_missing": "DATABASE_URL is not set"
+    }
   }
 }

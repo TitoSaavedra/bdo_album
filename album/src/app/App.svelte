@@ -3,6 +3,7 @@
   import { onMount, tick } from 'svelte';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
+  import { _ } from 'svelte-i18n';
   import { eventBus } from '../lib/events';
   import Toast from '../ui/Toast/Toast.svelte';
   import type { ToastItem } from '../ui/Toast/Toast.svelte';
@@ -74,7 +75,7 @@
       ? [{
           id:      2,
           type:    'success' as const,
-          text:    updateInstalling ? 'Installing update...' : `Update ${pendingUpdate.version} available — click to install`,
+          text:    updateInstalling ? $_('app.update.installing') : $_('app.update.available', { values: { version: pendingUpdate.version } }),
           onClick: installUpdate,
         }]
       : []
@@ -180,16 +181,16 @@
 <div class="app">
   {#if !beauty.dbReady && !beauty.dbError}
     <div class="splash">
-      <div class="splash-text">Connecting to database...</div>
+      <div class="splash-text">{$_('app.connecting')}</div>
     </div>
   {:else if beauty.dbError}
     <div class="splash">
-      <div class="splash-text error">{beauty.dbError}</div>
+      <div class="splash-text error">{$_(`errors.db.${beauty.dbError}`)}</div>
     </div>
   {:else}
     <nav class="tab-nav">
-      <button class:active={activeTab === 'beauty'}    onclick={() => activeTab = 'beauty'}>Beauty</button>
-      <button class:active={activeTab === 'face_grid'} onclick={() => activeTab = 'face_grid'}>Grid</button>
+      <button class:active={activeTab === 'beauty'}    onclick={() => activeTab = 'beauty'}>{$_('app.tabs.beauty')}</button>
+      <button class:active={activeTab === 'face_grid'} onclick={() => activeTab = 'face_grid'}>{$_('app.tabs.face_grid')}</button>
     </nav>
 
     {#if activeTab === 'beauty'}

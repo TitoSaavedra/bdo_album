@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { _ } from 'svelte-i18n';
   import type { PresetEntry } from '../../../../lib/album';
   import { openUrl } from '../../../../lib/album';
   import { beauty } from '../../state/beauty.svelte';
@@ -73,7 +74,7 @@
   >
 
     <div class="modal-header">
-      <span class="modal-title">Presets to download</span>
+      <span class="modal-title">{$_('beauty.wanted_modal.title')}</span>
       <span class="modal-count">{items.length}</span>
       <button class="close-btn" onclick={onclose}>✕</button>
     </div>
@@ -90,7 +91,7 @@
             <button
               class="pill-remove"
               onclick={() => removeByClass(cls.class_id)}
-              title="Remove all {cls.name} presets"
+              title={$_('beauty.wanted_modal.remove_class', { values: { class: cls.name } })}
             >✕</button>
           </div>
         {/each}
@@ -98,7 +99,7 @@
     {/if}
 
     {#if items.length === 0}
-      <div class="empty">No presets queued.</div>
+      <div class="empty">{$_('beauty.wanted_modal.empty')}</div>
     {:else}
       <div class="grid">
         {#each pageItems as p (p.preset_id)}
@@ -114,7 +115,7 @@
               <button
                 class="remove-btn"
                 onclick={() => remove(p.preset_id)}
-                title="Skip this preset"
+                title={$_('beauty.wanted_modal.skip_this')}
               >✕</button>
             </div>
             <div class="card-label" title={label}>{label}</div>
@@ -132,9 +133,9 @@
     {/if}
 
     <div class="modal-footer">
-      <button class="cancel-btn" onclick={onclose}>Cancel</button>
+      <button class="cancel-btn" onclick={onclose}>{$_('beauty.wanted_modal.cancel')}</button>
       <button class="open-btn" onclick={openAll} disabled={items.length === 0}>
-        Open {items.length} in browser
+        {$_('beauty.wanted_modal.open_in_browser', { values: { count: items.length } })}
       </button>
     </div>
 

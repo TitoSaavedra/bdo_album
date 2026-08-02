@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fly, slide } from 'svelte/transition';
   import { flip } from 'svelte/animate';
+  import { _ } from 'svelte-i18n';
   import type { ClassEntry, PresetEntry } from '../../../../lib/album';
   import { getClassFavorites, setClassFavorite, getWantedPresets } from '../../../../lib/album';
   import Button              from '../../../../ui/Button/Button.svelte';
@@ -29,24 +30,24 @@
   let modalPresets = $state<PresetEntry[]>([]);
   let modalOpen    = $state(false);
 
-  const SORT_PILLS = [
-    { value: 'downloads', label: '↓ DL'    },
-    { value: 'views',     label: '◉ Views' },
-    { value: 'likes',     label: '♥ Likes' },
-  ];
+  const SORT_PILLS = $derived([
+    { value: 'downloads', label: $_('beauty.class_list.sort_downloads') },
+    { value: 'views',     label: $_('beauty.class_list.sort_views')     },
+    { value: 'likes',     label: $_('beauty.class_list.sort_likes')     },
+  ]);
 
-  const DAY_PILLS = [
-    { value: 'ever', label: 'All' },
-    { value: '20',   label: '20d' },
-    { value: '30',   label: '30d' },
-    { value: '60',   label: '2mo' },
-    { value: '90',   label: '3mo' },
-    { value: '180',  label: '6mo' },
-    { value: '365',  label: '1y'  },
-  ];
+  const DAY_PILLS = $derived([
+    { value: 'ever', label: $_('beauty.class_list.day_all') },
+    { value: '20',   label: $_('beauty.class_list.day_20')  },
+    { value: '30',   label: $_('beauty.class_list.day_30')  },
+    { value: '60',   label: $_('beauty.class_list.day_60')  },
+    { value: '90',   label: $_('beauty.class_list.day_90')  },
+    { value: '180',  label: $_('beauty.class_list.day_180') },
+    { value: '365',  label: $_('beauty.class_list.day_365') },
+  ]);
 
   const regionPills = $derived([
-    { value: '', label: 'All' },
+    { value: '', label: $_('beauty.class_list.day_all') },
     ...beauty.availableRegions.map(r => ({ value: r, label: r.toUpperCase() })),
   ]);
 
@@ -105,18 +106,18 @@
 
 <div class="filter-box">
   <div class="search-row">
-    <Input bind:value={searchInput} placeholder="Search title, author, character..." />
+    <Input bind:value={searchInput} placeholder={$_('beauty.class_list.search_placeholder')} />
     <button
       class="open-wanted-btn"
       class:has-wanted={beauty.wantedPresets.size > 0}
-      title="Open all wanted PABs in browser ({beauty.wantedPresets.size})"
+      title={$_('beauty.class_list.open_wanted_title', { values: { count: beauty.wantedPresets.size } })}
       onclick={openWantedPabs}
       disabled={beauty.wantedPresets.size === 0}
     >♥</button>
     <Button
       variant="icon"
       active={filterActive}
-      title="Filter & Sort"
+      title={$_('beauty.class_list.filter_sort')}
       onclick={() => (filterOpen = !filterOpen)}
     >
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -136,7 +137,7 @@
   {#if filterOpen}
     <div class="filter-panel" transition:slide={{ duration: 180 }}>
       <div class="fp-field">
-        <span class="fp-field-label">Sort</span>
+        <span class="fp-field-label">{$_('beauty.class_list.sort_label')}</span>
         <PillSelector
           value={beauty.sortBy}
           options={SORT_PILLS}
@@ -146,7 +147,7 @@
 
       {#if beauty.availableRegions.length > 0}
         <div class="fp-group">
-          <span class="fp-group-label">Region</span>
+          <span class="fp-group-label">{$_('beauty.class_list.region_label')}</span>
           <PillSelector
             value={beauty.selectedRegion}
             options={regionPills}
@@ -156,7 +157,7 @@
       {/if}
 
       <div class="fp-group">
-        <span class="fp-group-label">Uploaded</span>
+        <span class="fp-group-label">{$_('beauty.class_list.uploaded_label')}</span>
         <PillSelector
           value={beauty.selectedDays}
           options={DAY_PILLS}
@@ -176,12 +177,12 @@
 
 <div class="list custom-scroll">
   {#if beauty.classes.length === 0}
-    <p class="status">Waiting for database...</p>
+    <p class="status">{$_('beauty.class_list.waiting_db')}</p>
   {:else if sorted.length === 0}
     <p class="status">
       {beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever'
-        ? 'No classes match your filters'
-        : 'No results'}
+        ? $_('beauty.class_list.no_match_filters')
+        : $_('beauty.class_list.no_results')}
     </p>
   {:else}
     {#each sorted as cls (cls.name)}
@@ -206,7 +207,7 @@
               role="button"
               tabindex="0"
               onkeydown={(e) => e.key === 'Enter' && handleToggleFavorite(cls.name, e as unknown as MouseEvent)}
-              title="Pin to top"
+              title={$_('beauty.class_list.pin_to_top')}
             >♥</span>
             {#if cls.icon_svg}
               <span class="cls-icon">{@html cls.icon_svg}</span>

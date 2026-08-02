@@ -595,7 +595,7 @@ pub async fn run_download_pipeline(
                             nf1 = Some("not_found");
                             LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "ERR", "img_upload",
                                 &format!("preset {} img1 upload failed: {}", task.preset_id, e),
-                                Some(LogCode::Img1UploadFailed { preset_id: task.preset_id })).await.ok();
+                                Some(LogCode::ImgUploadFailed { preset_id: task.preset_id, image_num: 1 })).await.ok();
                         }
                     }
                 }
@@ -604,7 +604,7 @@ pub async fn run_download_pipeline(
                         nf1 = Some("not_found");
                         LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
                             &format!("preset {} img1 not found on page", task.preset_id),
-                            Some(LogCode::Img1NotFound { preset_id: task.preset_id })).await.ok();
+                            Some(LogCode::ImgNotFound { preset_id: task.preset_id, image_num: 1 })).await.ok();
                     }
                 }
             }
@@ -630,7 +630,7 @@ pub async fn run_download_pipeline(
                             nf2 = Some("not_found");
                             LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "ERR", "img_upload",
                                 &format!("preset {} img2 upload failed: {}", task.preset_id, e),
-                                Some(LogCode::Img2UploadFailed { preset_id: task.preset_id })).await.ok();
+                                Some(LogCode::ImgUploadFailed { preset_id: task.preset_id, image_num: 2 })).await.ok();
                         }
                     }
                 }
@@ -639,7 +639,7 @@ pub async fn run_download_pipeline(
                         nf2 = Some("not_found");
                         LogRepository::insert_coded(&app_h, &pool_h, Some(session_id), "WARN", "img_fetch",
                             &format!("preset {} img2 not found on page", task.preset_id),
-                            Some(LogCode::Img2NotFound { preset_id: task.preset_id })).await.ok();
+                            Some(LogCode::ImgNotFound { preset_id: task.preset_id, image_num: 2 })).await.ok();
                     }
                 }
             }

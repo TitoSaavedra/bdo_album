@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import {
     getSavedGrids,
     getActiveGridId,
@@ -28,19 +29,19 @@
 
   function handleApply(id: number) {
     openConfirmDialog(
-      'Apply Grid',
-      'FaceTexture images will be overwritten. Continue?',
+      $_('face_grid.sidebar.apply_grid_title'),
+      $_('face_grid.sidebar.apply_grid_msg'),
       () => applyGrid(id),
-      'Apply'
+      $_('face_grid.sidebar.apply_confirm')
     );
   }
 
   function handleDelete(id: number) {
     openConfirmDialog(
-      'Delete Grid',
-      'Are you sure? This action cannot be undone.',
+      $_('face_grid.sidebar.delete_grid_title'),
+      $_('face_grid.sidebar.delete_grid_msg'),
       () => deleteGrid(id),
-      'Delete'
+      $_('face_grid.sidebar.delete_confirm')
     );
   }
 </script>
@@ -54,7 +55,7 @@
         <rect x="1" y="8" width="5" height="5" rx="1"/>
         <rect x="8" y="8" width="5" height="5" rx="1"/>
       </svg>
-      <span>Presets</span>
+      <span>{$_('face_grid.sidebar.presets')}</span>
       {#if getSavedGrids().length > 0}
         <span class="sidebar-count">{getSavedGrids().length}</span>
       {/if}
@@ -67,7 +68,7 @@
         ? Math.round((getCreateProgress().current / getCreateProgress().total) * 100)
         : 0}
       <div class="sidebar-creating">
-        <span class="creating-label">Creating preset... {pct}%</span>
+        <span class="creating-label">{$_('face_grid.sidebar.creating_preset', { values: { pct } })}</span>
         <div class="progress-track">
           <div class="progress-fill" style="width: {pct}%"></div>
         </div>
@@ -76,7 +77,7 @@
         {/if}
       </div>
     {:else if getSavedGrids().length === 0}
-      <div class="sidebar-empty">No presets saved</div>
+      <div class="sidebar-empty">{$_('face_grid.sidebar.no_presets')}</div>
     {:else}
       <div class="cards-grid">
         {#each getSavedGrids() as grid (grid.id)}
@@ -89,23 +90,23 @@
                 <img src={thumb} alt="" class="thumb-img" />
               {/if}
               {#if isDefault}
-                <span class="default-badge">Default</span>
+                <span class="default-badge">{$_('face_grid.sidebar.default')}</span>
               {/if}
               <div class="card-hover-actions">
                 <button
                   class="action-btn apply-btn"
                   disabled={getApplyingGrid()}
                   onclick={() => handleApply(grid.id)}
-                  title="Apply preset"
+                  title={$_('face_grid.sidebar.apply_title')}
                 >
-                  Apply
+                  {$_('face_grid.sidebar.apply')}
                 </button>
                 {#if !isDefault}
                   <button
                     class="action-btn delete-btn"
                     disabled={getApplyingGrid()}
                     onclick={() => handleDelete(grid.id)}
-                    title="Delete preset"
+                    title={$_('face_grid.sidebar.delete_title')}
                   >
                     &#x2715;
                   </button>

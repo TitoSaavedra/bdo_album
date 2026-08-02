@@ -1,10 +1,11 @@
 import type { ClassCount, ClassEntry, PresetEntry } from '../../../lib/album';
 import { getClasses } from '../../../lib/album';
+import type { DbErrorCode } from '../../../lib/events/types';
 
 export const beauty = $state({
   // DB
   dbReady:  false,
-  dbError:  null as string | null,
+  dbError:  null as DbErrorCode | null,
 
   // Classes
   classes:        [] as ClassEntry[],
@@ -45,7 +46,7 @@ export const beauty = $state({
 
 // ── DB ────────────────────────────────────────────────────────
 
-export function setDbReady(ok: boolean, error: string | null) {
+export function setDbReady(ok: boolean, error: DbErrorCode | null) {
   beauty.dbReady = ok;
   beauty.dbError = error;
   if (ok) loadClasses();

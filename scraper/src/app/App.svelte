@@ -4,6 +4,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
+  import { _ } from 'svelte-i18n';
   import { eventBus } from '$lib/events';
   import { getDbReady, getDbError, setDbReady, setClassIcons } from '../features/scraper/state/scraper.svelte';
   import Toast from '$ui/Toast/Toast.svelte';
@@ -34,7 +35,7 @@
 
   const toasts = $derived<ToastItem[]>([
     ...(dbReady === false
-      ? [{ id: 1, type: 'error' as const, text: `Database unavailable — ${dbError ?? 'check DATABASE_URL'}` }]
+      ? [{ id: 1, type: 'error' as const, text: `Database unavailable — ${dbError ? $_(`errors.db.${dbError}`) : 'check DATABASE_URL'}` }]
       : dbReady === null
         ? [{ id: 0, type: 'warning' as const, text: 'Connecting to database...' }]
         : []),

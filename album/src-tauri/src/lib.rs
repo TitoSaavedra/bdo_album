@@ -5,7 +5,7 @@ mod db;
 mod face_grid;
 
 use std::sync::atomic::Ordering;
-use core::events::{DbReady, Events, ListenerStatus, PresetUploaded};
+use core::events::{DbErrorCode, DbReady, Events, ListenerStatus, PresetUploaded};
 use core::state::AppState;
 use sqlx::postgres::PgListener;
 use tauri::{AppHandle, Manager};
@@ -76,10 +76,10 @@ pub fn run() {
 
                 let db_url = match std::env::var("DATABASE_URL") {
                     Ok(url) => url,
-                    Err(e) => {
+                    Err(_e) => {
                         Events::db_ready(&app_h, DbReady {
                             success: false,
-                            error: Some(format!("DATABASE_URL not set: {}", e)),
+                            error: Some(DbErrorCode::EnvVarMissing),
                         });
                         return;
                     }
@@ -101,7 +101,7 @@ pub fn run() {
                                 warned = true;
                                 Events::db_ready(&app_h, DbReady {
                                     success: false,
-                                    error: Some("No se pudo conectar a la base de datos. ¿Está Docker corriendo? (docker compose up -d)".to_string()),
+                                    error: Some(DbErrorCode::DockerNotRunning),
                                 });
                             }
                             tokio::time::sleep(std::time::Duration::from_secs(3)).await;

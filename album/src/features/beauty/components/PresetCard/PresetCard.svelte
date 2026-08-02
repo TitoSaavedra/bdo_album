@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { _ } from 'svelte-i18n';
   import type { PresetEntry } from '../../../../lib/album';
   import { discardPreset, toggleWanted } from '../../../../lib/album';
   import {
@@ -69,19 +70,19 @@
       <button
         class="action-want"
         class:want-active={isWanted}
-        title={isWanted ? 'Remove from wishlist' : 'Add to wishlist'}
+        title={isWanted ? $_('beauty.preset_card.remove_wishlist') : $_('beauty.preset_card.add_wishlist')}
         onclick={handleToggleWant}
       >
         <span class="action-icon">♥</span>
       </button>
-      <button class="action-discard" title="Discard" onclick={handleDiscard}>✕</button>
+      <button class="action-discard" title={$_('beauty.preset_card.discard')} onclick={handleDiscard}>✕</button>
     </div>
   </div>
 
   <div class="card-footer">
-    <span class="stat" title="Downloads">↓ {Number(downloads).toLocaleString()}</span>
-    <span class="stat" title="Views">◉ {Number(views).toLocaleString()}</span>
-    <span class="stat stat-fav" title="Likes">♥ {Number(likes).toLocaleString()}</span>
+    <span class="stat" title={$_('beauty.preset_card.downloads')}>↓ {Number(downloads).toLocaleString()}</span>
+    <span class="stat" title={$_('beauty.preset_card.views')}>◉ {Number(views).toLocaleString()}</span>
+    <span class="stat stat-fav" title={$_('beauty.preset_card.likes')}>♥ {Number(likes).toLocaleString()}</span>
   </div>
 </div>
 

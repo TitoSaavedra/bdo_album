@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { _ } from 'svelte-i18n';
   import type { PresetEntry } from '../../../../lib/album';
   import { beauty } from '../../state/beauty.svelte';
   import PresetCard from '../PresetCard/PresetCard.svelte';
@@ -57,7 +58,7 @@
 
 {#if !selectedClass}
   <div class="state-msg">
-    <div class="state-hint">Select a class to browse presets</div>
+    <div class="state-hint">{$_('beauty.preset_grid.select_class')}</div>
   </div>
 {:else if loading}
   <div class="grid">
@@ -72,7 +73,7 @@
 {:else if localPresets.length === 0 && livePresets.length === 0}
   <div class="state-msg">
     <div class="state-hint">
-      {hasFilters ? 'No presets match your filters' : 'No presets found in this class'}
+      {hasFilters ? $_('beauty.preset_grid.no_match_filters') : $_('beauty.preset_grid.no_presets')}
     </div>
   </div>
 {:else}

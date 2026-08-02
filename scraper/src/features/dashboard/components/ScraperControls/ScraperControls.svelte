@@ -10,6 +10,8 @@
     getTotal,
     getCurrentClass,
     getCurrentMsg,
+    getCurrentMsgKey,
+    getCurrentMsgValues,
     getProgress,
     getImgProgress,
     getImagesDone,
@@ -34,6 +36,9 @@
   const total       = $derived(getTotal());
   const activeClass = $derived(getCurrentClass());
   const msg         = $derived(getCurrentMsg());
+  const msgKey      = $derived(getCurrentMsgKey());
+  const msgValues   = $derived(getCurrentMsgValues());
+  const displayMsg  = $derived(msgKey ? $_(msgKey, { values: msgValues }) : msg);
   const pct         = $derived(getProgress());
   const imgPct      = $derived(getImgProgress());
   const imgDone     = $derived(getImagesDone());
@@ -88,7 +93,7 @@
           <span class="progress-detail">{activeClass}</span>
         {/if}
         {#if msg}
-          <span class="progress-detail muted">{msg}</span>
+          <span class="progress-detail muted">{displayMsg}</span>
         {/if}
       </div>
     </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { scale } from 'svelte/transition';
+  import { _ } from 'svelte-i18n';
   import {
     getAccounts,
     getAccountThumbs,
@@ -22,8 +23,8 @@
     transition:scale={{ duration: 150, start: 0.95 }}
     onclick={(e) => e.stopPropagation()}
   >
-    <h3>Select Account</h3>
-    <p class="picker-subtitle">Choose your BDO account</p>
+    <h3>{$_('face_grid.account_picker.title')}</h3>
+    <p class="picker-subtitle">{$_('face_grid.account_picker.subtitle')}</p>
 
     <div class="accounts-list">
       {#each getAccounts().filter(a => a.characters.some(c => c.has_bmp)) as account (account.account_id)}
@@ -33,7 +34,7 @@
           onclick={() => selectAccount(account.account_id)}
         >
           <div class="account-info">
-            <span class="account-name">Account {account.account_id}</span>
+            <span class="account-name">{$_('face_grid.account_picker.account_n', { values: { id: account.account_id } })}</span>
             <span class="account-badge">{account.characters.length}</span>
           </div>
           <div class="account-thumbs">

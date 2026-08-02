@@ -5,7 +5,7 @@ mod db;
 mod scraper;
 
 use core::state::AppState;
-use events::{DbErrorCode, DbReady, Events};
+use events::{DbErrorCode, DbReady, Events, LogCode};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -66,13 +66,18 @@ pub fn run() {
                 };
                 db::repositories::log_repo::LogRepository::prune(&pool, 30).await.ok();
                 let recovered = db::repositories::session_repo::SessionRepository::recover_interrupted(&pool).await.unwrap_or(0);
-                db::repositories::log_repo::LogRepository::insert(
+                db::repositories::log_repo::LogRepository::insert_coded(
                     &app_h, &pool, None, "INFO", "startup",
                     &if recovered > 0 {
                         format!("Database connected. {} interrupted session(s) recovered.", recovered)
                     } else {
                         "Database connected. Ready to scrape.".to_string()
                     },
+                    Some(if recovered > 0 {
+                        LogCode::DbConnectedRecovered { recovered: recovered as i64 }
+                    } else {
+                        LogCode::DbConnectedReady
+                    }),
                 ).await.ok();
                 app_h.manage(AppState::new(pool));
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { scale } from 'svelte/transition';
+  import { _ } from 'svelte-i18n';
   import {
     getSavedGrids,
     getActiveGridId,
@@ -40,19 +41,19 @@
 
   function handleApply(id: number) {
     openConfirmDialog(
-      'Apply Grid',
-      'FaceTexture images will be overwritten. Continue?',
+      $_('face_grid.sidebar.apply_grid_title'),
+      $_('face_grid.sidebar.apply_grid_msg'),
       () => applyGrid(id),
-      'Apply'
+      $_('face_grid.sidebar.apply_confirm')
     );
   }
 
   function handleDelete(id: number) {
     openConfirmDialog(
-      'Delete Grid',
-      'Are you sure? This action cannot be undone.',
+      $_('face_grid.sidebar.delete_grid_title'),
+      $_('face_grid.sidebar.delete_grid_msg'),
       () => deleteGrid(id),
-      'Delete'
+      $_('face_grid.sidebar.delete_confirm')
     );
   }
 
@@ -63,10 +64,10 @@
 
   function handleOverwrite(id: number, name: string) {
     openConfirmDialog(
-      'Overwrite Preset',
-      `Overwrite "${name}" with the current grid?`,
+      $_('face_grid.preset_picker.overwrite_title'),
+      $_('face_grid.preset_picker.overwrite_msg', { values: { name } }),
       () => overwriteGrid(id),
-      'Overwrite'
+      $_('face_grid.preset_picker.overwrite_confirm')
     );
   }
 </script>
@@ -85,7 +86,7 @@
     onclick={(e) => e.stopPropagation()}
   >
     <h3>
-      {isSave ? 'Save Preset' : 'Saved Presets'}
+      {isSave ? $_('face_grid.preset_picker.save_title') : $_('face_grid.preset_picker.saved_title')}
       {#if getSavedGrids().length > 0}
         <span class="preset-count">{getSavedGrids().length}</span>
       {/if}
@@ -95,12 +96,12 @@
       {#if isSave}
         <button class="new-preset-card" onclick={handleSaveNew}>
           <span class="new-icon">+</span>
-          <span class="new-label">Save as New</span>
+          <span class="new-label">{$_('face_grid.preset_picker.save_as_new')}</span>
         </button>
       {/if}
 
       {#if getSavedGrids().length === 0}
-        <div class="presets-empty">No presets saved yet</div>
+        <div class="presets-empty">{$_('face_grid.preset_picker.empty')}</div>
       {:else}
         {#each getSavedGrids() as grid (grid.id)}
           {@const isDefault  = grid.name === '_default'}
@@ -121,7 +122,7 @@
             <div class="item-thumb" style={r2urls.length === 0 ? cardColors(grid.id) : ''}>
               <PresetThumb urls={r2urls} />
               {#if isDefault}
-                <span class="default-badge">Default</span>
+                <span class="default-badge">{$_('face_grid.sidebar.default')}</span>
               {/if}
               {#if isSelected}
                 <div class="selected-overlay">
@@ -141,7 +142,7 @@
                   class="action-btn apply-btn"
                   disabled={getApplyingGrid()}
                   onclick={() => handleApply(grid.id)}
-                >Apply</button>
+                >{$_('face_grid.sidebar.apply')}</button>
                 {#if !isDefault}
                   <button
                     class="action-btn delete-btn"
@@ -158,7 +159,7 @@
 
     {#if isSave}
       <div class="save-footer">
-        <button class="footer-cancel" onclick={closeSavePicker}>Cancel</button>
+        <button class="footer-cancel" onclick={closeSavePicker}>{$_('face_grid.preset_picker.cancel')}</button>
         <button
           class="footer-save"
           disabled={selectedId === null}
@@ -168,8 +169,8 @@
           )}
         >
           {selectedId !== null
-            ? `Overwrite "${getSavedGrids().find(g => g.id === selectedId)?.name ?? ''}"`
-            : 'Select a preset'}
+            ? $_('face_grid.preset_picker.overwrite', { values: { name: getSavedGrids().find(g => g.id === selectedId)?.name ?? '' } })
+            : $_('face_grid.preset_picker.select_a_preset')}
         </button>
       </div>
     {/if}

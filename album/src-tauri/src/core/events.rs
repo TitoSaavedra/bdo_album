@@ -5,9 +5,16 @@ use tauri::{AppHandle, Emitter};
 // Field names must match TypeScript interfaces in lib/events/types.ts.
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum DbErrorCode {
+    DockerNotRunning,
+    EnvVarMissing,
+}
+
+#[derive(Serialize, Clone)]
 pub struct DbReady {
     pub success: bool,
-    pub error:   Option<String>,
+    pub error:   Option<DbErrorCode>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

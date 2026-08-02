@@ -9,6 +9,8 @@ import type {
   ClassStatsUpdated,
   PresetSynced,
   LogEntry,
+  DbErrorCode,
+  SyncPhase,
 } from '$lib/events/types';
 
 // Re-export types consumed by components
@@ -30,14 +32,16 @@ let classIcons        = $state<Record<number, string>>({});
 let lastPresetSynced  = $state<PresetSynced | null>(null);
 
 let dbReady  = $state<boolean | null>(null); // null = pending, true = ok, false = error
-let dbError  = $state<string | null>(null);
+let dbError  = $state<DbErrorCode | null>(null);
 
 let status       = $state<ScraperStatus>('idle');
 let phase        = $state<ScraperPhase>('fetch');
 let current      = $state(0);
 let total        = $state(0);
 let currentClass = $state('');
-let currentMsg   = $state('');
+let currentMsg   = $state(''); // English fallback (also the only text for client-built messages)
+let currentMsgKey    = $state<string | null>(null); // i18n key when the message comes from Rust as a code
+let currentMsgValues = $state<Record<string, string | number>>({});
 let imagesDone   = $state(0);
 let imagesTotal  = $state(0);
 let uploadsDone  = $state(0);
@@ -81,7 +85,9 @@ export const getPhase        = () => phase;
 export const getCurrent      = () => current;
 export const getTotal        = () => total;
 export const getCurrentClass = () => currentClass;
-export const getCurrentMsg   = () => currentMsg;
+export const getCurrentMsg      = () => currentMsg;
+export const getCurrentMsgKey    = () => currentMsgKey;
+export const getCurrentMsgValues = () => currentMsgValues;
 export const getImagesDone   = () => imagesDone;
 export const getImagesTotal  = () => imagesTotal;
 export const getUploadsDone  = () => uploadsDone;
@@ -107,7 +113,7 @@ export function setClassIcons(entries: { id: number; icon_svg: string | null }[]
   entries.forEach(e => { if (e.icon_svg) classIcons[e.id] = e.icon_svg; });
 }
 
-export function setDbReady(success: boolean, error?: string | null): void {
+export function setDbReady(success: boolean, error?: DbErrorCode | null): void {
   dbReady = success;
   dbError = error ?? null;
 }
@@ -156,7 +162,9 @@ export function onProgress(p: ScraperProgress): void {
   current      = p.current;
   total        = p.total;
   currentClass = p.class_name;
-  currentMsg   = p.message;
+  currentMsg   = `Downloading preset ${p.preset_id}`;
+  currentMsgKey    = 'scraper.progress.downloading_preset';
+  currentMsgValues = { preset_id: p.preset_id };
 
   const cls = classMap[p.class_id];
   if (!cls) return;
@@ -177,6 +185,7 @@ export function onImageProgress(p: ImageProgress): void {
   imagesDone  = p.done;
   imagesTotal = p.total;
   currentMsg  = `${p.class_name} — img ${p.image_num}`;
+  currentMsgKey = null;
   const entry = Object.values(classMap).find((c: ClassState) => c.name === p.class_name);
   if (entry && p.image_num === 1) entry.images += 1;
 }
@@ -200,6 +209,7 @@ export function onPresetSynced(p: PresetSynced): void {
   if (p.image_1_url || p.image_2_url) {
     const count = (p.image_1_url ? 1 : 0) + (p.image_2_url ? 1 : 0);
     currentMsg = `Preset ${p.preset_id} — ${count} image(s) synced to R2`;
+    currentMsgKey = null;
     const cls = classMap[p.class_id];
     if (cls) cls.images += count;
   } else {
@@ -209,8 +219,10 @@ export function onPresetSynced(p: PresetSynced): void {
   lastPresetSynced = p;
 }
 
-export function onSyncLoading(msg: string): void {
-  currentMsg = msg;
+export function onSyncLoading(phase: SyncPhase): void {
+  currentMsg = phase;
+  currentMsgKey    = `scraper.loading.${phase}`;
+  currentMsgValues = {};
 }
 
 export function pushLog(entry: LogEntry): void {

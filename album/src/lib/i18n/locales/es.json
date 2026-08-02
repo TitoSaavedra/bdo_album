@@ -1,0 +1,8 @@
+{
+  "errors": {
+    "db": {
+      "docker_not_running": "No se pudo conectar a la base de datos. ¿Está Docker corriendo? (docker compose up -d)",
+      "env_var_missing": "No está configurada DATABASE_URL"
+    }
+  }
+}

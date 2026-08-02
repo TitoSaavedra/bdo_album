@@ -1,9 +1,11 @@
 // ── Payloads ─────────────────────────────────────────────────
 // Must mirror Rust structs in core/events.rs exactly.
 
+export type DbErrorCode = 'docker_not_running' | 'env_var_missing';
+
 export interface DbReady {
   success: boolean;
-  error:   string | null;
+  error:   DbErrorCode | null;
 }
 
 export interface PresetUploaded {
