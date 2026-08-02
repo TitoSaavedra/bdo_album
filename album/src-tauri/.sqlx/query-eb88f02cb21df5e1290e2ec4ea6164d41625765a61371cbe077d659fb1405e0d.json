@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM album_face_grid_slots WHERE grid_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eb88f02cb21df5e1290e2ec4ea6164d41625765a61371cbe077d659fb1405e0d"
+}

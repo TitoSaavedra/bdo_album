@@ -45,6 +45,17 @@ docker compose up -d   # PostgreSQL on localhost:5432
 
 Each app reads its own `src-tauri/.env` (gitignored). See [scraper/src-tauri/.env.example](scraper/src-tauri/.env.example) and [album/src-tauri/.env.example](album/src-tauri/.env.example) for the required keys (database connection string, plus R2 credentials for the scraper).
 
+### Database schema
+
+Migrations (in `scraper/src-tauri/migrations/`) are **not** applied automatically when the app starts — run them explicitly whenever you pull new schema changes:
+
+```bash
+pip install psycopg2-binary
+python scripts/migrate.py   # reads DATABASE_URL from scraper/src-tauri/.env
+```
+
+No Rust/sqlx-cli involved — it's a standalone script that tracks applied migrations in `_sqlx_migrations` (same table/checksum scheme sqlx itself uses) and refuses to proceed if an already-applied migration's file changed underneath it.
+
 ### Run
 
 ```bash

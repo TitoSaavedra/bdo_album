@@ -5,9 +5,6 @@ pub enum AppError {
     #[error("Database: {0}")]
     Db(#[from] sqlx::Error),
 
-    #[error("Migration: {0}")]
-    Migrate(#[from] sqlx::migrate::MigrateError),
-
     #[error("HTTP: {0}")]
     Http(#[from] reqwest::Error),
 
