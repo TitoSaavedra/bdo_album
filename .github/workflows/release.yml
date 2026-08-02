@@ -68,6 +68,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # album pulls in Tauri, which on Linux needs GTK/WebKitGTK dev headers
+      # (glib-sys, gobject-sys, ...) to even `cargo check` — bare ubuntu-latest
+      # doesn't have them.
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
