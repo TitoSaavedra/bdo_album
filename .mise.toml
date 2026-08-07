@@ -1,0 +1,3 @@
+[tasks.dev]
+description = "Levanta PostgreSQL local (infraestructura) con Docker Compose. Las apps Dashboard y Album se corren aparte con `pnpm tauri dev` en scraper/ y album/ respectivamente (ver README)"
+run = "docker compose up"
