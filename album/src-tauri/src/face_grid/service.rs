@@ -46,8 +46,13 @@ pub struct SlotAssignment {
 // ── Paths ────────────────────────────────────────────────────────────────────
 
 fn bdo_documents_path() -> PathBuf {
-    let profile = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".into());
-    PathBuf::from(profile).join("Documents").join("Black Desert")
+    // dirs::document_dir() resolves the real Windows known-folder location,
+    // which OneDrive redirects away from "%USERPROFILE%\Documents".
+    let documents = dirs::document_dir().unwrap_or_else(|| {
+        let profile = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".into());
+        PathBuf::from(profile).join("Documents")
+    });
+    documents.join("Black Desert")
 }
 
 fn user_cache_path() -> PathBuf {
@@ -71,9 +76,11 @@ impl FaceGridService {
 
         let mut accounts: Vec<BdoAccount> = Vec::new();
 
-        let entries = std::fs::read_dir(&cache_dir).map_err(|e| {
-            AppError::Io(e)
-        })?;
+        let entries = match std::fs::read_dir(&cache_dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(accounts),
+            Err(e) => return Err(AppError::Io(e)),
+        };
 
         for entry in entries.flatten() {
             let path = entry.path();
@@ -109,7 +116,13 @@ impl FaceGridService {
         let face_dir = face_texture_path();
         let mut entries: Vec<FaceTextureEntry> = Vec::new();
 
-        for entry in std::fs::read_dir(&face_dir)?.flatten() {
+        let dir_entries = match std::fs::read_dir(&face_dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(entries),
+            Err(e) => return Err(AppError::Io(e)),
+        };
+
+        for entry in dir_entries.flatten() {
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) != Some("bmp") {
                 continue;
