@@ -1,3 +1,13 @@
 [tasks.dev]
 description = "Levanta PostgreSQL local (infraestructura) con Docker Compose. Las apps Dashboard y Album se corren aparte con `pnpm tauri dev` en scraper/ y album/ respectivamente (ver README)"
 run = "docker compose up"
+
+[tasks."dev:album"]
+description = "Levanta el Album (Tauri/Rust) en modo dev"
+dir = "album"
+run = "pnpm tauri dev"
+
+[tasks."dev:scraper"]
+description = "Levanta el Dashboard/Scraper (Tauri/Rust) en modo dev"
+dir = "scraper"
+run = "pnpm tauri dev"
