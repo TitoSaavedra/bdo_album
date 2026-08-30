@@ -139,6 +139,7 @@ pub fn run() {
             beauty::commands::get_wanted,
             beauty::commands::get_wanted_pab_urls,
             beauty::commands::get_wanted_presets,
+            beauty::commands::queue_auto_download,
             beauty::commands::export_to_bdo,
             beauty::commands::get_class_search_counts,
             face_grid::commands::scan_bdo_accounts,

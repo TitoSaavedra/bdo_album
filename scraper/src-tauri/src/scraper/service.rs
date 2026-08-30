@@ -13,6 +13,7 @@ use crate::core::state::AppState;
 use crate::db::repositories::{
     class_repo::ClassRepository,
     log_repo::LogRepository,
+    pab_repo::PabRepository,
     preset_repo::PresetRepository,
     session_repo::SessionRepository,
 };
@@ -74,7 +75,7 @@ pub async fn run_session(
         // browser (see GarmothClient/BrowserSession::fetch_json), same as images.
         Events::sync_loading(&app, SyncPhase::StartingBrowser);
         LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser", Some(LogCode::BrowserStarting)).await.ok();
-        let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
+        let browser = Arc::new(match BrowserSession::new(&app, &pool, Some(session_id)).await {
             Ok(b) => b,
             Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
         });
@@ -106,7 +107,7 @@ pub async fn run_session(
 
         Events::sync_loading(&app, SyncPhase::StartingBrowser);
         LogRepository::insert_coded(&app, &pool, Some(session_id), "INFO", "browser", "Starting browser", Some(LogCode::BrowserStarting)).await.ok();
-        let browser = Arc::new(match BrowserSession::new(&app, &pool, session_id).await {
+        let browser = Arc::new(match BrowserSession::new(&app, &pool, Some(session_id)).await {
             Ok(b) => b,
             Err(e) => { abort_session(&app, &pool, session_id, e).await; return; }
         });
@@ -717,6 +718,37 @@ pub async fn run_download_pipeline(
     }
 
     DownloadResult { total_images: total_done, total_uploaded, total_errors }
+}
+
+// ── PAB upload ────────────────────────────────────────────────
+
+/// Patches byte `0x44` (the same edit `import_pab_files` applies to manually
+/// downloaded PABs — see that command for why), uploads to R2 under
+/// `presets/{class}/{preset_id}/{filename}`, and records it in
+/// `scraper_preset_pabs`. Shared by the manual PAB importer and the
+/// auto-download worker so both paths stay in sync.
+pub async fn upload_pab(
+    pool:       &PgPool,
+    r2:         &R2Client,
+    preset_id:  i64,
+    filename:   &str,
+    mut bytes:  Vec<u8>,
+) -> Result<String> {
+    if bytes.len() > 0x44 {
+        bytes[0x44] = 0xCC;
+    }
+
+    let (_, class_name) = PresetRepository::get_with_class(pool, preset_id)
+        .await?
+        .ok_or_else(|| AppError::Scrape(format!("preset {} not found in DB", preset_id)))?;
+
+    let key     = format!("presets/{}/{}/{}", class_name, preset_id, filename);
+    let db_path = format!("/{}", key);
+
+    r2.upload(&key, bytes).await?;
+    PabRepository::insert(pool, preset_id, &db_path).await?;
+
+    Ok(db_path)
 }
 
 // ── Helpers ───────────────────────────────────────────────────

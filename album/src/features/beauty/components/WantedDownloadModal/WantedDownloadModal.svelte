@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
   import type { PresetEntry } from '../../../../lib/album';
-  import { openUrl } from '../../../../lib/album';
+  import { openUrl, queueAutoDownload } from '../../../../lib/album';
   import { beauty } from '../../state/beauty.svelte';
 
   interface Props {
@@ -14,8 +14,10 @@
 
   const PAGE_SIZE = 16; // 4×4
 
-  let items = $state(untrack(() => [...presets]));
-  let page  = $state(0);
+  let items    = $state(untrack(() => [...presets]));
+  let page     = $state(0);
+  let selected = $state(new Set<string>());
+  let sending  = $state(false);
 
   const totalPages = $derived(Math.max(1, Math.ceil(items.length / PAGE_SIZE)));
   const pageItems  = $derived(items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
@@ -39,12 +41,41 @@
 
   function remove(id: string) {
     items = items.filter(p => p.preset_id !== id);
+    selected.delete(id);
     clampPage();
   }
 
   function removeByClass(classId: number) {
+    const removedIds = new Set(items.filter(p => p.class_id === classId).map(p => p.preset_id));
     items = items.filter(p => p.class_id !== classId);
+    selected = new Set([...selected].filter(id => !removedIds.has(id)));
     clampPage();
+  }
+
+  function toggleSelect(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selected = next;
+  }
+
+  async function sendToAutoDownload() {
+    if (selected.size === 0 || sending) return;
+    sending = true;
+    try {
+      const ids = [...selected];
+      await queueAutoDownload(ids);
+      const now = Date.now() / 1000;
+      items = items.map(p =>
+        ids.includes(p.preset_id)
+          ? { ...p, auto_download_requested_at: now, auto_download_error: null }
+          : p
+      );
+      selected = new Set();
+    } catch (_) {
+      // surfaced via the queued badge staying unset; user can retry
+    } finally {
+      sending = false;
+    }
   }
 
   function prevPage() { if (page > 0) page--; }
@@ -101,20 +132,39 @@
     {#if items.length === 0}
       <div class="empty">{$_('beauty.wanted_modal.empty')}</div>
     {:else}
+      <div class="select-hint">{$_('beauty.wanted_modal.select_hint')}</div>
       <div class="grid">
         {#each pageItems as p (p.preset_id)}
-          {@const img   = p.image_1_url ?? p.image_2_url}
-          {@const label = p.title || p.character_name || `#${p.preset_id}`}
+          {@const img      = p.image_1_url ?? p.image_2_url}
+          {@const label    = p.title || p.character_name || `#${p.preset_id}`}
+          {@const isSel    = selected.has(p.preset_id)}
+          {@const isQueued = !!p.auto_download_requested_at && !p.auto_download_error}
+          {@const isFailed = !!p.auto_download_error}
           <div class="card">
-            <div class="thumb-wrap">
+            <div
+              class="thumb-wrap"
+              class:selected={isSel}
+              role="button"
+              tabindex="0"
+              onclick={() => toggleSelect(p.preset_id)}
+              onkeydown={(e) => e.key === 'Enter' && toggleSelect(p.preset_id)}
+            >
               {#if img}
                 <img src={img} alt={label} class="thumb" loading="lazy" />
               {:else}
                 <div class="thumb-placeholder"></div>
               {/if}
+              {#if isSel}
+                <span class="select-check">✓</span>
+              {/if}
+              {#if isQueued}
+                <span class="status-badge queued">{$_('beauty.wanted_modal.queued_badge')}</span>
+              {:else if isFailed}
+                <span class="status-badge failed" title={p.auto_download_error ?? ''}>{$_('beauty.wanted_modal.error_badge')}</span>
+              {/if}
               <button
                 class="remove-btn"
-                onclick={() => remove(p.preset_id)}
+                onclick={(e) => { e.stopPropagation(); remove(p.preset_id); }}
                 title={$_('beauty.wanted_modal.skip_this')}
               >✕</button>
             </div>
@@ -134,6 +184,13 @@
 
     <div class="modal-footer">
       <button class="cancel-btn" onclick={onclose}>{$_('beauty.wanted_modal.cancel')}</button>
+      <button
+        class="queue-btn"
+        onclick={sendToAutoDownload}
+        disabled={selected.size === 0 || sending}
+      >
+        {$_('beauty.wanted_modal.send_to_auto_download', { values: { count: selected.size } })}
+      </button>
       <button class="open-btn" onclick={openAll} disabled={items.length === 0}>
         {$_('beauty.wanted_modal.open_in_browser', { values: { count: items.length } })}
       </button>

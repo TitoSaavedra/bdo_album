@@ -79,7 +79,8 @@ pub fn run() {
                         LogCode::DbConnectedReady
                     }),
                 ).await.ok();
-                app_h.manage(AppState::new(pool));
+                app_h.manage(AppState::new(pool.clone()));
+                tauri::async_runtime::spawn(scraper::auto_download::run_loop(app_h.clone(), pool));
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
                 Events::db_ready(&app_h, DbReady { success: true, error: None });
             });
@@ -100,6 +101,8 @@ pub fn run() {
             scraper::commands::get_preset_stats,
             scraper::commands::get_logs,
             scraper::commands::import_pab_files,
+            scraper::commands::import_garmoth_session,
+            scraper::commands::get_garmoth_session_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -22,6 +22,8 @@ pub struct PresetRow {
     pub is_discarded:   bool,
     pub creation_at:    Option<i64>,
     pub updated_at:     Option<i64>,
+    pub auto_download_requested_at: Option<i64>,
+    pub auto_download_error:        Option<String>,
 }
 
 fn validated_sort(sort_by: &str) -> &'static str {
@@ -66,7 +68,9 @@ impl PresetRepository {
                 COALESCE(u.is_wanted,    false)                   AS is_wanted,
                 COALESCE(u.is_discarded, false)                   AS is_discarded,
                 p.creation_at,
-                EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at
+                EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at,
+                EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT AS auto_download_requested_at,
+                u.auto_download_error
             FROM scraper_presets p
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             LEFT JOIN LATERAL (
@@ -129,7 +133,9 @@ impl PresetRepository {
                 COALESCE(u.is_wanted,    false)                   AS is_wanted,
                 COALESCE(u.is_discarded, false)                   AS is_discarded,
                 p.creation_at,
-                EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at
+                EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at,
+                EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT AS auto_download_requested_at,
+                u.auto_download_error
             FROM scraper_presets p
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             LEFT JOIN LATERAL (
@@ -205,6 +211,26 @@ impl PresetRepository {
         Ok(new_val)
     }
 
+    /// Queues presets for the scraper's auto-download worker (picked up from
+    /// `album_user_prefs.auto_download_requested_at` — see scraper's `auto_download.rs`).
+    /// Re-queueing clears a previous error so a failed item can be retried.
+    pub async fn queue_auto_download(pool: &PgPool, preset_ids: &[i64]) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO album_user_prefs (preset_id, auto_download_requested_at)
+            SELECT id, NOW() FROM UNNEST($1) AS id
+            ON CONFLICT (preset_id) DO UPDATE
+                SET auto_download_requested_at = NOW(),
+                    auto_download_error        = NULL,
+                    updated_at                 = NOW()
+            "#,
+        )
+        .bind(preset_ids)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_wanted_ids(pool: &PgPool) -> Result<Vec<String>> {
         let ids = sqlx::query_scalar::<_, String>(
             r#"
@@ -259,7 +285,9 @@ impl PresetRepository {
                 true                                                          AS is_wanted,
                 COALESCE(u.is_discarded, false)                               AS is_discarded,
                 p.creation_at,
-                EXTRACT(EPOCH FROM p.updated_at)::BIGINT                      AS updated_at
+                EXTRACT(EPOCH FROM p.updated_at)::BIGINT                      AS updated_at,
+                EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT      AS auto_download_requested_at,
+                u.auto_download_error
             FROM album_user_prefs u
             JOIN scraper_presets p ON p.id = u.preset_id
             WHERE u.is_wanted = true

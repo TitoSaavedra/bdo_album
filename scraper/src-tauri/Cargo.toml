@@ -29,6 +29,7 @@ aws-sdk-s3 = "1"
 aws-config = "1"
 zip    = "2"
 base64 = "0.22"
+dirs   = "6"
 
 [profile.release]
 panic = "abort"

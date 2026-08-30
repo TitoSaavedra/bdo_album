@@ -82,6 +82,10 @@ impl BeautyService {
         PresetRepository::get_wanted_presets(pool, r2_public_url).await
     }
 
+    pub async fn queue_auto_download(pool: &PgPool, preset_ids: &[i64]) -> Result<()> {
+        PresetRepository::queue_auto_download(pool, preset_ids).await
+    }
+
     pub async fn get_class_search_counts(
         pool:   &PgPool,
         search: &str,

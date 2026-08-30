@@ -177,7 +177,7 @@ pub async fn import_pab_files(
 ) -> Result<ImportPabResult> {
     use base64::Engine as _;
     use std::io::Write as _;
-    use crate::db::repositories::{log_repo::LogRepository, preset_repo::PresetRepository, pab_repo::PabRepository};
+    use crate::db::repositories::{log_repo::LogRepository, preset_repo::PresetRepository};
     use crate::scraper::r2::R2Client;
 
     let pool = &state.pool;
@@ -235,10 +235,7 @@ pub async fn import_pab_files(
         };
 
         match PresetRepository::get_with_class(pool, preset_id).await {
-            Ok(Some((id, class_name))) => {
-                let key     = format!("presets/{}/{}/{}", class_name, id, filename);
-                let db_path = format!("/{}", key);
-
+            Ok(Some((id, _))) => {
                 if existing_preset_ids.contains(&id) {
                     LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
                         &format!("{}: preset {} already has a PAB, skipped", filename, id),
@@ -246,9 +243,8 @@ pub async fn import_pab_files(
                     ).await.ok();
                     found += 1;
                 } else {
-                    match r2.upload(&key, bytes).await {
-                        Ok(_) => {
-                            PabRepository::insert(pool, id, &db_path).await.ok();
+                    match super::service::upload_pab(pool, &r2, id, &filename, bytes).await {
+                        Ok(db_path) => {
                             LogRepository::insert_coded(&app, pool, None, "SYNC", "pab_import",
                                 &format!("{}: uploaded → {}", filename, db_path),
                                 Some(LogCode::ImportUploaded { filename: filename.clone(), db_path: db_path.clone() }),
@@ -302,6 +298,20 @@ pub async fn import_pab_files(
     };
 
     Ok(ImportPabResult { found, patched, not_found_count, not_found_names, zip_base64 })
+}
+
+#[tauri::command]
+pub async fn import_garmoth_session(app: AppHandle, path: String) -> Result<()> {
+    let json = std::fs::read_to_string(&path)
+        .map_err(|e| AppError::Scrape(format!("read {}: {e}", path)))?;
+    let state = super::session::convert_cookie_editor_export(&json)?;
+    super::session::save(&app, &state)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_garmoth_session_status(app: AppHandle) -> Result<bool> {
+    Ok(super::session::session_path(&app)?.is_file())
 }
 
 #[tauri::command]

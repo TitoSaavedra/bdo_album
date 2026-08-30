@@ -74,8 +74,12 @@
       "remove_class": "Remove all {class} presets",
       "empty": "No presets queued.",
       "skip_this": "Skip this preset",
+      "select_hint": "Click a preset to select it for auto-download",
+      "queued_badge": "Queued",
+      "error_badge": "Failed",
       "cancel": "Cancel",
-      "open_in_browser": "Open {count} in browser"
+      "open_in_browser": "Open {count} in browser",
+      "send_to_auto_download": "Send {count} to auto-download"
     }
   },
   "face_grid": {

@@ -117,6 +117,17 @@ pub async fn get_wanted_presets(state: State<'_, AppState>) -> Result<Vec<Preset
 }
 
 #[tauri::command]
+pub async fn queue_auto_download(
+    preset_ids: Vec<String>,
+    state:      State<'_, AppState>,
+) -> Result<(), String> {
+    let ids: Vec<i64> = preset_ids.iter()
+        .map(|s| s.parse::<i64>().map_err(|e| e.to_string()))
+        .collect::<Result<_, String>>()?;
+    BeautyService::queue_auto_download(&state.pool, &ids).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn export_to_bdo(
     pab_url: String,
     app:     tauri::AppHandle,

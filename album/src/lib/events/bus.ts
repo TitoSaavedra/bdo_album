@@ -35,6 +35,7 @@ class AlbumEventBus {
           title:          null,
           user_nickname:  null,
           character_name: null,
+          region:         null,
           image_1_url:    p.image_1_url,
           image_2_url:    p.image_2_url,
           pab_url:        null,
@@ -46,6 +47,8 @@ class AlbumEventBus {
           is_wanted:      false,
           creation_at:    null,
           updated_at:     null,
+          auto_download_requested_at: null,
+          auto_download_error:        null,
         };
         onPresetUploaded(sparse);
       }),

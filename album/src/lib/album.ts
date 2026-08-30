@@ -33,6 +33,8 @@ export interface PresetEntry {
   is_wanted:      boolean;
   creation_at:    number | null;
   updated_at:     number | null;
+  auto_download_requested_at: number | null;
+  auto_download_error:        string | null;
 }
 
 // ── Database state ────────────────────────────────────────────
@@ -91,6 +93,9 @@ export const getWantedPabUrls = (): Promise<string[]> =>
 
 export const getWantedPresets = (): Promise<PresetEntry[]> =>
   invoke('get_wanted_presets');
+
+export const queueAutoDownload = (presetIds: string[]): Promise<void> =>
+  invoke('queue_auto_download', { presetIds });
 
 export const exportToBdo = (pabUrl: string): Promise<void> =>
   invoke('export_to_bdo', { pabUrl });

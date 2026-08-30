@@ -652,6 +652,7 @@ dependencies = [
  "aws-sdk-s3",
  "base64 0.22.1",
  "chrono",
+ "dirs",
  "dotenvy",
  "open",
  "playwright-rs",

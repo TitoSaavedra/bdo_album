@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use playwright_rs::{
@@ -10,6 +11,8 @@ use tauri::{AppHandle, Manager};
 
 use crate::core::errors::AppError;
 use crate::db::repositories::log_repo::LogRepository;
+
+use super::session;
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
 mod hidden_console {
@@ -68,13 +71,15 @@ pub struct BrowserSession {
 }
 
 impl BrowserSession {
-    pub async fn new(app: &AppHandle, pool: &PgPool, session_id: i64) -> Result<Self, AppError> {
+    /// `session_id` is `None` when the browser is started outside a scraping session
+    /// (e.g. the auto-download worker) — logs are then recorded without a session link.
+    pub async fn new(app: &AppHandle, pool: &PgPool, session_id: Option<i64>) -> Result<Self, AppError> {
         #[cfg(all(target_os = "windows", not(debug_assertions)))]
         hidden_console::ensure_hidden();
 
         macro_rules! log {
             ($tag:expr, $msg:expr) => {
-                LogRepository::insert(app, pool, Some(session_id), $tag, "browser", $msg).await.ok();
+                LogRepository::insert(app, pool, session_id, $tag, "browser", $msg).await.ok();
             };
         }
 
@@ -114,16 +119,20 @@ impl BrowserSession {
             .await
             .map_err(|e| AppError::Scrape(format!("browser launch: {:?}", e)))?;
 
+        let mut context_options = BrowserContextOptions::builder().user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+             (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                .to_string(),
+        );
+
+        let session_file = session::session_path(app)?;
+        if session_file.is_file() {
+            log!("INFO", "Loading imported Garmoth session (cookies)");
+            context_options = context_options.storage_state_path(session_file.to_string_lossy().into_owned());
+        }
+
         let context = browser
-            .new_context_with_options(
-                BrowserContextOptions::builder()
-                    .user_agent(
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-                         (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                            .to_string(),
-                    )
-                    .build(),
-            )
+            .new_context_with_options(context_options.build())
             .await
             .map_err(|e| AppError::Scrape(format!("browser context: {:?}", e)))?;
 
@@ -316,6 +325,82 @@ impl BrowserSession {
         Ok(result.body.into_bytes())
     }
 
+    /// Downloads a preset's `.pab` file by clicking Garmoth's own "Download (N/30)"
+    /// button and capturing the resulting browser download — there is no API endpoint
+    /// for this (confirmed: the file is assembled client-side, nothing hits the network).
+    /// Garmoth caps this at 30 downloads/month per account, so the quota shown on the
+    /// button is checked *before* clicking to avoid wasting an attempt.
+    pub async fn download_pab(
+        &self,
+        preset_id: i64,
+        save_dir:  &Path,
+    ) -> Result<PabDownloadOutcome, AppError> {
+        let page = self.context.new_page().await
+            .map_err(|e| AppError::Scrape(format!("page: {:?}", e)))?;
+
+        let preset_url = format!("https://garmoth.com/beauty-album/preset/{}", preset_id);
+        if let Err(e) = page.goto(
+            &preset_url,
+            Some(GotoOptions::new().wait_until(WaitUntil::DomContentLoaded).timeout(Duration::from_secs(60))),
+        ).await {
+            let _ = page.close().await;
+            return Err(AppError::Scrape(format!("goto preset {}: {:?}", preset_id, e)));
+        }
+
+        let button = page.locator("button:has-text('Download')");
+        let label = match button.text_content().await {
+            Ok(Some(t)) => t,
+            Ok(None) | Err(_) => {
+                let _ = page.close().await;
+                return Err(AppError::Scrape(format!(
+                    "preset {}: download button not found (selector: button:has-text('Download')) — \
+                     the button only renders when logged in, so the imported session is likely missing or expired",
+                    preset_id
+                )));
+            }
+        };
+
+        if let Some((used, limit)) = parse_quota(&label) {
+            if used >= limit {
+                let _ = page.close().await;
+                return Ok(PabDownloadOutcome::QuotaExceeded { used, limit });
+            }
+        }
+
+        let waiter = match page.expect_download(Some(30_000.0)).await {
+            Ok(w) => w,
+            Err(e) => {
+                let _ = page.close().await;
+                return Err(AppError::Scrape(format!("preset {}: expect_download: {:?}", preset_id, e)));
+            }
+        };
+
+        if let Err(e) = button.click(None).await {
+            let _ = page.close().await;
+            return Err(AppError::Scrape(format!("preset {}: click download button: {:?}", preset_id, e)));
+        }
+
+        let download = match waiter.wait().await {
+            Ok(d) => d,
+            Err(e) => {
+                let _ = page.close().await;
+                return Err(AppError::Scrape(format!("preset {}: download did not start: {:?}", preset_id, e)));
+            }
+        };
+
+        let filename = {
+            let suggested = download.suggested_filename().to_string();
+            if suggested.is_empty() { format!("preset_{}.pab", preset_id) } else { suggested }
+        };
+        let path = save_dir.join(&filename);
+
+        let save_result = download.save_as(&path).await;
+        let _ = page.close().await;
+        save_result.map_err(|e| AppError::Scrape(format!("preset {}: save download: {:?}", preset_id, e)))?;
+
+        Ok(PabDownloadOutcome::Saved { path, filename })
+    }
+
     async fn download_image(&self, pair: Option<(String, String)>) -> Option<(String, Vec<u8>)> {
         let (name, url) = pair?;
         let page = self.context.new_page().await.ok()?;
@@ -338,4 +423,18 @@ impl BrowserSession {
         }
     }
 
+}
+
+pub enum PabDownloadOutcome {
+    Saved { path: PathBuf, filename: String },
+    QuotaExceeded { used: u32, limit: u32 },
+}
+
+/// Parses a "Download (9/30)" style label into `(used, limit)`.
+fn parse_quota(label: &str) -> Option<(u32, u32)> {
+    let inner = label.split('(').nth(1)?.split(')').next()?;
+    let mut parts = inner.split('/');
+    let used  = parts.next()?.trim().parse().ok()?;
+    let limit = parts.next()?.trim().parse().ok()?;
+    Some((used, limit))
 }
