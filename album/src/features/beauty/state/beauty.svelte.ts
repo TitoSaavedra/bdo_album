@@ -127,11 +127,23 @@ export function setSelectedSort(sort: 'downloads' | 'views' | 'likes') {
 
 // ── Live upload tracking ──────────────────────────────────────
 
-export function onPresetUploaded(preset: PresetEntry) {
-  beauty.liveUploaded[preset.class_id] = (beauty.liveUploaded[preset.class_id] ?? 0) + 1;
-  beauty.livePresets[preset.class_id]  = [preset, ...(beauty.livePresets[preset.class_id] ?? [])];
-  const cls = beauty.classes.find(c => c.class_id === preset.class_id);
-  if (cls) cls.preset_count += 1;
+// `isNewPreset` distinguishes a preset's first-ever image upload (it just
+// entered the class's counted set) from a PAB-only completion on a preset
+// that already had images and was already counted — bumping the live/total
+// counters for the latter would double-count it. The card itself still needs
+// to refresh either way (has_pab flips, etc.), so `livePresets` always gets
+// the fresh copy; PresetGrid dedupes by preset_id and prefers this live entry
+// over the stale one already in its loaded list.
+export function onPresetUploaded(preset: PresetEntry, isNewPreset: boolean) {
+  if (isNewPreset) {
+    beauty.liveUploaded[preset.class_id] = (beauty.liveUploaded[preset.class_id] ?? 0) + 1;
+    const cls = beauty.classes.find(c => c.class_id === preset.class_id);
+    if (cls) cls.preset_count += 1;
+  }
+  beauty.livePresets[preset.class_id] = [
+    preset,
+    ...(beauty.livePresets[preset.class_id] ?? []).filter(p => p.preset_id !== preset.preset_id),
+  ];
 }
 
 export function clearLiveForClass(classId: number) {

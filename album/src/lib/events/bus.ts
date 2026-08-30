@@ -25,9 +25,14 @@ class AlbumEventBus {
     await Promise.all([
       this.on('db_ready',        (p) => setDbReady(p.success, p.error)),
       this.on('preset_uploaded', async (p) => {
+        // A raw notify carrying image URLs means this is the pipeline's
+        // first-ever image upload for the preset (see service.rs::run_download_pipeline);
+        // one with both null (e.g. a PAB-only completion, service.rs::upload_pab)
+        // means the preset was already counted and just needs its card refreshed.
+        const isNewPreset = p.image_1_url != null || p.image_2_url != null;
         try {
           const full = await getPreset(String(p.preset_id));
-          if (full) { onPresetUploaded(full); return; }
+          if (full) { onPresetUploaded(full, isNewPreset); return; }
         } catch { /* fall through to sparse fallback */ }
         const sparse: PresetEntry = {
           preset_id:      String(p.preset_id),
@@ -50,7 +55,7 @@ class AlbumEventBus {
           auto_download_requested_at: null,
           auto_download_error:        null,
         };
-        onPresetUploaded(sparse);
+        onPresetUploaded(sparse, isNewPreset);
       }),
       this.on('listener_status',    (p) => setListenerConnected(p.connected)),
       this.on('face_grid_progress', (p) => onFaceGridProgress(p)),

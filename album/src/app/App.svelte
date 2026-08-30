@@ -1,6 +1,6 @@
 <script lang="ts">
   import './App.scss';
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { check, type Update } from '@tauri-apps/plugin-updater';
   import { relaunch } from '@tauri-apps/plugin-process';
   import { _ } from 'svelte-i18n';
@@ -107,6 +107,30 @@
     const hasFilter = !!search.trim() || !!region || days !== 'ever';
     if (!hasFilter) { setSearchCounts([], false); return; }
     getClassSearchCounts(search, region, days).then(r => setSearchCounts(r, true)).catch(() => {});
+  });
+
+  // Live uploads (scraper/auto-download finishing while the album is open) only
+  // patch the currently-selected class's card list in place — they don't touch
+  // the server-computed filtered counts. Re-run that same count query, debounced,
+  // whenever new live activity arrives and a filter is active, so counts for
+  // other classes climb too instead of staying frozen until the filter changes.
+  const totalLiveUploaded = $derived(
+    Object.values(beauty.liveUploaded).reduce((a, b) => a + b, 0)
+  );
+  let liveCountsDebounce: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    totalLiveUploaded;
+    untrack(() => {
+      const search = beauty.searchQuery;
+      const region = beauty.selectedRegion;
+      const days   = beauty.selectedDays;
+      const hasFilter = !!search.trim() || !!region || days !== 'ever';
+      if (!hasFilter) return;
+      clearTimeout(liveCountsDebounce);
+      liveCountsDebounce = setTimeout(() => {
+        getClassSearchCounts(search, region, days).then(r => setSearchCounts(r, true)).catch(() => {});
+      }, 800);
+    });
   });
 
   // Infinite scroll — fires when sentinel enters the scroll container
