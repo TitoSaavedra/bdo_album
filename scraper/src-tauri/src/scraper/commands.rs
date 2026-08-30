@@ -228,7 +228,7 @@ pub async fn import_pab_files(
         };
 
         match PresetRepository::get_with_class(pool, preset_id).await {
-            Ok(Some((id, _))) => {
+            Ok(Some((id, _, _))) => {
                 if existing_preset_ids.contains(&id) {
                     LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
                         &format!("{}: preset {} already has a PAB, skipped", filename, id),
@@ -364,10 +364,10 @@ pub async fn repair_pab(
     }
 }
 
+/// `json` is pasted straight from Cookie-Editor's "Export" button, which copies
+/// the cookie dump to the clipboard rather than saving a file.
 #[tauri::command]
-pub async fn import_garmoth_session(app: AppHandle, path: String) -> Result<()> {
-    let json = std::fs::read_to_string(&path)
-        .map_err(|e| AppError::Scrape(format!("read {}: {e}", path)))?;
+pub async fn import_garmoth_session(app: AppHandle, json: String) -> Result<()> {
     let state = super::session::convert_cookie_editor_export(&json)?;
     super::session::save(&app, &state)?;
     Ok(())

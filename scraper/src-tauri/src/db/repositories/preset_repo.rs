@@ -203,10 +203,10 @@ impl PresetRepository {
         Ok(rows)
     }
 
-    /// Fetches a preset with its class display name. Used by the PAB importer.
-    pub async fn get_with_class(pool: &PgPool, id: i64) -> Result<Option<(i64, String)>> {
-        let row = sqlx::query_as::<_, (i64, String)>(
-            "SELECT p.id, c.display
+    /// Fetches a preset with its class id and display name. Used by the PAB importer.
+    pub async fn get_with_class(pool: &PgPool, id: i64) -> Result<Option<(i64, i32, String)>> {
+        let row = sqlx::query_as::<_, (i64, i32, String)>(
+            "SELECT p.id, c.id, c.display
              FROM scraper_presets p
              JOIN scraper_classes c ON c.id = p.class_id
              WHERE p.id = $1",
