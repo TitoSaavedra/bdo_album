@@ -157,12 +157,14 @@ pub async fn export_to_bdo(
         .unwrap_or("preset.pab")
         .to_string();
 
-    // Download PAB bytes
+    // Download PAB bytes — R2 holds the pristine original, so leaving it
+    // editable in-game happens here, right before it's actually used.
     let response = reqwest::get(&pab_url).await.map_err(|e| e.to_string())?;
     if !response.status().is_success() {
         return Err(format!("Download failed: HTTP {}", response.status()));
     }
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    let bytes = BeautyService::patch_editable(bytes);
 
     // Write to Customization folder
     std::fs::write(customization.join(&filename), &bytes).map_err(|e| e.to_string())?;

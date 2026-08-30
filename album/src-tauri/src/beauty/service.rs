@@ -86,6 +86,22 @@ impl BeautyService {
         PresetRepository::queue_auto_download(pool, preset_ids).await
     }
 
+    /// Flags a PAB as editable in-game by setting byte `0x44`. The scraper
+    /// uploads pristine originals to R2 (see `upload_pab` there for why) — this
+    /// patch is applied here instead, right before the file is actually used, so
+    /// a bad guess only affects this one export instead of permanently
+    /// corrupting the copy of record in R2.
+    ///
+    /// Offset 0x44 isn't a stable flag position across every class's PAB layout;
+    /// when a file is too short to safely carry it, the original bytes are
+    /// returned untouched rather than guessing at a different offset.
+    pub fn patch_editable(mut bytes: Vec<u8>) -> Vec<u8> {
+        if bytes.len() > 0x44 {
+            bytes[0x44] = 0xCC;
+        }
+        bytes
+    }
+
     pub async fn get_class_search_counts(
         pool:   &PgPool,
         search: &str,
