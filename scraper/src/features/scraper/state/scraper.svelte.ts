@@ -11,10 +11,11 @@ import type {
   LogEntry,
   DbErrorCode,
   SyncPhase,
+  AutoDownloadStatus,
 } from '$lib/events/types';
 
 // Re-export types consumed by components
-export type { ScraperStatus, ScraperPhase, LogEntry };
+export type { ScraperStatus, ScraperPhase, LogEntry, AutoDownloadStatus };
 
 type LogEntryTagged = LogEntry & { _uid: number };
 
@@ -33,6 +34,9 @@ let lastPresetSynced  = $state<PresetSynced | null>(null);
 
 let dbReady  = $state<boolean | null>(null); // null = pending, true = ok, false = error
 let dbError  = $state<DbErrorCode | null>(null);
+
+// Independent of the scraping session — the auto-download worker runs on its own.
+let autoDownloadStatus = $state<AutoDownloadStatus>({ state: 'idle' });
 
 let status       = $state<ScraperStatus>('idle');
 let phase        = $state<ScraperPhase>('fetch');
@@ -98,6 +102,7 @@ export const getUpdated      = () => updated;
 export const getClassMap     = () => classMap;
 export const getLogs         = () => logs;
 export const getSessionLogs  = () => sessionLogs;
+export const getAutoDownloadStatus = () => autoDownloadStatus;
 
 // Computed
 export const getProgress     = () => _progress;
@@ -116,6 +121,10 @@ export function setClassIcons(entries: { id: number; icon_svg: string | null }[]
 export function setDbReady(success: boolean, error?: DbErrorCode | null): void {
   dbReady = success;
   dbError = error ?? null;
+}
+
+export function setAutoDownloadStatus(s: AutoDownloadStatus): void {
+  autoDownloadStatus = s;
 }
 
 export function setStatus(s: ScraperStatus): void {

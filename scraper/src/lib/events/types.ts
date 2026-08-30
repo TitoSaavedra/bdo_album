@@ -46,7 +46,7 @@ export type LogCode =
   | { code: 'round_progress_fetch'; round: number; total_rounds: number; remaining: number; new: number; skipped: number }
   | { code: 'class_done_update'; class: string; new: number; updated: number; skipped: number; errors: number }
   | { code: 'class_done_fetch'; class: string; new: number; skipped: number; errors: number }
-  | { code: 'fetch_only_rounds_done'; rounds: number; processed: number; errors: number }
+  | { code: 'fetch_only_rounds_done'; rounds: number; processed: number; updated: number; errors: number }
   | { code: 'fetch_rounds_done'; rounds: number; presets: number; errors: number }
   | { code: 'img_page_failed_retry'; preset_id: number }
   | { code: 'img_upload_failed'; preset_id: number; image_num: number }
@@ -152,6 +152,11 @@ export interface DbReady {
   error:   DbErrorCode | null;
 }
 
+export type AutoDownloadStatus =
+  | { state: 'idle' }
+  | { state: 'downloading'; preset_id: number }
+  | { state: 'quota_exceeded'; used: number; limit: number };
+
 // ── Event → Payload map  (extend here to add new events) ─────
 
 export interface RustEventMap {
@@ -176,6 +181,7 @@ export interface RustEventMap {
   'db_ready':       DbReady;
   'log_entry':      LogEntry;
   'sync_loading':   SyncPhase;
+  'auto_download_status': AutoDownloadStatus;
 }
 
 export type RustEventName = keyof RustEventMap;

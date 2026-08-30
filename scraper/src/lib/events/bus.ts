@@ -12,6 +12,7 @@ import {
   setPhase,
   setDbReady,
   setUpdated,
+  setAutoDownloadStatus,
   pushLog,
 } from '../../features/scraper/state/scraper.svelte';
 
@@ -33,6 +34,11 @@ class ScraperEventBus {
   // ── Init ─────────────────────────────────────────────────────
 
   async init(): Promise<void> {
+    // Defensive: if init() is ever called again without a matching destroy()
+    // (e.g. a dev-mode HMR remount), drop any listeners already registered
+    // instead of stacking duplicates that each re-fire the same event.
+    this.destroy();
+
     await Promise.all([
 
       // Lifecycle
@@ -61,6 +67,7 @@ class ScraperEventBus {
       }),
       this.on('log_entry',    (p) => pushLog(p)),
       this.on('sync_loading', (p) => onSyncLoading(p)),
+      this.on('auto_download_status', (p) => setAutoDownloadStatus(p)),
 
     ]);
   }

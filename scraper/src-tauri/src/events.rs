@@ -81,7 +81,7 @@ pub enum LogCode {
     RoundProgressFetch { round: i64, total_rounds: i64, remaining: i64, new: i64, skipped: i64 },
     ClassDoneUpdate { class: String, new: i64, updated: i64, skipped: i64, errors: i64 },
     ClassDoneFetch { class: String, new: i64, skipped: i64, errors: i64 },
-    FetchOnlyRoundsDone { rounds: i64, processed: i64, errors: i64 },
+    FetchOnlyRoundsDone { rounds: i64, processed: i64, updated: i64, errors: i64 },
     FetchRoundsDone { rounds: i64, presets: i64, errors: i64 },
     ImgPageFailedRetry { preset_id: i64 },
     ImgUploadFailed { preset_id: i64, image_num: u8 },
@@ -202,6 +202,14 @@ pub struct DbReady {
     pub error:   Option<DbErrorCode>,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum AutoDownloadStatus {
+    Idle,
+    Downloading { preset_id: i64 },
+    QuotaExceeded { used: u32, limit: u32 },
+}
+
 // ── Event emitter ─────────────────────────────────────────────
 // One method per event. Named after the event string the frontend listens to.
 // Adding a new event = add payload struct above + method here.
@@ -267,5 +275,9 @@ impl Events {
 
     pub fn fetch_done(app: &AppHandle) {
         app.emit("scraper_fetch_done", ()).ok();
+    }
+
+    pub fn auto_download_status(app: &AppHandle, payload: AutoDownloadStatus) {
+        app.emit("auto_download_status", payload).ok();
     }
 }

@@ -5,6 +5,7 @@ use tauri::AppHandle;
 
 use crate::db::repositories::auto_download_repo::AutoDownloadRepository;
 use crate::db::repositories::log_repo::LogRepository;
+use crate::events::{AutoDownloadStatus, Events};
 
 use super::browser::{BrowserSession, PabDownloadOutcome};
 use super::r2::R2Client;
@@ -59,13 +60,19 @@ async fn process_queue(app: &AppHandle, pool: &PgPool) {
     loop {
         let preset_id = match AutoDownloadRepository::next_pending(pool).await {
             Ok(Some(id)) => id,
-            Ok(None) => break,
+            Ok(None) => {
+                Events::auto_download_status(app, AutoDownloadStatus::Idle);
+                break;
+            }
             Err(e) => {
                 LogRepository::insert(app, pool, None, "ERR", "auto_download",
                     &format!("queue check failed: {e}")).await.ok();
+                Events::auto_download_status(app, AutoDownloadStatus::Idle);
                 break;
             }
         };
+
+        Events::auto_download_status(app, AutoDownloadStatus::Downloading { preset_id });
 
         match browser.download_pab(preset_id, &downloads_dir).await {
             Ok(PabDownloadOutcome::Saved { path, filename }) => {
@@ -95,6 +102,7 @@ async fn process_queue(app: &AppHandle, pool: &PgPool) {
             Ok(PabDownloadOutcome::QuotaExceeded { used, limit }) => {
                 LogRepository::insert(app, pool, None, "INFO", "auto_download",
                     &format!("Garmoth monthly download quota reached ({used}/{limit}) — will retry later")).await.ok();
+                Events::auto_download_status(app, AutoDownloadStatus::QuotaExceeded { used, limit });
                 break;
             }
             Err(e) => {

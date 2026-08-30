@@ -16,8 +16,9 @@
     getCurrent, getTotal,
     getProgress, getImgProgress, getUpProgress,
     getTotalFetched, getImagesDone, getImagesTotal,
-    getUploadsDone, getErrors,
+    getUploadsDone, getErrors, getUpdated,
     requestStop, getDbReady, getClassIcons,
+    getAutoDownloadStatus,
   } from '../scraper/state/scraper.svelte';
 
   const ALL_DAYS    = ['20', '30', '60', '90', '180', '365', 'ever'];
@@ -53,7 +54,9 @@
   const imgDone  = $derived(getImagesDone());
   const imgTotal = $derived(getImagesTotal());
   const upDone   = $derived(getUploadsDone());
+  const updated  = $derived(getUpdated());
   const errors   = $derived(getErrors());
+  const autoDl   = $derived(getAutoDownloadStatus());
   const current  = $derived(getCurrent());
   const total    = $derived(getTotal());
 
@@ -108,6 +111,15 @@
       <span class="header-gem"></span>
       <span class="dash-title">Scraper</span>
       <span class="status-pill status-{status}">{status}</span>
+      {#if autoDl.state === 'downloading'}
+        <span class="auto-dl-pill downloading" title="Auto-download (independiente de la sesión de scraping)">
+          ⬇ Auto-descarga: preset #{autoDl.preset_id}
+        </span>
+      {:else if autoDl.state === 'quota_exceeded'}
+        <span class="auto-dl-pill quota" title="Auto-download (independiente de la sesión de scraping)">
+          ⏸ Auto-descarga: cuota agotada ({autoDl.used}/{autoDl.limit})
+        </span>
+      {/if}
       {#if status !== 'idle'}
         <div class="phase-mini">
           {#each PHASES as p, i}
@@ -247,6 +259,15 @@
                 <span class="prog-val">{upDone}</span>
               </div>
               <div class="prog-track"><div class="prog-fill upload" style="width:{upPct}%"></div></div>
+            </div>
+          {/if}
+
+          {#if updated > 0}
+            <div class="sidebar-section">
+              <div class="prog-row">
+                <span class="prog-label">Stats updated</span>
+                <span class="prog-val">{updated}</span>
+              </div>
             </div>
           {/if}
         {:else}
