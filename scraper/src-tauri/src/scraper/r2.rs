@@ -64,4 +64,17 @@ impl R2Client {
 
         Ok(format!("{}/{}", self.public_url, key))
     }
+
+    /// Deletes `key`. Used when a repaired upload replaces a file under a new
+    /// (differently-named) key and the stale object needs cleaning up.
+    pub async fn delete(&self, key: &str) -> Result<()> {
+        self.client
+            .delete_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| AppError::Scrape(format!("R2 delete '{}': {}", key, e)))?;
+        Ok(())
+    }
 }

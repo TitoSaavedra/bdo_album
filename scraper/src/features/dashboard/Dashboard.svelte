@@ -6,6 +6,7 @@
   import PresetStats    from './components/PresetStats/PresetStats.svelte';
   import SessionHistory from './components/SessionHistory/SessionHistory.svelte';
   import ImportPabModal from './components/ImportPabModal/ImportPabModal.svelte';
+  import RepairPabModal from './components/RepairPabModal/RepairPabModal.svelte';
   import ImportSessionModal from './components/ImportSessionModal/ImportSessionModal.svelte';
 
   type MainTab = 'overview' | 'presets' | 'sessions';
@@ -35,6 +36,7 @@
   let mode            = $state<'images' | 'both' | 'fetch'>('both');
   let sidebarOpen     = $state(false);
   let pabModalOpen     = $state(false);
+  let repairModalOpen  = $state(false);
   let sessionModalOpen = $state(false);
   let sidebarTab      = $state<'config' | 'status'>('config');
   let selectedDays    = $state<string[]>([ALL_DAYS[0]]);
@@ -135,6 +137,7 @@
 
     <div class="dash-header-right">
       <Button variant="success" onclick={() => pabModalOpen = true} disabled={dbReady !== true}>Import</Button>
+      <Button variant="ghost" onclick={() => repairModalOpen = true} disabled={dbReady !== true}>Reparar PAB</Button>
       <Button variant="ghost" onclick={() => sessionModalOpen = true} disabled={dbReady !== true}>Sesión</Button>
       {#if status === 'running'}
         <Button variant="ghost" onclick={stop}>■ Stop</Button>
@@ -282,4 +285,5 @@
 </div>
 
 <ImportPabModal bind:open={pabModalOpen} />
+<RepairPabModal bind:open={repairModalOpen} />
 <ImportSessionModal bind:open={sessionModalOpen} />

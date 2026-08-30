@@ -106,6 +106,9 @@ pub enum LogCode {
     ImportDone { uploaded: i64, not_found: i64 },
     DbConnectedRecovered { recovered: i64 },
     DbConnectedReady,
+    RepairPabStarted { preset_id: i64 },
+    RepairPabUploaded { preset_id: i64, db_path: String },
+    RepairPabFailed { preset_id: i64 },
 }
 
 // ── Payloads ─────────────────────────────────────────────────

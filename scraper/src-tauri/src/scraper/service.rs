@@ -722,22 +722,23 @@ pub async fn run_download_pipeline(
 
 // ── PAB upload ────────────────────────────────────────────────
 
-/// Patches byte `0x44` (the same edit `import_pab_files` applies to manually
-/// downloaded PABs — see that command for why), uploads to R2 under
-/// `presets/{class}/{preset_id}/{filename}`, and records it in
-/// `scraper_preset_pabs`. Shared by the manual PAB importer and the
+/// Uploads a PAB to R2 as-is under `presets/{class}/{preset_id}/{filename}` and
+/// records it in `scraper_preset_pabs`. Shared by the manual PAB importer and the
 /// auto-download worker so both paths stay in sync.
+///
+/// Uploads the pristine original — the "leave it editable" byte patch (offset
+/// 0x44) is no longer applied here. That offset isn't safe for every class's PAB
+/// layout (see `repair_pab`'s docs for the corruption this caused), so patching
+/// now happens on the album side at export time, right before the file is
+/// actually used, where a bad patch only affects that one export instead of
+/// permanently corrupting the copy of record in R2.
 pub async fn upload_pab(
-    pool:       &PgPool,
-    r2:         &R2Client,
-    preset_id:  i64,
-    filename:   &str,
-    mut bytes:  Vec<u8>,
+    pool:      &PgPool,
+    r2:        &R2Client,
+    preset_id: i64,
+    filename:  &str,
+    bytes:     Vec<u8>,
 ) -> Result<String> {
-    if bytes.len() > 0x44 {
-        bytes[0x44] = 0xCC;
-    }
-
     let (_, class_name) = PresetRepository::get_with_class(pool, preset_id)
         .await?
         .ok_or_else(|| AppError::Scrape(format!("preset {} not found in DB", preset_id)))?;
@@ -749,6 +750,55 @@ pub async fn upload_pab(
     PabRepository::insert(pool, preset_id, &db_path).await?;
 
     Ok(db_path)
+}
+
+// ── PAB repair ────────────────────────────────────────────────
+
+pub struct RepairOutcome {
+    pub db_path: String,
+    /// Stale R2 key that was cleaned up, if the replacement file's name differs
+    /// from the one already on record.
+    pub old_path: Option<String>,
+}
+
+/// Re-uploads a preset's PAB from a local file *without* the `bytes[0x44] = 0xCC`
+/// "leave it editable" patch `upload_pab` applies.
+///
+/// That patch assumes offset 0x44 is always a spare/editable flag, which doesn't
+/// hold for every class's PAB layout — for some presets it lands on real character
+/// data and corrupts the import. Because the patch overwrites the original byte in
+/// place, a PAB already corrupted in R2 can't be repaired from its own bytes: the
+/// original value is gone. `bytes` is expected to be a known-good copy the user
+/// already has on disk (e.g. what they originally imported, or what Garmoth's
+/// download button saved) — this does not touch Garmoth or its monthly quota.
+pub async fn repair_pab(
+    r2:        &R2Client,
+    pool:      &PgPool,
+    preset_id: i64,
+    filename:  &str,
+    bytes:     Vec<u8>,
+) -> Result<RepairOutcome> {
+    let (_, class_name) = PresetRepository::get_with_class(pool, preset_id)
+        .await?
+        .ok_or_else(|| AppError::Scrape(format!("preset {} not found in DB", preset_id)))?;
+
+    let existing = PabRepository::find_by_preset(pool, preset_id).await?;
+
+    let key     = format!("presets/{}/{}/{}", class_name, preset_id, filename);
+    let db_path = format!("/{}", key);
+
+    r2.upload(&key, bytes).await?;
+    PabRepository::replace_url(pool, preset_id, &db_path).await?;
+
+    let old_path = existing
+        .map(|row| row.url)
+        .filter(|old_url| old_url.trim_start_matches('/') != key);
+
+    if let Some(old_url) = &old_path {
+        r2.delete(old_url.trim_start_matches('/')).await.ok();
+    }
+
+    Ok(RepairOutcome { db_path, old_path })
 }
 
 // ── Helpers ───────────────────────────────────────────────────

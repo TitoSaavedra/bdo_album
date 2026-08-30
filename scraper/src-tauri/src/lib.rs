@@ -101,6 +101,8 @@ pub fn run() {
             scraper::commands::get_preset_stats,
             scraper::commands::get_logs,
             scraper::commands::import_pab_files,
+            scraper::commands::search_repairable_pabs,
+            scraper::commands::repair_pab,
             scraper::commands::import_garmoth_session,
             scraper::commands::get_garmoth_session_status,
         ])

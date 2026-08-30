@@ -155,7 +155,6 @@ pub async fn get_preset_stats(
 #[derive(serde::Serialize)]
 pub struct ImportPabResult {
     pub found:           usize,
-    pub patched:         usize,
     pub not_found_count: usize,
     pub not_found_names: Vec<String>,
     pub zip_base64:      Option<String>,
@@ -198,8 +197,7 @@ pub async fn import_pab_files(
     .into_iter()
     .collect();
 
-    let mut found   = 0usize;
-    let mut patched = 0usize;
+    let mut found = 0usize;
     let mut not_found_files: Vec<(String, Vec<u8>)> = Vec::new();
 
     for path_str in &paths {
@@ -209,7 +207,7 @@ pub async fn import_pab_files(
             _ => continue,
         };
 
-        let mut bytes = match std::fs::read(path) {
+        let bytes = match std::fs::read(path) {
             Ok(b) => b,
             Err(e) => {
                 LogRepository::insert_coded(&app, pool, None, "ERR", "pab_import",
@@ -219,11 +217,6 @@ pub async fn import_pab_files(
                 continue;
             }
         };
-
-        if bytes.len() > 0x44 {
-            bytes[0x44] = 0xCC;
-            patched += 1;
-        }
 
         let Some(preset_id) = extract_preset_id(&filename) else {
             LogRepository::insert_coded(&app, pool, None, "WARN", "pab_import",
@@ -297,7 +290,78 @@ pub async fn import_pab_files(
         Some(base64::engine::general_purpose::STANDARD.encode(&buf))
     };
 
-    Ok(ImportPabResult { found, patched, not_found_count, not_found_names, zip_base64 })
+    Ok(ImportPabResult { found, not_found_count, not_found_names, zip_base64 })
+}
+
+/// Presets with a PAB already on record, matched by ID, character name, or class —
+/// candidates for `repair_pab` when one turns out to be corrupted.
+#[tauri::command]
+pub async fn search_repairable_pabs(
+    state: State<'_, AppState>,
+    query: Option<String>,
+) -> Result<Vec<serde_json::Value>> {
+    use crate::db::repositories::pab_repo::PabRepository;
+
+    let rows = PabRepository::search(&state.pool, query.as_deref().unwrap_or("")).await?;
+    Ok(rows.into_iter().map(|r| serde_json::json!({
+        "preset_id":      r.preset_id,
+        "character_name": r.character_name,
+        "class_name":     r.class_name,
+        "url":            r.url,
+        "synced_at":      r.synced_at.timestamp_millis(),
+    })).collect())
+}
+
+/// Re-uploads a preset's PAB from a local file the user already has (e.g. from a
+/// previous manual import, or Garmoth's own download) without the "leave it
+/// editable" byte patch (see `service::repair_pab` for why that patch can corrupt
+/// some classes' PABs). Does not touch Garmoth — no browser, no quota spent.
+#[tauri::command]
+pub async fn repair_pab(
+    app:       AppHandle,
+    state:     State<'_, AppState>,
+    preset_id: i64,
+    path:      String,
+) -> Result<serde_json::Value> {
+    use super::r2::R2Client;
+
+    let pool = &state.pool;
+    let r2   = R2Client::from_env()?;
+
+    let filename = std::path::Path::new(&path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| AppError::Scrape(format!("invalid path: {path}")))?
+        .to_string();
+
+    let bytes = std::fs::read(&path)
+        .map_err(|e| AppError::Scrape(format!("preset {}: read {}: {}", preset_id, path, e)))?;
+
+    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_repair",
+        &format!("Repairing PAB for preset {} from {}", preset_id, filename),
+        Some(LogCode::RepairPabStarted { preset_id }),
+    ).await.ok();
+
+    match super::service::repair_pab(&r2, pool, preset_id, &filename, bytes).await {
+        Ok(outcome) => {
+            LogRepository::insert_coded(&app, pool, None, "SYNC", "pab_repair",
+                &format!("preset {}: repaired → {}", preset_id, outcome.db_path),
+                Some(LogCode::RepairPabUploaded { preset_id, db_path: outcome.db_path.clone() }),
+            ).await.ok();
+            Ok(serde_json::json!({
+                "preset_id": preset_id,
+                "db_path":   outcome.db_path,
+                "old_path":  outcome.old_path,
+            }))
+        }
+        Err(e) => {
+            LogRepository::insert_coded(&app, pool, None, "ERR", "pab_repair",
+                &format!("preset {}: repair failed — {}", preset_id, e),
+                Some(LogCode::RepairPabFailed { preset_id }),
+            ).await.ok();
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
