@@ -7,10 +7,10 @@ use playwright_rs::{
 };
 
 use sqlx::PgPool;
-use tauri::{AppHandle, Manager};
 
-use crate::core::errors::AppError;
+use crate::errors::AppError;
 use crate::db::repositories::log_repo::LogRepository;
+use crate::events::Sink;
 
 use super::session;
 
@@ -35,18 +35,35 @@ mod hidden_console {
 }
 
 /// Runs the bundled `playwright-rs` bootstrap CLI to fetch the Playwright
-/// driver into the user cache (`%LOCALAPPDATA%\playwright-rust\...`), the
-/// same location `playwright_rs`'s own runtime lookup checks. Only the
-/// small CLI binary ships in the installer — the ~90 MB driver itself is
-/// downloaded once, on first use, instead of bloating every install.
-async fn bootstrap_driver(app: &AppHandle) -> Result<(), AppError> {
-    let exe_path = app
-        .path()
-        .resolve(
-            "tools/playwright-rs-cli/bin/playwright-rs.exe",
-            tauri::path::BaseDirectory::Resource,
-        )
-        .map_err(|e| AppError::Scrape(format!("resolve driver installer: {e}")))?;
+/// driver into the user cache (`%LOCALAPPDATA%\playwright-rust\...` on
+/// Windows, an XDG-style cache dir on Linux), the same location
+/// `playwright_rs`'s own runtime lookup checks. Only the small CLI binary
+/// ships with each build — the ~90 MB driver itself is downloaded once, on
+/// first use, instead of bloating every install.
+///
+/// `driver_path`, if given, is used as-is — this is how the GUI calls in,
+/// after resolving the bundled resource path itself via
+/// `app.path().resolve(..., BaseDirectory::Resource)` (Tauri-specific, so it
+/// has to happen in `src-tauri` before calling down into core). When `None`
+/// (the CLI's case), falls back to the `PLAYWRIGHT_RS_CLI_PATH` env var, then
+/// to a path relative to the current executable — using
+/// `std::env::consts::EXE_SUFFIX` instead of a hardcoded `.exe` so this
+/// resolves correctly on both Windows and the Linux server this CLI actually
+/// targets.
+async fn bootstrap_driver(driver_path: Option<&Path>) -> Result<(), AppError> {
+    let exe_path: PathBuf = if let Some(p) = driver_path {
+        p.to_path_buf()
+    } else if let Ok(p) = std::env::var("PLAYWRIGHT_RS_CLI_PATH") {
+        PathBuf::from(p)
+    } else {
+        let exe = std::env::current_exe()
+            .map_err(|e| AppError::Scrape(format!("resolve current exe: {e}")))?;
+        let dir = exe
+            .parent()
+            .ok_or_else(|| AppError::Scrape("resolve exe parent dir".to_string()))?;
+        dir.join("tools/playwright-rs-cli/bin")
+            .join(format!("playwright-rs{}", std::env::consts::EXE_SUFFIX))
+    };
 
     let status = tokio::process::Command::new(&exe_path)
         .args(["install", "--driver-only"])
@@ -73,13 +90,24 @@ pub struct BrowserSession {
 impl BrowserSession {
     /// `session_id` is `None` when the browser is started outside a scraping session
     /// (e.g. the auto-download worker) — logs are then recorded without a session link.
-    pub async fn new(app: &AppHandle, pool: &PgPool, session_id: Option<i64>) -> Result<Self, AppError> {
+    ///
+    /// `driver_path` and `session_base_dir` are resolved by the caller (see
+    /// [`bootstrap_driver`] and `session::session_path` for the fallback
+    /// behavior when `None`) — the GUI passes Tauri-resolved paths down, the
+    /// CLI passes `None` and lets the env-var/default fallbacks apply.
+    pub async fn new(
+        sink:             &dyn Sink,
+        pool:             &PgPool,
+        session_id:       Option<i64>,
+        driver_path:      Option<&Path>,
+        session_base_dir: Option<&Path>,
+    ) -> Result<Self, AppError> {
         #[cfg(all(target_os = "windows", not(debug_assertions)))]
         hidden_console::ensure_hidden();
 
         macro_rules! log {
             ($tag:expr, $msg:expr) => {
-                LogRepository::insert(app, pool, session_id, $tag, "browser", $msg).await.ok();
+                LogRepository::insert(sink, pool, session_id, $tag, "browser", $msg).await.ok();
             };
         }
 
@@ -92,7 +120,7 @@ impl BrowserSession {
                 // the user cache once; playwright-rs finds it there automatically
                 // from then on (same path `playwright-rs install` populates).
                 log!("INFO", "Playwright driver not found — downloading it now (first run, requires internet)");
-                bootstrap_driver(app).await?;
+                bootstrap_driver(driver_path).await?;
                 install_browsers(Some(&["chromium"]))
                     .await
                     .map_err(|e| AppError::Scrape(format!("browser install: {:?}", e)))?;
@@ -125,7 +153,7 @@ impl BrowserSession {
                 .to_string(),
         );
 
-        let session_file = session::session_path(app)?;
+        let session_file = session::session_path(session_base_dir)?;
         if session_file.is_file() {
             log!("INFO", "Loading imported Garmoth session (cookies)");
             context_options = context_options.storage_state_path(session_file.to_string_lossy().into_owned());

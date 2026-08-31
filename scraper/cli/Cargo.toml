@@ -1,0 +1,24 @@
+[package]
+name = "bdo-scraper-cli"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "bdo_scraper_cli"
+
+[[bin]]
+name = "scrape"
+path = "src/bin/scrape.rs"
+
+[[bin]]
+name = "download_daemon"
+path = "src/bin/download_daemon.rs"
+
+[dependencies]
+bdo-scraper-core = { path = "../core" }
+tokio = { version = "1", features = ["full"] }
+dotenvy = "0.15"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde_json = "1"

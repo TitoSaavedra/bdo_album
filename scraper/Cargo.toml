@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["core", "src-tauri", "cli"]
+
+# Cargo only honors [profile.*] tables declared in the workspace root manifest
+# — this used to live in src-tauri/Cargo.toml before src-tauri became a
+# workspace member instead of a standalone crate.
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

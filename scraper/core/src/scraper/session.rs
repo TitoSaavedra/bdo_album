@@ -1,10 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use playwright_rs::{Cookie, StorageState};
 use serde::Deserialize;
-use tauri::{AppHandle, Manager};
 
-use crate::core::errors::{AppError, Result};
+use crate::errors::{AppError, Result};
 
 const SESSION_FILE: &str = "garmoth_auth.json";
 
@@ -76,16 +75,38 @@ pub fn convert_cookie_editor_export(json: &str) -> Result<StorageState> {
     Ok(StorageState::default().cookies(cookies))
 }
 
-pub fn session_path(app: &AppHandle) -> Result<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Scrape(format!("resolve app data dir: {e}")))?;
-    Ok(dir.join(SESSION_FILE))
+/// Resolves where the imported Garmoth session (cookies) lives on disk.
+///
+/// Resolution order:
+/// 1. `GARMOTH_SESSION_FILE` env var, if set — an explicit override, used by
+///    the headless CLI (`download_daemon` needs this for `download_pab`; the
+///    GUI can also set it, though it normally relies on (2) instead).
+/// 2. `base_dir.join("garmoth_auth.json")`, if `base_dir` is given — this is
+///    how the GUI calls in today (passing its Tauri `app_data_dir()`,
+///    resolved in `src-tauri` before calling down into this function).
+/// 3. A cross-platform fallback under the OS data dir (`dirs::data_dir()`) —
+///    used when neither of the above is available (e.g. the CLI running
+///    without `GARMOTH_SESSION_FILE` set). The default `scrape` binary never
+///    needs this path at all: Garmoth's `search-advanced` endpoint is public.
+pub fn session_path(base_dir: Option<&Path>) -> Result<PathBuf> {
+    if let Ok(p) = std::env::var("GARMOTH_SESSION_FILE") {
+        return Ok(PathBuf::from(p));
+    }
+    if let Some(dir) = base_dir {
+        return Ok(dir.join(SESSION_FILE));
+    }
+    let base = dirs::data_dir().ok_or_else(|| {
+        AppError::Scrape(
+            "could not resolve a base directory for the Garmoth session file \
+             (set GARMOTH_SESSION_FILE)"
+                .into(),
+        )
+    })?;
+    Ok(base.join("bdo-scraper").join(SESSION_FILE))
 }
 
-pub fn save(app: &AppHandle, state: &StorageState) -> Result<()> {
-    let path = session_path(app)?;
+pub fn save(base_dir: Option<&Path>, state: &StorageState) -> Result<()> {
+    let path = session_path(base_dir)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| AppError::Scrape(format!("create app data dir: {e}")))?;

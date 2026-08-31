@@ -19,7 +19,11 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
     watch: {
-      ignored: ['**/src-tauri/**'],
+      // Cargo build output now lives at the workspace root (scraper/target/)
+      // instead of nested under src-tauri/ since the core/cli workspace split
+      // — without also ignoring it here, Vite's fs watcher races cargo writing
+      // to target/debug/deps/*.dll mid-build and crashes with EBUSY.
+      ignored: ['**/src-tauri/**', '**/target/**'],
     },
   },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],

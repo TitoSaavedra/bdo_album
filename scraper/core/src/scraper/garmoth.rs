@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use serde::Deserialize;
 
-use crate::core::errors::{AppError, Result};
+use crate::errors::{AppError, Result};
 
 use super::browser::BrowserSession;
 
