@@ -1,12 +1,17 @@
 pub mod events;
 mod app;
 mod core;
-mod db;
 mod scraper;
+mod tauri_sink;
 
+use std::sync::Arc;
+
+use bdo_scraper_core::db;
+use bdo_scraper_core::events::{LogCode, Sink};
 use core::state::AppState;
-use events::{DbErrorCode, DbReady, Events, LogCode};
+use events::{DbErrorCode, DbReady, Events};
 use tauri::Manager;
+use tauri_sink::TauriSink;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,6 +31,8 @@ pub fn run() {
             }
             let app_h = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                let sink: Arc<dyn Sink> = Arc::new(TauriSink(app_h.clone()));
+
                 if let Ok(exe) = std::env::current_exe() {
                     if let Some(dir) = exe.parent() {
                         dotenvy::from_path(dir.join(".env")).ok();
@@ -67,7 +74,7 @@ pub fn run() {
                 db::repositories::log_repo::LogRepository::prune(&pool, 30).await.ok();
                 let recovered = db::repositories::session_repo::SessionRepository::recover_interrupted(&pool).await.unwrap_or(0);
                 db::repositories::log_repo::LogRepository::insert_coded(
-                    &app_h, &pool, None, "INFO", "startup",
+                    sink.as_ref(), &pool, None, "INFO", "startup",
                     &if recovered > 0 {
                         format!("Database connected. {} interrupted session(s) recovered.", recovered)
                     } else {
@@ -80,7 +87,7 @@ pub fn run() {
                     }),
                 ).await.ok();
                 app_h.manage(AppState::new(pool.clone()));
-                tauri::async_runtime::spawn(scraper::auto_download::run_loop(app_h.clone(), pool));
+                tauri::async_runtime::spawn(bdo_scraper_core::scraper::auto_download::run_loop(Arc::clone(&sink), pool));
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
                 Events::db_ready(&app_h, DbReady { success: true, error: None });
             });

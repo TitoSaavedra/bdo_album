@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::core::errors::Result;
+use crate::errors::Result;
 
 // Migrations are applied manually via `sqlx migrate run` (see README), not on
 // every app launch — auto-migrating on startup was fragile (a checksum drift

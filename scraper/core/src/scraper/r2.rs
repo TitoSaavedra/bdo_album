@@ -2,7 +2,7 @@ use aws_sdk_s3::{Client, Config};
 use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
 use aws_sdk_s3::primitives::ByteStream;
 
-use crate::core::errors::{AppError, Result};
+use crate::errors::{AppError, Result};
 
 #[derive(Clone)]
 pub struct R2Client {

@@ -64,7 +64,7 @@ jobs:
       - name: Rust cache (scraper)
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: scraper/src-tauri
+          workspaces: scraper
 
       - name: Install scraper deps
         working-directory: scraper

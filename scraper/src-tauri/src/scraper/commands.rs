@@ -1,11 +1,16 @@
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, State};
 
-use crate::core::errors::{AppError, Result};
+use bdo_scraper_core::db::repositories::{log_repo::LogRepository, session_repo::SessionRepository};
+use bdo_scraper_core::errors::{AppError, Result};
+use bdo_scraper_core::events::{LogCode, Sink};
+use bdo_scraper_core::scraper::defaults::{resolve_days, resolve_regions};
+use bdo_scraper_core::session_guard::SessionGuard;
+
 use crate::core::state::AppState;
-use crate::db::repositories::{log_repo::LogRepository, session_repo::SessionRepository};
-use crate::events::{Events, LogCode};
+use crate::tauri_sink::TauriSink;
 
 #[tauri::command]
 pub async fn get_db_status(app: AppHandle) -> bool {
@@ -14,7 +19,7 @@ pub async fn get_db_status(app: AppHandle) -> bool {
 
 #[tauri::command]
 pub async fn get_classes(state: State<'_, AppState>) -> Result<Vec<serde_json::Value>> {
-    use crate::db::repositories::class_repo::ClassRepository;
+    use bdo_scraper_core::db::repositories::class_repo::ClassRepository;
     let rows = ClassRepository::get_all(&state.pool).await?;
     let result = rows.into_iter().map(|r| serde_json::json!({
         "id":       r.id,
@@ -34,12 +39,24 @@ pub async fn run_scraper(
     classes:     Vec<serde_json::Value>,
     mode:        Option<String>,
 ) -> Result<i64> {
+    // Fast in-memory pre-check — avoids a DB round-trip in the common case of
+    // a second click inside the same GUI process.
     {
         let guard = state.current_session.lock().unwrap();
         if guard.is_some() {
             return Err(AppError::Scrape("scraper already running".into()));
         }
     }
+
+    // The real cross-process authority: a Postgres advisory lock, so the GUI
+    // and the headless CLI (or two overlapping CLI runs) can never scrape the
+    // same database concurrently. See `bdo_scraper_core::session_guard`.
+    let database_url = std::env::var("DATABASE_URL")
+        .map_err(|_| AppError::Env("DATABASE_URL not set".into()))?;
+    let session_guard = match SessionGuard::try_acquire(&database_url).await? {
+        Some(g) => g,
+        None => return Err(AppError::Scrape("scraper already running".into())),
+    };
 
     let parallelism = parallelism.max(1);
     let mode        = mode.unwrap_or_else(|| "both".to_string());
@@ -51,10 +68,15 @@ pub async fn run_scraper(
     let session_id = SessionRepository::create(&pool, true).await?;
     *state.current_session.lock().unwrap() = Some(session_id);
 
-    Events::scraper_started(&app);
+    let sink: Arc<dyn Sink> = Arc::new(TauriSink(app.clone()));
+    sink.scraper_started();
 
-    let days    = if days.is_empty()    { vec!["20","30","60","90","180","365","ever"].into_iter().map(String::from).collect() } else { days };
-    let regions = if regions.is_empty() { vec!["eu","na","ru","jp","kr","tw","sa","sea","asia","mena"].into_iter().map(String::from).collect() } else { regions };
+    let days    = resolve_days(days);
+    let regions = resolve_regions(regions);
+    // Unlike the CLI, the GUI keeps its "all" sentinel when no classes are
+    // picked — a single request to Garmoth's global-ranking endpoint rather
+    // than one request per seeded class (see `cli/src/bin/scrape.rs` for the
+    // headless default, which always walks every class individually).
     let classes = if classes.is_empty() { vec![serde_json::json!("all")] } else { classes };
 
     let classes_str: Vec<String> = classes.iter().map(|v| {
@@ -63,7 +85,7 @@ pub async fn run_scraper(
         else { "?".to_string() }
     }).collect();
 
-    LogRepository::insert_coded(&app, &pool, Some(session_id), "ORCH", "session",
+    LogRepository::insert_coded(sink.as_ref(), &pool, Some(session_id), "ORCH", "session",
         &format!("Session #{} started — mode={} | parallelism={} | classes=[{}] | days=[{}] | regions=[{}]",
             session_id, mode, parallelism,
             classes_str.join(", "),
@@ -76,9 +98,28 @@ pub async fn run_scraper(
         }),
     ).await.ok();
 
-    tauri::async_runtime::spawn(super::service::run_session(
-        app, pool, cancel, session_id, parallelism, days, regions, classes, mode,
-    ));
+    // Resolved here (Tauri-specific) and handed down as plain paths — core's
+    // `BrowserSession::new` doesn't know about `AppHandle`/bundled resources.
+    let driver_path = app.path().resolve(
+        "tools/playwright-rs-cli/bin/playwright-rs.exe",
+        tauri::path::BaseDirectory::Resource,
+    ).ok();
+    let session_base_dir = app.path().app_data_dir().ok();
+
+    let app_for_cleanup = app.clone();
+    tauri::async_runtime::spawn(async move {
+        bdo_scraper_core::scraper::service::run_session(
+            sink, pool, cancel, session_id, parallelism, days, regions, classes, mode,
+            session_guard, driver_path, session_base_dir,
+        ).await;
+        // In-memory "is a session running" marker is GUI-only state, so it's
+        // cleared here rather than inside `run_session` (which has no
+        // knowledge of `AppState`) — regardless of whether the session
+        // finished, errored, or was cancelled.
+        if let Some(state) = app_for_cleanup.try_state::<AppState>() {
+            *state.current_session.lock().unwrap() = None;
+        }
+    });
 
     Ok(session_id)
 }
@@ -147,7 +188,7 @@ pub async fn get_class_stats_cmd(
 pub async fn get_preset_stats(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value> {
-    use crate::db::repositories::preset_repo::PresetRepository;
+    use bdo_scraper_core::db::repositories::preset_repo::PresetRepository;
     let stats = PresetRepository::get_stats(&state.pool).await?;
     Ok(stats)
 }
@@ -176,13 +217,14 @@ pub async fn import_pab_files(
 ) -> Result<ImportPabResult> {
     use base64::Engine as _;
     use std::io::Write as _;
-    use crate::db::repositories::{log_repo::LogRepository, preset_repo::PresetRepository};
-    use crate::scraper::r2::R2Client;
+    use bdo_scraper_core::db::repositories::preset_repo::PresetRepository;
+    use bdo_scraper_core::scraper::r2::R2Client;
 
     let pool = &state.pool;
     let r2   = R2Client::from_env()?;
+    let sink = TauriSink(app.clone());
 
-    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
+    LogRepository::insert_coded(&sink, pool, None, "INFO", "pab_import",
         &format!("Import started — {} file(s)", paths.len()),
         Some(LogCode::ImportStarted { file_count: paths.len() as i64 }),
     ).await.ok();
@@ -210,7 +252,7 @@ pub async fn import_pab_files(
         let bytes = match std::fs::read(path) {
             Ok(b) => b,
             Err(e) => {
-                LogRepository::insert_coded(&app, pool, None, "ERR", "pab_import",
+                LogRepository::insert_coded(&sink, pool, None, "ERR", "pab_import",
                     &format!("{}: read error — {}", filename, e),
                     Some(LogCode::ImportReadError { filename: filename.clone() }),
                 ).await.ok();
@@ -219,7 +261,7 @@ pub async fn import_pab_files(
         };
 
         let Some(preset_id) = extract_preset_id(&filename) else {
-            LogRepository::insert_coded(&app, pool, None, "WARN", "pab_import",
+            LogRepository::insert_coded(&sink, pool, None, "WARN", "pab_import",
                 &format!("{}: no preset ID in filename", filename),
                 Some(LogCode::ImportNoPresetId { filename: filename.clone() }),
             ).await.ok();
@@ -230,22 +272,22 @@ pub async fn import_pab_files(
         match PresetRepository::get_with_class(pool, preset_id).await {
             Ok(Some((id, _, _))) => {
                 if existing_preset_ids.contains(&id) {
-                    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
+                    LogRepository::insert_coded(&sink, pool, None, "INFO", "pab_import",
                         &format!("{}: preset {} already has a PAB, skipped", filename, id),
                         Some(LogCode::ImportAlreadyHasPab { filename: filename.clone(), preset_id: id }),
                     ).await.ok();
                     found += 1;
                 } else {
-                    match super::service::upload_pab(pool, &r2, id, &filename, bytes).await {
+                    match bdo_scraper_core::scraper::service::upload_pab(pool, &r2, id, &filename, bytes).await {
                         Ok(db_path) => {
-                            LogRepository::insert_coded(&app, pool, None, "SYNC", "pab_import",
+                            LogRepository::insert_coded(&sink, pool, None, "SYNC", "pab_import",
                                 &format!("{}: uploaded → {}", filename, db_path),
                                 Some(LogCode::ImportUploaded { filename: filename.clone(), db_path: db_path.clone() }),
                             ).await.ok();
                             found += 1;
                         }
                         Err(e) => {
-                            LogRepository::insert_coded(&app, pool, None, "ERR", "pab_import",
+                            LogRepository::insert_coded(&sink, pool, None, "ERR", "pab_import",
                                 &format!("{}: R2 upload failed — {}", filename, e),
                                 Some(LogCode::ImportR2UploadFailed { filename: filename.clone() }),
                             ).await.ok();
@@ -254,7 +296,7 @@ pub async fn import_pab_files(
                 }
             }
             _ => {
-                LogRepository::insert_coded(&app, pool, None, "WARN", "pab_import",
+                LogRepository::insert_coded(&sink, pool, None, "WARN", "pab_import",
                     &format!("{}: preset {} not found in DB", filename, preset_id),
                     Some(LogCode::ImportPresetNotFound { filename: filename.clone(), preset_id }),
                 ).await.ok();
@@ -263,7 +305,7 @@ pub async fn import_pab_files(
         }
     }
 
-    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_import",
+    LogRepository::insert_coded(&sink, pool, None, "INFO", "pab_import",
         &format!("Import done — {} uploaded, {} not found", found, not_found_files.len()),
         Some(LogCode::ImportDone { uploaded: found as i64, not_found: not_found_files.len() as i64 }),
     ).await.ok();
@@ -300,7 +342,7 @@ pub async fn search_repairable_pabs(
     state: State<'_, AppState>,
     query: Option<String>,
 ) -> Result<Vec<serde_json::Value>> {
-    use crate::db::repositories::pab_repo::PabRepository;
+    use bdo_scraper_core::db::repositories::pab_repo::PabRepository;
 
     let rows = PabRepository::search(&state.pool, query.as_deref().unwrap_or("")).await?;
     Ok(rows.into_iter().map(|r| serde_json::json!({
@@ -323,10 +365,11 @@ pub async fn repair_pab(
     preset_id: i64,
     path:      String,
 ) -> Result<serde_json::Value> {
-    use super::r2::R2Client;
+    use bdo_scraper_core::scraper::r2::R2Client;
 
     let pool = &state.pool;
     let r2   = R2Client::from_env()?;
+    let sink = TauriSink(app.clone());
 
     let filename = std::path::Path::new(&path)
         .file_name()
@@ -337,14 +380,14 @@ pub async fn repair_pab(
     let bytes = std::fs::read(&path)
         .map_err(|e| AppError::Scrape(format!("preset {}: read {}: {}", preset_id, path, e)))?;
 
-    LogRepository::insert_coded(&app, pool, None, "INFO", "pab_repair",
+    LogRepository::insert_coded(&sink, pool, None, "INFO", "pab_repair",
         &format!("Repairing PAB for preset {} from {}", preset_id, filename),
         Some(LogCode::RepairPabStarted { preset_id }),
     ).await.ok();
 
-    match super::service::repair_pab(&r2, pool, preset_id, &filename, bytes).await {
+    match bdo_scraper_core::scraper::service::repair_pab(&r2, pool, preset_id, &filename, bytes).await {
         Ok(outcome) => {
-            LogRepository::insert_coded(&app, pool, None, "SYNC", "pab_repair",
+            LogRepository::insert_coded(&sink, pool, None, "SYNC", "pab_repair",
                 &format!("preset {}: repaired → {}", preset_id, outcome.db_path),
                 Some(LogCode::RepairPabUploaded { preset_id, db_path: outcome.db_path.clone() }),
             ).await.ok();
@@ -355,7 +398,7 @@ pub async fn repair_pab(
             }))
         }
         Err(e) => {
-            LogRepository::insert_coded(&app, pool, None, "ERR", "pab_repair",
+            LogRepository::insert_coded(&sink, pool, None, "ERR", "pab_repair",
                 &format!("preset {}: repair failed — {}", preset_id, e),
                 Some(LogCode::RepairPabFailed { preset_id }),
             ).await.ok();
@@ -368,14 +411,16 @@ pub async fn repair_pab(
 /// the cookie dump to the clipboard rather than saving a file.
 #[tauri::command]
 pub async fn import_garmoth_session(app: AppHandle, json: String) -> Result<()> {
-    let state = super::session::convert_cookie_editor_export(&json)?;
-    super::session::save(&app, &state)?;
+    let state = bdo_scraper_core::scraper::session::convert_cookie_editor_export(&json)?;
+    let base_dir = app.path().app_data_dir().ok();
+    bdo_scraper_core::scraper::session::save(base_dir.as_deref(), &state)?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_garmoth_session_status(app: AppHandle) -> Result<bool> {
-    Ok(super::session::session_path(&app)?.is_file())
+    let base_dir = app.path().app_data_dir().ok();
+    Ok(bdo_scraper_core::scraper::session::session_path(base_dir.as_deref())?.is_file())
 }
 
 #[tauri::command]

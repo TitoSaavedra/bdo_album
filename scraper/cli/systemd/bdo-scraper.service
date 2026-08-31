@@ -1,0 +1,13 @@
+[Unit]
+Description=BDO Scraper (headless CLI run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bdoscraper
+WorkingDirectory=/opt/bdo-scraper
+ExecStart=/opt/bdo-scraper/scrape --parallelism 2
+Restart=no
+StandardOutput=journal
+StandardError=journal

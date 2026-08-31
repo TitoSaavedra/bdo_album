@@ -1,0 +1,17 @@
+[Unit]
+Description=BDO Scraper — auto-download PAB queue (daemon)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bdoscraper
+WorkingDirectory=/opt/bdo-scraper
+ExecStart=/opt/bdo-scraper/download_daemon
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

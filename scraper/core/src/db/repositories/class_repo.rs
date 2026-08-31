@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::core::errors::Result;
+use crate::errors::Result;
 
 #[derive(sqlx::FromRow)]
 pub struct ClassRow {

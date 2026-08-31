@@ -36,7 +36,7 @@ jobs:
       - name: Rust cache (scraper)
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: scraper/src-tauri
+          workspaces: scraper
 
       - name: Cache playwright-rs bootstrap CLI
         id: playwright-cli-cache
