@@ -1,0 +1,82 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  validate-scraper:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install scraper deps
+        working-directory: scraper
+        run: pnpm install
+
+      - name: Typecheck scraper (svelte-check)
+        working-directory: scraper
+        run: pnpm check
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache (scraper)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: scraper/src-tauri
+
+      - name: cargo check (scraper)
+        working-directory: scraper/src-tauri
+        run: cargo check --all-targets
+
+  validate-album:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install album deps
+        working-directory: album
+        run: pnpm install
+
+      - name: Typecheck album (svelte-check)
+        working-directory: album
+        run: pnpm check
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache (album)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: album/src-tauri
+
+      # album uses sqlx's query!/query_as! compile-time macros, checked against
+      # the committed album/src-tauri/.sqlx cache instead of a live DB.
+      - name: cargo check (album)
+        working-directory: album/src-tauri
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo check --all-targets
