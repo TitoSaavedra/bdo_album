@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "BDO Album",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "identifier": "com.bdo.album",
   "build": {
     "devUrl": "http://localhost:5175",
@@ -26,7 +26,7 @@
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' asset: https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'",
-      "assetProtocol": { "enable": true, "scope": ["$DOCUMENT/Black Desert/**"] }
+      "assetProtocol": { "enable": true, "scope": ["$DOCUMENT/Black Desert/**/*"] }
     }
   },
   "plugins": {
