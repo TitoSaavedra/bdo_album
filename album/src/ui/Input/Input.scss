@@ -19,6 +19,13 @@
   }
 }
 
+.input-trailing {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+}
+
 .field-input {
   width: 100%;
   padding: 8px 12px;
@@ -34,6 +41,10 @@
 
   .has-icon & {
     padding-left: 32px;
+  }
+
+  .has-trailing & {
+    padding-right: 28px;
   }
 
   &:focus {

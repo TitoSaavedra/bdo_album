@@ -63,6 +63,46 @@ pub async fn get_presets(
     .map_err(|e| e.to_string())
 }
 
+// ── Creator favorites ────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_creator_favorites(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    BeautyService::get_creator_favorites(&state.pool).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_creator_favorite(
+    creator_nickname: String,
+    is_favorite:      bool,
+    state:            State<'_, AppState>,
+) -> Result<(), String> {
+    BeautyService::set_creator_favorite(&state.pool, &creator_nickname, is_favorite)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_presets_by_creator(
+    creator_nickname: String,
+    offset:           Option<i64>,
+    limit:            Option<i64>,
+    sort_by:          Option<String>,
+    search:           Option<String>,
+    state:            State<'_, AppState>,
+) -> Result<Vec<PresetRow>, String> {
+    BeautyService::get_presets_by_creator(
+        &state.pool,
+        &creator_nickname,
+        offset.unwrap_or(0),
+        limit.unwrap_or(50),
+        sort_by.as_deref().unwrap_or("downloads"),
+        search.as_deref().unwrap_or(""),
+        &state.r2_public_url,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn get_preset(
     preset_id: String,

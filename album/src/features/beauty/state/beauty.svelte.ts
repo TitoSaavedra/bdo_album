@@ -20,6 +20,12 @@ export const beauty = $state({
   // Class favorites
   classFavorites: new Set<string>(),
 
+  // Creator favorites
+  creatorFavorites: new Set<string>(),
+
+  // Active "browse by favorite creator" filter — a creator nickname, or null
+  creatorFilter: null as string | null,
+
   // Wanted presets
   wantedPresets: new Set<string>(),
 
@@ -92,6 +98,23 @@ export function toggleClassFavorite(name: string) {
   if (next.has(name)) next.delete(name);
   else next.add(name);
   beauty.classFavorites = next;
+}
+
+// ── Creator favorites ─────────────────────────────────────────
+
+export function setCreatorFavorites(names: string[]) {
+  beauty.creatorFavorites = new Set(names);
+}
+
+export function toggleCreatorFavorite(name: string) {
+  const next = new Set(beauty.creatorFavorites);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  beauty.creatorFavorites = next;
+}
+
+export function setCreatorFilter(name: string | null) {
+  beauty.creatorFilter = name;
 }
 
 // ── Wanted presets ────────────────────────────────────────────

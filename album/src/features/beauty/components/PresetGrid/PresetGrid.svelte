@@ -27,10 +27,21 @@
   let discarded = $state(new Set<string>());
 
   const hasFilters = $derived(
-    !!beauty.searchQuery.trim() || !!beauty.selectedRegion || beauty.selectedDays !== 'ever'
+    !!beauty.searchQuery.trim() || !!beauty.selectedRegion || beauty.selectedDays !== 'ever' || !!beauty.creatorFilter
   );
 
   const liveIds = $derived(new Set(livePresets.map(p => p.preset_id)));
+
+  // Tier 0: has PAB file (green) — top
+  // Tier 1: wanted (purple) — after greens
+  // Tier 2: favorite creator (red) — only when neither of the above already applies
+  // Tier 3: everything else
+  function tier(p: PresetEntry): number {
+    if (p.has_pab) return 0;
+    if (beauty.wantedPresets.has(p.preset_id)) return 1;
+    if (p.user_nickname && beauty.creatorFavorites.has(p.user_nickname)) return 2;
+    return 3;
+  }
 
   const localPresets = $derived.by(() => {
     const seen = new Set<string>();
@@ -40,15 +51,7 @@
         seen.add(p.preset_id);
         return true;
       })
-      .sort((a, b) => {
-        // Tier 1: has PAB file (green) — top
-        if (a.has_pab !== b.has_pab) return a.has_pab ? -1 : 1;
-        // Tier 2: wanted (purple) — after greens
-        const aW = beauty.wantedPresets.has(a.preset_id);
-        const bW = beauty.wantedPresets.has(b.preset_id);
-        if (aW !== bW) return aW ? -1 : 1;
-        return 0;
-      });
+      .sort((a, b) => tier(a) - tier(b));
   });
 
   function handleDiscard(id: string) {
@@ -83,7 +86,7 @@
         in:fly={{ y: 20, duration: 220, easing: cubicOut }}
         class:live-card={liveIds.has(preset.preset_id)}
       >
-        <PresetCard {preset} {selectedClass} ondiscard={handleDiscard} />
+        <PresetCard {preset} ondiscard={handleDiscard} />
       </div>
     {/each}
     {#if loadingMore}

@@ -18,6 +18,7 @@ export interface ClassCount {
 export interface PresetEntry {
   preset_id:      string;
   class_id:       number;
+  class_name:     string;
   title:          string | null;
   user_nickname:  string | null;
   character_name: string | null;
@@ -52,6 +53,23 @@ export const getClassFavorites = (): Promise<string[]> =>
 
 export const setClassFavorite = (className: string, isFavorite: boolean): Promise<void> =>
   invoke('set_class_favorite', { className, isFavorite });
+
+// ── Creator favorites ────────────────────────────────────────
+
+export const getCreatorFavorites = (): Promise<string[]> =>
+  invoke('get_creator_favorites');
+
+export const setCreatorFavorite = (creatorNickname: string, isFavorite: boolean): Promise<void> =>
+  invoke('set_creator_favorite', { creatorNickname, isFavorite });
+
+export const getPresetsByCreator = (
+  creatorNickname: string,
+  offset  = 0,
+  limit   = 40,
+  sortBy  = 'downloads',
+  search  = '',
+): Promise<PresetEntry[]> =>
+  invoke('get_presets_by_creator', { creatorNickname, offset, limit, sortBy, search });
 
 // ── Presets ───────────────────────────────────────────────────
 

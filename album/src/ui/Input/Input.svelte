@@ -7,6 +7,7 @@
     disabled?: boolean;
     type?: 'text' | 'password' | 'number';
     icon?: import('svelte').Snippet;
+    trailing?: import('svelte').Snippet;
     oninput?: (e: Event) => void;
     onchange?: (e: Event) => void;
     onkeydown?: (e: KeyboardEvent) => void;
@@ -18,13 +19,14 @@
     disabled = false,
     type = 'text',
     icon,
+    trailing,
     oninput,
     onchange,
     onkeydown,
   }: Props = $props();
 </script>
 
-<div class="input-wrap" class:has-icon={!!icon}>
+<div class="input-wrap" class:has-icon={!!icon} class:has-trailing={!!trailing}>
   {#if icon}
     <span class="input-icon">{@render icon()}</span>
   {/if}
@@ -38,4 +40,7 @@
     {onchange}
     {onkeydown}
   />
+  {#if trailing}
+    <span class="input-trailing">{@render trailing()}</span>
+  {/if}
 </div>

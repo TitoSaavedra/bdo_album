@@ -3,6 +3,7 @@ use sqlx::PgPool;
 use crate::core::errors::Result;
 use crate::db::repositories::{
     class_repo::{ClassRepository, ClassRow},
+    creator_repo::CreatorRepository,
     preset_repo::{PresetRepository, PresetRow},
 };
 
@@ -56,6 +57,26 @@ impl BeautyService {
 
     pub async fn get_preset_by_id(pool: &PgPool, preset_id: i64, r2_public_url: &str) -> Result<Option<PresetRow>> {
         PresetRepository::get_by_id(pool, preset_id, r2_public_url).await
+    }
+
+    pub async fn get_creator_favorites(pool: &PgPool) -> Result<Vec<String>> {
+        CreatorRepository::get_favorites(pool).await
+    }
+
+    pub async fn set_creator_favorite(pool: &PgPool, creator_nickname: &str, is_fav: bool) -> Result<()> {
+        CreatorRepository::set_favorite(pool, creator_nickname, is_fav).await
+    }
+
+    pub async fn get_presets_by_creator(
+        pool:             &PgPool,
+        creator_nickname: &str,
+        offset:           i64,
+        limit:            i64,
+        sort_by:          &str,
+        search:           &str,
+        r2_public_url:    &str,
+    ) -> Result<Vec<PresetRow>> {
+        PresetRepository::get_by_creator(pool, creator_nickname, offset, limit, sort_by, search, r2_public_url).await
     }
 
     pub async fn get_regions(pool: &PgPool) -> Result<Vec<String>> {

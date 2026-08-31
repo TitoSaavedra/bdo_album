@@ -1,11 +1,12 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
   import { _ } from 'svelte-i18n';
-  import { openUrl, toggleWanted, discardPreset, exportToBdo } from '../../../../lib/album';
+  import { openUrl, toggleWanted, discardPreset, exportToBdo, setCreatorFavorite } from '../../../../lib/album';
   import {
     beauty,
     closePreset,
     toggleWantedPreset,
+    toggleCreatorFavorite,
   } from '../../state/beauty.svelte';
   import Button from '../../../../ui/Button/Button.svelte';
 
@@ -40,6 +41,7 @@
   const characterName = $derived(p?.character_name || null);
   const region        = $derived(p?.region || null);
   const isWanted      = $derived(p ? beauty.wantedPresets.has(p.preset_id) : false);
+  const isFavoriteCreator = $derived(nickname ? beauty.creatorFavorites.has(nickname) : false);
   const uploadedAt    = $derived(
     p?.creation_at ? new Date(p.creation_at * 1000).toLocaleDateString('en-CA') : null
   );
@@ -55,6 +57,13 @@
     if (!p) return;
     toggleWantedPreset(p.preset_id);
     try { await toggleWanted(p.preset_id); } catch { /* non-fatal */ }
+  }
+
+  async function handleToggleCreatorFavorite() {
+    if (!nickname) return;
+    toggleCreatorFavorite(nickname);
+    const isFav = beauty.creatorFavorites.has(nickname);
+    try { await setCreatorFavorite(nickname, isFav); } catch { /* non-fatal */ }
   }
 
   async function handleDiscard() {
@@ -180,6 +189,12 @@
           {#if nickname}
             <div class="creator-row">
               <span class="creator-at">@</span><span class="creator-name">{nickname}</span>
+              <button
+                class="creator-fav-btn"
+                class:on={isFavoriteCreator}
+                title={isFavoriteCreator ? $_('beauty.preset_detail.unfavorite_creator') : $_('beauty.preset_detail.favorite_creator')}
+                onclick={handleToggleCreatorFavorite}
+              >♥</button>
             </div>
           {/if}
         </div>

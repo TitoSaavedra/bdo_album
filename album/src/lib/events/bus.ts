@@ -37,6 +37,7 @@ class AlbumEventBus {
         const sparse: PresetEntry = {
           preset_id:      String(p.preset_id),
           class_id:       p.class_id,
+          class_name:     '',
           title:          null,
           user_nickname:  null,
           character_name: null,

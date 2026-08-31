@@ -1,20 +1,20 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import type { PresetEntry } from '../../../../lib/album';
-  import { discardPreset, toggleWanted } from '../../../../lib/album';
+  import { discardPreset, toggleWanted, setCreatorFavorite } from '../../../../lib/album';
   import {
     beauty,
     toggleWantedPreset,
+    toggleCreatorFavorite,
     openPreset,
   } from '../../state/beauty.svelte';
 
   interface Props {
-    preset:         PresetEntry;
-    selectedClass?: string | null;
-    ondiscard?:     (id: string) => void;
+    preset:     PresetEntry;
+    ondiscard?: (id: string) => void;
   }
 
-  const { preset, selectedClass = null, ondiscard } = $props<Props>();
+  const { preset, ondiscard } = $props<Props>();
 
   const imageUrl  = $derived(preset.image_1_url ?? preset.image_2_url ?? null);
   const title     = $derived(preset.title || preset.character_name || `#${preset.preset_id}`);
@@ -24,15 +24,28 @@
   const id        = $derived(preset.preset_id);
   const hasPab    = $derived(preset.has_pab);
   const isWanted  = $derived(beauty.wantedPresets.has(id));
+  const nickname  = $derived(preset.user_nickname);
+  const isFavoriteCreator = $derived(nickname ? beauty.creatorFavorites.has(nickname) : false);
+  // Only tint the card for a favorite creator when it's not already flagged
+  // green (downloaded) or purple (wishlisted) — those two already earn a look.
+  const showFavCreator = $derived(isFavoriteCreator && !hasPab && !isWanted);
 
   function handleClick() {
-    openPreset(preset, selectedClass ?? '');
+    openPreset(preset, preset.class_name);
   }
 
   async function handleToggleWant(e: MouseEvent) {
     e.stopPropagation();
     toggleWantedPreset(id);
     try { await toggleWanted(id); } catch { /* non-fatal */ }
+  }
+
+  async function handleToggleCreatorFavorite(e: MouseEvent) {
+    e.stopPropagation();
+    if (!nickname) return;
+    toggleCreatorFavorite(nickname);
+    const isFav = beauty.creatorFavorites.has(nickname);
+    try { await setCreatorFavorite(nickname, isFav); } catch { /* non-fatal */ }
   }
 
   async function handleDiscard(e: MouseEvent) {
@@ -50,6 +63,7 @@
   class="preset-card"
   class:wished={isWanted}
   class:has-pab={hasPab}
+  class:fav-creator={showFavCreator}
   onclick={handleClick}
   role="button"
   tabindex="0"
@@ -62,8 +76,23 @@
       <div class="skeleton-thumb"></div>
     {/if}
 
+    {#if beauty.creatorFilter}
+      <span class="class-tag">{preset.class_name}</span>
+    {/if}
+
     <div class="gradient-overlay">
       <h3 class="card-title" title={title}>{title}</h3>
+      {#if nickname}
+        <div class="creator-row">
+          <span class="creator-name" title={nickname}>@{nickname}</span>
+          <button
+            class="creator-fav-btn"
+            class:on={isFavoriteCreator}
+            title={isFavoriteCreator ? $_('beauty.preset_card.unfavorite_creator') : $_('beauty.preset_card.favorite_creator')}
+            onclick={handleToggleCreatorFavorite}
+          >♥</button>
+        </div>
+      {/if}
     </div>
 
     <div class="card-actions">

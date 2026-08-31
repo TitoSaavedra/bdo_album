@@ -7,7 +7,7 @@
   import { eventBus } from '../lib/events';
   import Toast from '../ui/Toast/Toast.svelte';
   import type { ToastItem } from '../ui/Toast/Toast.svelte';
-  import { getPresets, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
+  import { getPresets, getPresetsByCreator, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
   import {
     beauty,
     selectClass,
@@ -16,6 +16,7 @@
     setSelectedRegion,
     setAvailableRegions,
     setSearchCounts,
+    setCreatorFilter,
   } from '../features/beauty/state/beauty.svelte';
   import type { ClassEntry, PresetEntry } from '../lib/album';
   import ClassList    from '../features/beauty/components/ClassList/ClassList.svelte';
@@ -45,6 +46,8 @@
   );
 
   const livePresets = $derived.by(() => {
+    // Cross-class creator browsing doesn't map onto any single class's live feed.
+    if (beauty.creatorFilter) return [];
     if (selectedClassId === null) return [];
     let all = beauty.livePresets[selectedClassId] ?? [];
     const region = beauty.selectedRegion;
@@ -89,14 +92,18 @@
     return () => eventBus.destroy();
   });
 
-  // Reload when selected class, region, search, days, OR sort changes
+  // Reload when selected class, region, search, days, sort, OR the favorite-creator
+  // filter changes. The creator filter takes over the grid entirely — it deliberately
+  // ignores region/days so a favorited creator's full catalog always shows up.
   $effect(() => {
-    const cls    = beauty.selectedClass;
-    const region = beauty.selectedRegion;
-    const search = beauty.searchQuery;
-    const days   = beauty.selectedDays;
-    const sort   = beauty.sortBy;
-    if (cls) resetAndLoad(cls, region, search, days, sort);
+    const cls     = beauty.selectedClass;
+    const region  = beauty.selectedRegion;
+    const search  = beauty.searchQuery;
+    const days    = beauty.selectedDays;
+    const sort    = beauty.sortBy;
+    const creator = beauty.creatorFilter;
+    if (creator) resetAndLoadCreator(creator, search, sort);
+    else if (cls) resetAndLoad(cls, region, search, days, sort);
   });
 
   // Update per-class counts whenever search, region, OR days changes
@@ -147,6 +154,10 @@
     return () => obs.disconnect();
   });
 
+  // Set by resetAndLoad/resetAndLoadCreator, called by doLoad/loadMore — keeps
+  // pagination logic in one place regardless of which mode is active.
+  let fetchPage: ((off: number) => Promise<PresetEntry[]>) | null = null;
+
   async function resetAndLoad(cls: string, region: string, search: string, days: string, sort: string) {
     offset = 0;
     hasMore = false;
@@ -154,32 +165,42 @@
     presetsError = '';
     const entry = beauty.classes.find(c => c.name === cls);
     if (entry) clearLiveForClass(entry.class_id);
-    await doLoad(cls, 0, region, search, days, sort, true);
+    fetchPage = (off) => getPresets(cls, off, LIMIT, sort, search, region, days);
+    await doLoad(true);
+  }
+
+  async function resetAndLoadCreator(creator: string, search: string, sort: string) {
+    offset = 0;
+    hasMore = false;
+    presets = [];
+    presetsError = '';
+    fetchPage = (off) => getPresetsByCreator(creator, off, LIMIT, sort, search);
+    await doLoad(true);
   }
 
   async function loadMore() {
-    if (!beauty.selectedClass || !hasMore || loadingMore || presetsLoading) return;
+    if (!fetchPage || !hasMore || loadingMore || presetsLoading) return;
     loadingMore = true;
-    const nextOffset = offset + LIMIT;
-    offset = nextOffset;
-    await doLoad(beauty.selectedClass, nextOffset, beauty.selectedRegion, beauty.searchQuery, beauty.selectedDays, beauty.sortBy, false);
+    offset = offset + LIMIT;
+    await doLoad(false);
   }
 
-  async function doLoad(cls: string, off: number, region: string, search: string, days: string, sort: string, initial: boolean) {
+  async function doLoad(initial: boolean) {
+    if (!fetchPage) return;
     if (initial) presetsLoading = true;
     else         loadingMore    = true;
     presetsError = '';
     try {
       if (initial) {
         const [fetched, wanted] = await Promise.all([
-          getPresets(cls, off, LIMIT, sort, search, region, days),
+          fetchPage(0),
           getWanted(),
         ]);
         presets = fetched;
         setWantedPresets(wanted);
         hasMore = fetched.length >= LIMIT;
       } else {
-        const fetched = await getPresets(cls, off, LIMIT, sort, search, region, days);
+        const fetched = await fetchPage(offset);
         const seen = new Set(presets.map(p => p.preset_id));
         presets = [...presets, ...fetched.filter(p => !seen.has(p.preset_id))];
         hasMore = fetched.length >= LIMIT;
@@ -198,6 +219,7 @@
 
   function handleSelectClass(cls: ClassEntry) {
     setSelectedRegion('');
+    setCreatorFilter(null);
     selectClass(cls);
   }
 </script>
@@ -226,6 +248,14 @@
           />
         </aside>
         <main class="main custom-scroll" bind:this={mainEl}>
+          {#if beauty.creatorFilter}
+            <div class="creator-banner">
+              {$_('beauty.preset_grid.creator_banner', { values: { creator: beauty.creatorFilter } })}
+              <button class="creator-banner-back" onclick={() => setCreatorFilter(null)}>
+                {$_('beauty.preset_grid.back_to_class', { values: { class: beauty.selectedClass ?? '' } })}
+              </button>
+            </div>
+          {/if}
           <PresetGrid
             {presets}
             {livePresets}

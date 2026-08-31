@@ -7,6 +7,7 @@ use crate::core::errors::Result;
 pub struct PresetRow {
     pub preset_id:      String,
     pub class_id:       i32,
+    pub class_name:     String,
     pub title:          Option<String>,
     pub user_nickname:  Option<String>,
     pub character_name: Option<String>,
@@ -54,6 +55,7 @@ impl PresetRepository {
             SELECT
                 p.id::TEXT                                         AS preset_id,
                 p.class_id,
+                c.display                                          AS class_name,
                 p.title,
                 p.user_nickname,
                 p.character_name,
@@ -72,6 +74,7 @@ impl PresetRepository {
                 EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT AS auto_download_requested_at,
                 u.auto_download_error
             FROM scraper_presets p
+            JOIN scraper_classes c ON c.id = p.class_id
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             LEFT JOIN LATERAL (
                 SELECT url FROM scraper_preset_pabs
@@ -109,6 +112,76 @@ impl PresetRepository {
         Ok(rows)
     }
 
+    /// Every preset by one creator, across all classes — used by the favorite-creator
+    /// filter, which intentionally ignores region/upload-date so a favorited creator's
+    /// full catalog always shows up regardless of what the class browser is filtered to.
+    pub async fn get_by_creator(
+        pool:             &PgPool,
+        creator_nickname: &str,
+        offset:           i64,
+        limit:            i64,
+        sort_by:          &str,
+        search:           &str,
+        r2_public_url:    &str,
+    ) -> Result<Vec<PresetRow>> {
+        let col = validated_sort(sort_by);
+        let sql = format!(
+            r#"
+            SELECT
+                p.id::TEXT                                         AS preset_id,
+                p.class_id,
+                c.display                                          AS class_name,
+                p.title,
+                p.user_nickname,
+                p.character_name,
+                p.region,
+                $4 || p.image_1_url                               AS image_1_url,
+                $4 || p.image_2_url                               AS image_2_url,
+                CASE WHEN pab.url IS NOT NULL THEN $4 || pab.url END AS pab_url,
+                pab.url IS NOT NULL                               AS has_pab,
+                p.downloads,
+                p.views,
+                p.likes,
+                COALESCE(u.is_wanted,    false)                   AS is_wanted,
+                COALESCE(u.is_discarded, false)                   AS is_discarded,
+                p.creation_at,
+                EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at,
+                EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT AS auto_download_requested_at,
+                u.auto_download_error
+            FROM scraper_presets p
+            JOIN scraper_classes c ON c.id = p.class_id
+            LEFT JOIN album_user_prefs u ON u.preset_id = p.id
+            LEFT JOIN LATERAL (
+                SELECT url FROM scraper_preset_pabs
+                WHERE preset_id = p.id
+                ORDER BY id
+                LIMIT 1
+            ) pab ON true
+            WHERE p.user_nickname = $1
+              AND (p.image_1_url IS NOT NULL OR p.image_2_url IS NOT NULL)
+              AND COALESCE(u.is_discarded, false) = false
+              AND ($2 = '' OR (
+                LOWER(COALESCE(p.title,          '')) LIKE '%' || LOWER($2) || '%' OR
+                LOWER(COALESCE(p.character_name, '')) LIKE '%' || LOWER($2) || '%'
+              ))
+            ORDER BY
+              (pab.url IS NOT NULL) DESC,
+              COALESCE(u.is_wanted, false) DESC,
+              p.{col} DESC NULLS LAST
+            LIMIT $3 OFFSET $5
+            "#
+        );
+        let rows = sqlx::query_as::<_, PresetRow>(&sql)
+            .bind(creator_nickname)
+            .bind(search)
+            .bind(limit)
+            .bind(r2_public_url)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+        Ok(rows)
+    }
+
     pub async fn get_by_id(
         pool:          &PgPool,
         preset_id:     i64,
@@ -119,6 +192,7 @@ impl PresetRepository {
             SELECT
                 p.id::TEXT                                         AS preset_id,
                 p.class_id,
+                c.display                                          AS class_name,
                 p.title,
                 p.user_nickname,
                 p.character_name,
@@ -137,6 +211,7 @@ impl PresetRepository {
                 EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT AS auto_download_requested_at,
                 u.auto_download_error
             FROM scraper_presets p
+            JOIN scraper_classes c ON c.id = p.class_id
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             LEFT JOIN LATERAL (
                 SELECT url FROM scraper_preset_pabs
@@ -271,6 +346,7 @@ impl PresetRepository {
             SELECT
                 p.id::TEXT                                                    AS preset_id,
                 p.class_id,
+                c.display                                                     AS class_name,
                 p.title,
                 p.user_nickname,
                 p.character_name,
@@ -290,6 +366,7 @@ impl PresetRepository {
                 u.auto_download_error
             FROM album_user_prefs u
             JOIN scraper_presets p ON p.id = u.preset_id
+            JOIN scraper_classes c ON c.id = p.class_id
             WHERE u.is_wanted = true
               AND NOT EXISTS (
                 SELECT 1 FROM scraper_preset_pabs WHERE preset_id = p.id

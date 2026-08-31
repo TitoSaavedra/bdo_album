@@ -15,6 +15,8 @@
       "search_placeholder": "Search title, author, character...",
       "open_wanted_title": "Open all wanted PABs in browser ({count})",
       "filter_sort": "Filter & Sort",
+      "wishlist": "Wishlist",
+      "filters": "Filters",
       "sort_label": "Sort",
       "region_label": "Region",
       "uploaded_label": "Uploaded",
@@ -31,11 +33,23 @@
       "day_60": "2mo",
       "day_90": "3mo",
       "day_180": "6mo",
-      "day_365": "1y"
+      "day_365": "1y",
+      "classes": "Classes",
+      "favorite_creators": "Favorite Creators",
+      "tap_to_filter": "tap to filter",
+      "no_favorite_creators": "No favorite creators yet — tap the ♥ next to any creator's name to pin them here.",
+      "unfavorite_creator": "Unfavorite creator",
+      "chip_region": "Region",
+      "chip_uploaded": "Uploaded",
+      "chip_creator": "Creator",
+      "clear_all": "Clear all",
+      "filters_ignored_creator": "Ignored while browsing by creator"
     },
     "preset_card": {
       "remove_wishlist": "Remove from wishlist",
       "add_wishlist": "Add to wishlist",
+      "favorite_creator": "Favorite creator",
+      "unfavorite_creator": "Unfavorite creator",
       "discard": "Discard",
       "downloads": "Downloads",
       "views": "Views",
@@ -44,7 +58,9 @@
     "preset_grid": {
       "select_class": "Select a class to browse presets",
       "no_match_filters": "No presets match your filters",
-      "no_presets": "No presets found in this class"
+      "no_presets": "No presets found in this class",
+      "creator_banner": "Showing every preset by {creator}, across all classes — region & upload-date filters are ignored in this view.",
+      "back_to_class": "✕ Back to {class}"
     },
     "preset_detail": {
       "sharpen_on": "Sharpen: ON",
@@ -63,6 +79,8 @@
       "not_available": "Not available",
       "remove_wishlist": "Remove from wishlist",
       "add_wishlist": "Add to wishlist",
+      "favorite_creator": "Favorite creator",
+      "unfavorite_creator": "Unfavorite creator",
       "discard": "Discard",
       "exporting": "Exporting...",
       "export_to_bdo": "Export to Black Desert",
