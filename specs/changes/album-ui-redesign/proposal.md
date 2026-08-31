@@ -40,10 +40,11 @@ the Album shell with light/dark theme support, not another incremental CSS patch
   jewelry) applied in the exploration artifact's titlebar/logo. Alternatives considered:
   *Visage* (more literal), *Muse* (more generic/SaaS). **Not finalized** — needs a
   decision (see `tasks.md`, Group 1).
-- Framework for the real implementation: still **not decided**. Leading candidate from a
-  quick web check: Tailwind v4 + Bits UI (headless Svelte primitives) — gives full visual
-  control rather than inheriting a kit's look, which matters since the goal (per the
-  mission's public-release note) is a distinctive commercial feel, not a generic template.
+- **Framework decided: Tailwind v4 + Bits UI** (headless Svelte primitives) — gives full
+  visual control rather than inheriting a kit's look, which matters since the goal (per
+  the mission's public-release note) is a distinctive commercial feel, not a generic
+  template. Same base shadcn-svelte builds on. The exploration artifact already loads
+  Tailwind live, so it doubles as a preview of this stack.
 
 ## Affected capabilities
 - `specs/capabilities/album-browsing` — its UI surface (toolbar → Command Bar header,

@@ -4,10 +4,10 @@ Small, ordered groups. Check off as they merge. Do groups one at a time where mi
 compound (security, migrations, data).
 
 ## Group 1 — Close the open decisions (before writing any real component code)
-- [ ] Pick the frontend approach: Tailwind v4 + Bits UI (leading candidate — headless,
-      full visual control) vs. a pre-built kit (Skeleton v3 / shadcn-svelte / DaisyUI) vs.
-      staying hand-rolled SCSS restructured for light/dark. See `proposal.md` for the
-      tradeoff notes.
+- [x] Frontend approach: **Tailwind v4 + Bits UI** (decided 2026-08-31). Headless
+      primitives keep full visual control instead of inheriting a kit's look; same base
+      shadcn-svelte builds on, so its recipes stay usable later if wanted. The
+      exploration artifact already previews it (Tailwind loaded live there).
 - [ ] Pick the final app name: "Facet" (working choice, applied in the artifact) vs.
       "Visage" vs. "Muse" vs. something else.
 - [ ] Pick the final accent color (or keep it user-configurable via Settings — see
