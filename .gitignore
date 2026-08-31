@@ -40,5 +40,7 @@ Thumbs.db
 *.md
 !README.md
 !CLAUDE.md
+!AGENTS.md
+!specs/**/*.md
 
 _backups/

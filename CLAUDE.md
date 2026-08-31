@@ -1,3 +1,4 @@
+@AGENTS.md
 # BDO Album
 
 Dos proyectos Tauri/Rust completamente independientes. Sin crates compartidos, sin workspace.
