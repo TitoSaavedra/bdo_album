@@ -23,9 +23,16 @@ to compare layout directions before writing any Svelte.
   (unrelated to the app's own theme) and a 4-swatch palette row (Amber / Violet / Coral /
   Champagne Teal) that repaints the whole mockup live.
 
-## Known issue to fix before this becomes real UI
-The palette swatches currently re-theme the **entire neutral scale** (background,
-surface, card, border, text) per swatch, not just the accent. Feedback from the human:
-swatches should only change the **accent** color (buttons, focus states, modal/dialog
-accents) — background/surface/text must stay the one dark-or-light neutral system
-regardless of which accent is picked. See `tasks.md`, Group 2.
+## Resolved: palette swatches now accent-only
+Fixed 2026-08-30 (`tasks.md`, Group 2). The swatches previously re-themed the **entire
+neutral scale** (background, surface, card, border, text) per swatch, not just the
+accent. They now only override `--m-accent` / `--m-accent-ink` — background/surface/
+border/text always come from the Light/Dark toggle alone, never from the accent choice.
+Contrast was re-checked for the 3 non-Amber accents; see Group 2's notes in `tasks.md`
+for the one borderline pattern found (accent-as-plain-text on a neutral background,
+already borderline for Amber too — not a regression from this fix).
+
+## Also applied: app renamed to Muse
+The artifact's titlebar mark and `APP_NAME` now read **"Muse"** (final name, decided
+2026-08-30 — see `tasks.md`, Group 1), replacing the working name "Facet". The
+faceted-gem logo mark is unchanged.

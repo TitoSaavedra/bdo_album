@@ -134,97 +134,119 @@
   }
 </script>
 
-<div class="toolbar">
-  <Input bind:value={searchInput} placeholder={$_('beauty.class_list.search_placeholder')}>
-    {#snippet icon()}
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-        <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.4"/>
-        <line x1="10.8" y1="10.8" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-      </svg>
-    {/snippet}
-    {#snippet trailing()}
-      {#if searchInput}
-        <button class="search-clear" onclick={() => (searchInput = '')} title={$_('ui.remove')}>✕</button>
-      {/if}
-    {/snippet}
-  </Input>
+<header class="command-bar">
+  <div class="bar-row">
+    <div class="search-wrap">
+      <Input bind:value={searchInput} placeholder={$_('beauty.class_list.search_placeholder')}>
+        {#snippet icon()}
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.4"/>
+            <line x1="10.8" y1="10.8" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        {/snippet}
+        {#snippet trailing()}
+          {#if searchInput}
+            <button class="search-clear" onclick={() => (searchInput = '')} title={$_('ui.remove')}>✕</button>
+          {/if}
+        {/snippet}
+      </Input>
+    </div>
 
-  <div class="seg">
-    {#each SORT_PILLS as opt (opt.value)}
+    <div class="seg">
+      {#each SORT_PILLS as opt (opt.value)}
+        <button
+          class="seg-btn"
+          class:active={beauty.sortBy === opt.value}
+          onclick={() => setSelectedSort(opt.value as 'downloads' | 'views' | 'likes')}
+        >{opt.label}</button>
+      {/each}
+    </div>
+
+    {#if favoriteCreatorNames.length > 0}
+      <div class="creator-chips" aria-label={$_('beauty.class_list.favorite_creators')}>
+        {#each favoriteCreatorNames as name (name)}
+          <span class="creator-chip" class:active={beauty.creatorFilter === name}>
+            <button class="creator-chip-main" onclick={() => handleCreatorChipClick(name)}>
+              <span class="avatar" style="background: hsl({creatorHue(name)} 55% 40%)">{name.charAt(0).toUpperCase()}</span>
+              <span class="name">{name}</span>
+            </button>
+            <button
+              class="creator-chip-remove"
+              onclick={() => handleToggleCreatorFavorite(name)}
+              title={$_('beauty.class_list.unfavorite_creator')}
+            >✕</button>
+          </span>
+        {/each}
+      </div>
+    {/if}
+
+    <div class="bar-actions">
       <button
-        class="seg-btn"
-        class:active={beauty.sortBy === opt.value}
-        onclick={() => setSelectedSort(opt.value as 'downloads' | 'views' | 'likes')}
-      >{opt.label}</button>
-    {/each}
-  </div>
-
-  <div class="toolbar-actions">
-    <button
-      class="tool-btn wishlist"
-      class:has={beauty.wantedPresets.size > 0}
-      title={$_('beauty.class_list.open_wanted_title', { values: { count: beauty.wantedPresets.size } })}
-      onclick={openWantedPabs}
-      disabled={beauty.wantedPresets.size === 0}
-    >
-      <span>♥ {$_('beauty.class_list.wishlist')}</span>
-      <span class="badge">{beauty.wantedPresets.size}</span>
-    </button>
-
-    <div class="pop-anchor">
-      <button
-        class="tool-btn filters"
-        class:active={activeFilterCount > 0}
-        title={$_('beauty.class_list.filters')}
-        onclick={() => (popoverOpen = !popoverOpen)}
+        class="tool-btn wishlist"
+        class:has={beauty.wantedPresets.size > 0}
+        title={$_('beauty.class_list.open_wanted_title', { values: { count: beauty.wantedPresets.size } })}
+        onclick={openWantedPabs}
+        disabled={beauty.wantedPresets.size === 0}
       >
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-          <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <circle cx="5.5" cy="4" r="1.6" fill="var(--color-bg-input)" stroke="currentColor" stroke-width="1.3"/>
-          <circle cx="10.5" cy="8" r="1.6" fill="var(--color-bg-input)" stroke="currentColor" stroke-width="1.3"/>
-          <circle cx="6" cy="12" r="1.6" fill="var(--color-bg-input)" stroke="currentColor" stroke-width="1.3"/>
-        </svg>
-        <span>{$_('beauty.class_list.filters')}</span>
-        {#if activeFilterCount > 0}
-          <span class="badge">{activeFilterCount}</span>
-        {/if}
+        <span>♥ {$_('beauty.class_list.wishlist')}</span>
+        <span class="badge">{beauty.wantedPresets.size}</span>
       </button>
 
-      {#if popoverOpen}
-        <div class="backdrop" onclick={() => (popoverOpen = false)}></div>
-        <div class="popover" transition:fly={{ y: -6, duration: 140 }}>
-          <div class="pop-head">
-            <span class="pop-title">{$_('beauty.class_list.filters')}</span>
-            <button class="pop-close" onclick={() => (popoverOpen = false)}>✕</button>
-          </div>
+      <div class="pop-anchor">
+        <button
+          class="tool-btn filters"
+          class:active={activeFilterCount > 0}
+          title={$_('beauty.class_list.filters')}
+          onclick={() => (popoverOpen = !popoverOpen)}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="5.5" cy="4" r="1.6" fill="var(--color-bg-input)" stroke="currentColor" stroke-width="1.3"/>
+            <circle cx="10.5" cy="8" r="1.6" fill="var(--color-bg-input)" stroke="currentColor" stroke-width="1.3"/>
+            <circle cx="6" cy="12" r="1.6" fill="var(--color-bg-input)" stroke="currentColor" stroke-width="1.3"/>
+          </svg>
+          <span>{$_('beauty.class_list.filters')}</span>
+          {#if activeFilterCount > 0}
+            <span class="badge">{activeFilterCount}</span>
+          {/if}
+        </button>
 
-          {#if beauty.availableRegions.length > 0}
+        {#if popoverOpen}
+          <div class="backdrop" onclick={() => (popoverOpen = false)}></div>
+          <div class="popover" transition:fly={{ y: -6, duration: 140 }}>
+            <div class="pop-head">
+              <span class="pop-title">{$_('beauty.class_list.filters')}</span>
+              <button class="pop-close" onclick={() => (popoverOpen = false)}>✕</button>
+            </div>
+
+            {#if beauty.availableRegions.length > 0}
+              <div class="pop-group" class:disabled={!!beauty.creatorFilter}>
+                <span class="pop-label">{$_('beauty.class_list.region_label')}</span>
+                <PillSelector
+                  value={beauty.selectedRegion}
+                  options={regionPills}
+                  onchange={v => setSelectedRegion(String(v))}
+                />
+              </div>
+            {/if}
+
             <div class="pop-group" class:disabled={!!beauty.creatorFilter}>
-              <span class="pop-label">{$_('beauty.class_list.region_label')}</span>
+              <span class="pop-label">{$_('beauty.class_list.uploaded_label')}</span>
               <PillSelector
-                value={beauty.selectedRegion}
-                options={regionPills}
-                onchange={v => setSelectedRegion(String(v))}
+                value={beauty.selectedDays}
+                options={DAY_PILLS}
+                onchange={v => setSelectedDays(String(v))}
               />
             </div>
-          {/if}
 
-          <div class="pop-group" class:disabled={!!beauty.creatorFilter}>
-            <span class="pop-label">{$_('beauty.class_list.uploaded_label')}</span>
-            <PillSelector
-              value={beauty.selectedDays}
-              options={DAY_PILLS}
-              onchange={v => setSelectedDays(String(v))}
-            />
+            {#if beauty.creatorFilter}
+              <p class="pop-note">{$_('beauty.class_list.filters_ignored_creator')}</p>
+            {/if}
           </div>
-
-          {#if beauty.creatorFilter}
-            <p class="pop-note">{$_('beauty.class_list.filters_ignored_creator')}</p>
-          {/if}
-        </div>
-      {/if}
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -256,76 +278,36 @@
       {/if}
     </div>
   {/if}
-</div>
 
-{#if modalOpen}
-  <WantedDownloadModal
-    presets={modalPresets}
-    onclose={() => { modalOpen = false; modalPresets = []; }}
-  />
-{/if}
-
-<hr class="div" />
-
-<div class="sec">
-  <div class="sec-label">
-    {$_('beauty.class_list.favorite_creators')}
-    <span class="hint">{$_('beauty.class_list.tap_to_filter')}</span>
-  </div>
-  {#if favoriteCreatorNames.length === 0}
-    <p class="creator-empty">{$_('beauty.class_list.no_favorite_creators')}</p>
-  {:else}
-    <div class="creator-cloud">
-      {#each favoriteCreatorNames as name (name)}
-        <span class="creator-chip" class:active={beauty.creatorFilter === name}>
-          <button class="creator-chip-main" onclick={() => handleCreatorChipClick(name)}>
-            <span class="avatar" style="background: hsl({creatorHue(name)} 55% 40%)">{name.charAt(0).toUpperCase()}</span>
-            <span class="name">{name}</span>
-          </button>
+  <div class="class-pills custom-scroll" class:dimmed={!!beauty.creatorFilter} aria-label={$_('beauty.class_list.classes')}>
+    {#if beauty.classes.length === 0}
+      <p class="status">{$_('beauty.class_list.waiting_db')}</p>
+    {:else if sorted.length === 0}
+      <p class="status">
+        {beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever'
+          ? $_('beauty.class_list.no_match_filters')
+          : $_('beauty.class_list.no_results')}
+      </p>
+    {:else}
+      {#each sorted as cls (cls.name)}
+        <div animate:flip={{ duration: 220 }} in:fly={{ y: 8, duration: 180 }} class="pill-wrap">
           <button
-            class="creator-chip-remove"
-            onclick={() => handleToggleCreatorFavorite(name)}
-            title={$_('beauty.class_list.unfavorite_creator')}
-          >✕</button>
-        </span>
-      {/each}
-    </div>
-  {/if}
-</div>
-
-<hr class="div" />
-
-<div class="sec" style="padding-bottom: 0;">
-  <div class="sec-label">{$_('beauty.class_list.classes')}</div>
-</div>
-
-<div class="list custom-scroll" class:dimmed={!!beauty.creatorFilter}>
-  {#if beauty.classes.length === 0}
-    <p class="status">{$_('beauty.class_list.waiting_db')}</p>
-  {:else if sorted.length === 0}
-    <p class="status">
-      {beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever'
-        ? $_('beauty.class_list.no_match_filters')
-        : $_('beauty.class_list.no_results')}
-    </p>
-  {:else}
-    {#each sorted as cls (cls.name)}
-      <div animate:flip={{ duration: 220 }} in:fly={{ y: 8, duration: 180 }} class="class-row">
-        <button
-          class="class-btn"
-          class:active={cls.name === selectedClass && !beauty.creatorFilter}
-          onclick={() => onselect(cls)}
-        >
-          <span class="cls-name">{cls.name}</span>
-          <div class="cls-right">
+            class="class-pill"
+            class:active={cls.name === selectedClass && !beauty.creatorFilter}
+            onclick={() => onselect(cls)}
+          >
+            {#if cls.icon_svg}
+              <span class="pill-icon">{@html cls.icon_svg}</span>
+            {/if}
+            <span class="pill-name">{cls.name}</span>
             {#if !beauty.searchQuery.trim() && (beauty.liveUploaded[cls.class_id] ?? 0) > 0}
               <span class="live-badge">+{beauty.liveUploaded[cls.class_id]}</span>
             {/if}
             {#if displayCount(cls) > 0}
-              <span class="count">{displayCount(cls)}</span>
+              <span class="pill-count">{displayCount(cls)}</span>
             {/if}
             <span
-              class="heart"
+              class="pill-heart"
               class:active={beauty.classFavorites.has(cls.name)}
               onclick={(e) => handleToggleFavorite(cls.name, e)}
               role="button"
@@ -333,15 +315,19 @@
               onkeydown={(e) => e.key === 'Enter' && handleToggleFavorite(cls.name, e as unknown as MouseEvent)}
               title={$_('beauty.class_list.pin_to_top')}
             >♥</span>
-            {#if cls.icon_svg}
-              <span class="cls-icon">{@html cls.icon_svg}</span>
-            {/if}
-          </div>
-        </button>
-      </div>
-    {/each}
-  {/if}
-</div>
+          </button>
+        </div>
+      {/each}
+    {/if}
+  </div>
+</header>
+
+{#if modalOpen}
+  <WantedDownloadModal
+    presets={modalPresets}
+    onclose={() => { modalOpen = false; modalPresets = []; }}
+  />
+{/if}
 
 <style lang="scss">
   @use './ClassList.scss';

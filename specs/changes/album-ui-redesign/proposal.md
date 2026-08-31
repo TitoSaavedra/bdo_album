@@ -29,17 +29,18 @@ the Album shell with light/dark theme support, not another incremental CSS patch
   internal arrangement (the 7-column character grid) must **not** be redesigned — it's
   driven by how Black Desert itself lays out `FaceTexture` slots on disk, not a UI choice.
 - **Adds an in-app Settings surface** (gear icon in the Command Bar header) with:
-  a Light/Dark toggle, and an **accent-color picker**. Correction from the first pass:
-  the picker must change **only the accent** (buttons, focus/active states, modal/dialog
-  accents, brand touches) — backgrounds/surfaces/borders/text stay the single dark-or-
-  light neutral scale regardless of accent choice. (The exploration artifact currently
-  varies the *whole* neutral scale per swatch — see Group 2 in `tasks.md`, that's a bug
-  to fix in the artifact before this becomes real UI, not a spec for the real thing.)
-- App gets renamed and rebranded: working name **"Facet"** (a faceted-gem mark — ties
-  "face," what the app curates, to the gem-cutting motif already in BDO's own crafting/
-  jewelry) applied in the exploration artifact's titlebar/logo. Alternatives considered:
-  *Visage* (more literal), *Muse* (more generic/SaaS). **Not finalized** — needs a
-  decision (see `tasks.md`, Group 1).
+  a Light/Dark toggle, and an **accent-color picker**, default **Amber** (decided
+  2026-08-30). Correction from the first pass: the picker must change **only the accent**
+  (buttons, focus/active states, modal/dialog accents, brand touches) — backgrounds/
+  surfaces/borders/text stay the single dark-or-light neutral scale regardless of accent
+  choice. The exploration artifact varied the *whole* neutral scale per swatch; that bug
+  is now fixed there (Group 2, `tasks.md`). Theme + accent must persist across app
+  restarts, not just the running session.
+- App gets renamed and rebranded: **final name "Muse"** (decided 2026-08-30, over
+  Facet/Visage — see `tasks.md`, Group 1), applied in the exploration artifact's titlebar.
+  The faceted-gem logo mark (ties the app's curation of beauty presets to the gem-cutting
+  motif already in BDO's own crafting/jewelry iconography) is kept as the visual brand
+  mark independently of which name won.
 - **Framework decided: Tailwind v4 + Bits UI** (headless Svelte primitives) — gives full
   visual control rather than inheriting a kit's look, which matters since the goal (per
   the mission's public-release note) is a distinctive commercial feel, not a generic
@@ -59,5 +60,5 @@ the Album shell with light/dark theme support, not another incremental CSS patch
 - Not touching `scraper/`'s Dashboard UI in this change.
 - Not redesigning Face Grid's internal character-grid arrangement (constrained by how
   BDO itself stores face slots — see `specs/capabilities/face-grid/spec.md`).
-- Not finalizing framework, app name, or accent color yet — all three are open decisions
-  a human needs to make before implementation starts (`tasks.md`, Group 1).
+- Framework, app name, and default accent color are all now decided (`tasks.md`, Group 1)
+  — Tailwind v4 + Bits UI, "Muse", Amber, respectively.

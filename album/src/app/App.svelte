@@ -7,6 +7,8 @@
   import { eventBus } from '../lib/events';
   import Toast from '../ui/Toast/Toast.svelte';
   import type { ToastItem } from '../ui/Toast/Toast.svelte';
+  import Titlebar from '../ui/Titlebar/Titlebar.svelte';
+  import ModuleSwitcher from '../ui/ModuleSwitcher/ModuleSwitcher.svelte';
   import { getPresets, getPresetsByCreator, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
   import {
     beauty,
@@ -225,6 +227,8 @@
 </script>
 
 <div class="app">
+  <Titlebar />
+
   {#if !beauty.dbReady && !beauty.dbError}
     <div class="splash">
       <div class="splash-text">{$_('app.connecting')}</div>
@@ -234,39 +238,32 @@
       <div class="splash-text error">{$_(`errors.db.${beauty.dbError}`)}</div>
     </div>
   {:else}
-    <nav class="tab-nav">
-      <button class:active={activeTab === 'beauty'}    onclick={() => activeTab = 'beauty'}>{$_('app.tabs.beauty')}</button>
-      <button class:active={activeTab === 'face_grid'} onclick={() => activeTab = 'face_grid'}>{$_('app.tabs.face_grid')}</button>
-    </nav>
+    <ModuleSwitcher active={activeTab} onchange={(m) => (activeTab = m)} />
 
     {#if activeTab === 'beauty'}
-      <div class="layout">
-        <aside class="sidebar">
-          <ClassList
-            selectedClass={beauty.selectedClass}
-            onselect={handleSelectClass}
-          />
-        </aside>
-        <main class="main custom-scroll" bind:this={mainEl}>
-          {#if beauty.creatorFilter}
-            <div class="creator-banner">
-              {$_('beauty.preset_grid.creator_banner', { values: { creator: beauty.creatorFilter } })}
-              <button class="creator-banner-back" onclick={() => setCreatorFilter(null)}>
-                {$_('beauty.preset_grid.back_to_class', { values: { class: beauty.selectedClass ?? '' } })}
-              </button>
-            </div>
-          {/if}
-          <PresetGrid
-            {presets}
-            {livePresets}
-            selectedClass={beauty.selectedClass}
-            loading={presetsLoading}
-            error={presetsError}
-            {loadingMore}
-          />
-          <div bind:this={sentinelEl} class="scroll-sentinel"></div>
-        </main>
-      </div>
+      <ClassList
+        selectedClass={beauty.selectedClass}
+        onselect={handleSelectClass}
+      />
+      <main class="main custom-scroll" bind:this={mainEl}>
+        {#if beauty.creatorFilter}
+          <div class="creator-banner">
+            {$_('beauty.preset_grid.creator_banner', { values: { creator: beauty.creatorFilter } })}
+            <button class="creator-banner-back" onclick={() => setCreatorFilter(null)}>
+              {$_('beauty.preset_grid.back_to_class', { values: { class: beauty.selectedClass ?? '' } })}
+            </button>
+          </div>
+        {/if}
+        <PresetGrid
+          {presets}
+          {livePresets}
+          selectedClass={beauty.selectedClass}
+          loading={presetsLoading}
+          error={presetsError}
+          {loadingMore}
+        />
+        <div bind:this={sentinelEl} class="scroll-sentinel"></div>
+      </main>
     {:else}
       <FaceGridView />
     {/if}
