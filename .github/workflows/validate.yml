@@ -38,6 +38,18 @@ jobs:
         with:
           workspaces: scraper/src-tauri
 
+      - name: Cache playwright-rs bootstrap CLI
+        id: playwright-cli-cache
+        uses: actions/cache@v4
+        with:
+          path: scraper/src-tauri/tools/playwright-rs-cli
+          key: playwright-rs-cli-${{ runner.os }}-v0.15.0
+
+      # build.rs (tauri_build) checks this resource exists even for `cargo check`.
+      - name: Install playwright-rs bootstrap CLI
+        if: steps.playwright-cli-cache.outputs.cache-hit != 'true'
+        run: cargo install playwright-rs --version 0.15.0 --locked --features cli --root scraper/src-tauri/tools/playwright-rs-cli --bin playwright-rs
+
       - name: cargo check (scraper)
         working-directory: scraper/src-tauri
         run: cargo check --all-targets
