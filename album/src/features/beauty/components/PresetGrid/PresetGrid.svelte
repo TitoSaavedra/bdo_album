@@ -22,7 +22,7 @@
     loading = false,
     error = '',
     loadingMore = false,
-  } = $props<Props>();
+  }: Props = $props();
 
   let discarded = $state(new Set<string>());
 

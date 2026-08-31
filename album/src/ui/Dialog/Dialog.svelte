@@ -27,7 +27,7 @@
     cancelText = 'Cancel',
     onsubmit,
     oncancel,
-  } = $props<Props>();
+  }: Props = $props();
 
   let values = $state<string[]>([]);
 

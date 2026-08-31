@@ -14,7 +14,7 @@
     ondiscard?: (id: string) => void;
   }
 
-  const { preset, ondiscard } = $props<Props>();
+  const { preset, ondiscard }: Props = $props();
 
   const imageUrl  = $derived(preset.image_1_url ?? preset.image_2_url ?? null);
   const title     = $derived(preset.title || preset.character_name || `#${preset.preset_id}`);

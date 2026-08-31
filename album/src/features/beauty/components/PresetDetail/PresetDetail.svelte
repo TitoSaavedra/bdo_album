@@ -11,10 +11,6 @@
   import { withViewTransition } from '../../../../lib/viewTransition';
   import Button from '../../../../ui/Button/Button.svelte';
 
-  const images = $derived(
-    p ? [p.image_1_url, p.image_2_url].filter((u): u is string => !!u) : []
-  );
-
   let activeImage = $state('');
 
   $effect(() => {
@@ -32,6 +28,9 @@
   });
 
   const p         = $derived(beauty.presetDetail);
+  const images = $derived(
+    p ? [p.image_1_url, p.image_2_url].filter((u): u is string => !!u) : []
+  );
   const title     = $derived(p ? (p.title || p.character_name || `#${p.preset_id}`) : '');
   const id        = $derived(p?.preset_id ?? '');
   const nickname  = $derived(p?.user_nickname || null);

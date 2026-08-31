@@ -10,7 +10,7 @@
     onclose: () => void;
   }
 
-  const { presets, onclose } = $props<Props>();
+  const { presets, onclose }: Props = $props();
 
   const PAGE_SIZE = 16; // 4×4
 

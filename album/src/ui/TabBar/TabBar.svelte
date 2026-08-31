@@ -17,7 +17,7 @@
     actions?:   Snippet;
   }
 
-  const { tabs, activeTab = null, onselect, onremove, actions } = $props<Props>();
+  const { tabs, activeTab = null, onselect, onremove, actions }: Props = $props();
 </script>
 
 <div class="tab-bar">

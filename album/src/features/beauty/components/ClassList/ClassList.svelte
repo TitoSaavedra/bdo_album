@@ -31,7 +31,7 @@
     moduleSwitcher?: import('svelte').Snippet;
   }
 
-  const { selectedClass, onselect, moduleSwitcher } = $props<Props>();
+  const { selectedClass, onselect, moduleSwitcher }: Props = $props();
 
   let searchInput   = $state('');
   let popoverOpen   = $state(false);

@@ -27,7 +27,7 @@
     actions   = [],
     busy      = false,
     emptyText = 'No items',
-  } = $props<Props>();
+  }: Props = $props();
 </script>
 
 <aside class="sidebar-list">

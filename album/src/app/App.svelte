@@ -88,10 +88,15 @@
       : []
   );
 
-  onMount(async () => {
-    await eventBus.init();
-    const regions = await getRegions().catch(() => []);
-    setAvailableRegions(regions);
+  onMount(() => {
+    // Svelte ignores the return value of an async onMount callback — the
+    // cleanup below only actually registers if this stays synchronous, so
+    // the async init runs as a fire-and-forget IIFE instead.
+    (async () => {
+      await eventBus.init();
+      const regions = await getRegions().catch(() => []);
+      setAvailableRegions(regions);
+    })();
     check().then((u) => { if (u) pendingUpdate = u; }).catch(() => {});
     return () => eventBus.destroy();
   });
