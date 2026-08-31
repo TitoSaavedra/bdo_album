@@ -35,4 +35,5 @@ export const CLASSES: BdoClass[] = [
   { id: 28, name: 'Deadeye'    },
   { id: 29, name: 'Wukong'     },
   { id: 30, name: 'Seraph'     },
+  { id: 31, name: 'Agent'      },
 ];
