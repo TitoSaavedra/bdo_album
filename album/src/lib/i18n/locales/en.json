@@ -10,6 +10,22 @@
       "available": "Update {version} available — click to install"
     }
   },
+  "titlebar": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "close": "Close"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "accent_color": "Accent color",
+    "accent_amber": "Amber",
+    "accent_violet": "Violet",
+    "accent_coral": "Coral",
+    "accent_teal": "Champagne Teal"
+  },
   "beauty": {
     "class_list": {
       "search_placeholder": "Search title, author, character...",

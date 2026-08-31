@@ -1,0 +1,32 @@
+.module-switcher {
+  display: flex;
+  gap: 4px;
+  padding: 8px 20px;
+  flex-shrink: 0;
+  background: var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mod-btn {
+  padding: 6px 16px;
+  border-radius: 99px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.mod-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
+}
+
+.mod-btn.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-btn-text-on-accent);
+}

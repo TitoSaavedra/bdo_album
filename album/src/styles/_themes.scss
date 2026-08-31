@@ -1,20 +1,146 @@
-[data-theme="light"] {
-  --color-bg-base: #ffffff;
-  --color-bg-surface: #f5f7fa;
-  --color-bg-elevated: #eef1f7;
+// Light theme — full counterpart to the dark defaults in _tokens.scss.
+// Every token dark defines gets a light value here; nothing is left to fall
+// back to a dark value by omission.
+[data-theme='light'] {
+  /* ===== BACKGROUNDS & SURFACES ===== */
+
+  --color-bg-base: #f6f5f1;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #f0eee8;
+  --color-bg-skeleton: #ece9e2;
+  --color-bg-deeper: #efece5;
+  --color-bg-deepest: #e8e4db;
   --color-bg-panel: #ffffff;
-  --color-bg-input: #f8fafd;
-  --color-bg-hover: #e8ecf5;
-  --color-text-primary: #1a1f36;
-  --color-text-secondary: #4a5568;
-  --color-text-muted: #8892a8;
-  --color-border: #d4dce8;
-  --color-border-subtle: #e8ecf5;
-  --color-accent: #1f7bae;
-  --color-accent-primary: #1f7bae;
-  --color-status-success: #2e7d32;
-  --color-status-warning: #d97706;
+  --color-bg-input: #fbfaf7;
+  --color-bg-hover: #ece9e1;
+  --color-bg-card: #ffffff;
+  --color-bg-footer: #f5f3ee;
+  --color-bg-container: #f7f5f0;
+  --color-bg-section: #f5f3ee;
+  --color-modal-bg: #ffffff;
+  --color-modal-panel-left: #f5f3ee;
+  --color-modal-panel-right: #ffffff;
+  --color-bg-glass: rgba(255, 255, 255, 0.9);
+
+  /* ===== TEXT ===== */
+
+  --color-text-primary: #16181d;
+  --color-text-secondary: #5c6170;
+  --color-text-muted: #9a9da8;
+  --color-text-bright: #101317;
+  --color-text-error: #dc2626;
+
+  /* ===== BORDERS ===== */
+
+  --color-border: #e4e1da;
+  --color-border-subtle: #ece9e1;
+  --color-border-hover: #cdc8bb;
+  --color-border-light: #efece5;
+  --color-border-deep: #ddd8cc;
+  --color-border-darker: #c7c2b5;
+  --color-modal-border: #e2ded5;
+
+  /* ===== ACCENT (default Amber — see [data-accent] below for the other choices) ===== */
+
+  --color-accent: #b8720f;
+  --color-accent-rgb: 184, 114, 15;
+  --color-accent-primary: #b8720f;
+  --color-accent-primary-hover: #a3660d;
+  --color-accent-gradient: #8f5c0c;
+  --color-accent-secondary: #0e93a8;
+  --color-accent-tertiary: #7c3aed;
+  --color-accent-quaternary: #9333ea;
+  --color-accent-quaternary-rgb: 147, 51, 234;
+
+  /* ===== STATUS ===== */
+
+  --color-status-success: #1f9d5c;
+  --color-status-success-light: #16a34a;
+  --color-status-success-lighter: #22c55e;
+  --color-status-warning: #b45309;
+  --color-status-warning-light: #d97706;
   --color-status-error: #d32f2f;
-  --color-scrollbar: #bcc4d4;
-  --color-overlay-dark: rgba(0, 0, 0, 0.15);
+  --color-error: #d32f2f;
+  --color-error-rgb: 211, 47, 47;
+  --color-status-info: #2563eb;
+  --color-cyan: #0f9c8f;
+  --color-purple: #7c5cf0;
+
+  /* ===== LOG TAG COLORS ===== */
+
+  --color-log-err: #dc2626;
+  --color-log-warn: #b45309;
+  --color-log-user: #2563eb;
+  --color-log-pop: #0d9488;
+  --color-log-sync: #0d9488;
+  --color-log-default: #94a3b8;
+
+  /* ===== COMPONENT-SPECIFIC ===== */
+
+  --color-favorite-icon: #c98aa8;
+  --color-favorite-text: #9d5c78;
+  --color-favorite-active: #d33f3f;
+  --color-favorite-active-rgb: 211, 63, 63;
+  --color-favorite-active-hover: #b82e2e;
+  --color-favorite-stat: #a8748c;
+  --color-favorite-stat-hover: #8c5c70;
+
+  --color-btn-text: #55606f;
+  --color-btn-text-on-accent: #fff7ea;
+
+  /* ===== MISC ===== */
+
+  --color-scrollbar: #d8d4c9;
+  --color-overlay-dark: rgba(20, 15, 5, 0.15);
+}
+
+// ── Accent picker (Settings) — overrides ONLY the accent identity tokens.
+// Backgrounds/surfaces/borders/text always come from [data-theme] above,
+// never from [data-accent]. Amber is the default (no attribute needed, see
+// _tokens.scss / [data-theme="light"] above). Hex values match the
+// exploration artifact (specs/changes/album-ui-redesign/artifact-link.md).
+
+[data-accent='violet'] {
+  --color-accent: #8b7bf0;
+  --color-accent-rgb: 139, 123, 240;
+  --color-accent-primary: #8b7bf0;
+  --color-accent-primary-hover: #7a68ee;
+  --color-btn-text-on-accent: #160f2e;
+}
+[data-theme='light'][data-accent='violet'] {
+  --color-accent: #6350c8;
+  --color-accent-rgb: 99, 80, 200;
+  --color-accent-primary: #6350c8;
+  --color-accent-primary-hover: #5642b3;
+  --color-btn-text-on-accent: #f8f7ff;
+}
+
+[data-accent='coral'] {
+  --color-accent: #f2735e;
+  --color-accent-rgb: 242, 115, 94;
+  --color-accent-primary: #f2735e;
+  --color-accent-primary-hover: #ef5d45;
+  --color-btn-text-on-accent: #2b0c06;
+}
+[data-theme='light'][data-accent='coral'] {
+  --color-accent: #e05a44;
+  --color-accent-rgb: 224, 90, 68;
+  --color-accent-primary: #e05a44;
+  --color-accent-primary-hover: #c94a35;
+  --color-btn-text-on-accent: #fff5f2;
+}
+
+[data-accent='teal'] {
+  --color-accent: #d8b98a;
+  --color-accent-rgb: 216, 185, 138;
+  --color-accent-primary: #d8b98a;
+  --color-accent-primary-hover: #cca872;
+  --color-btn-text-on-accent: #24190a;
+}
+[data-theme='light'][data-accent='teal'] {
+  --color-accent: #a9812f;
+  --color-accent-rgb: 169, 129, 47;
+  --color-accent-primary: #a9812f;
+  --color-accent-primary-hover: #93701f;
+  --color-btn-text-on-accent: #fff9ee;
 }

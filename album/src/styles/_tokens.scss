@@ -37,13 +37,17 @@
   --color-border-darker: #243040;
   --color-modal-border: #1e2a38;
 
-  /* ===== ACCENT ===== */
+  /* ===== ACCENT =====
+     Single accent identity, swappable via [data-accent] (see _themes.scss) —
+     Settings' accent picker only ever touches these tokens, never the
+     backgrounds/surfaces/borders/text above. Default: Amber (decided
+     2026-08-30, see specs/changes/album-ui-redesign). */
 
-  --color-accent: #ffcc4d;
-  --color-accent-rgb: 255, 204, 77;
-  --color-accent-primary: #ffcc4d;
-  --color-accent-primary-hover: #ffcc4d;
-  --color-accent-gradient: #b3861b;
+  --color-accent: #f2a94e;
+  --color-accent-rgb: 242, 169, 78;
+  --color-accent-primary: #f2a94e;
+  --color-accent-primary-hover: #f5b767;
+  --color-accent-gradient: #b3811f;
   --color-accent-secondary: #06b6d4;
   --color-accent-tertiary: #8b5cf6;
   --color-accent-quaternary: #a855f7;
@@ -83,7 +87,7 @@
   --color-favorite-stat-hover: #7c4f6d;
 
   --color-btn-text: #475569;
-  --color-btn-text-on-accent: #0a0c10;
+  --color-btn-text-on-accent: #211405;
 
   /* ===== MISC ===== */
 
