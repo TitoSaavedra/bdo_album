@@ -55,6 +55,9 @@
       "tap_to_filter": "tap to filter",
       "no_favorite_creators": "No favorite creators yet — tap the ♥ next to any creator's name to pin them here.",
       "unfavorite_creator": "Unfavorite creator",
+      "unfavorite_creator_title": "Remove favorite creator?",
+      "unfavorite_creator_msg": "\"{creator}\" will no longer be pinned or highlighted across the grid. You can re-favorite them anytime.",
+      "unfavorite_creator_confirm": "Remove",
       "chip_region": "Region",
       "chip_uploaded": "Uploaded",
       "chip_creator": "Creator",
@@ -69,7 +72,10 @@
       "discard": "Discard",
       "downloads": "Downloads",
       "views": "Views",
-      "likes": "Likes"
+      "likes": "Likes",
+      "tier_downloaded": "Downloaded",
+      "tier_wishlist": "Wishlist",
+      "tier_favorite_creator": "Favorite creator"
     },
     "preset_grid": {
       "select_class": "Select a class to browse presets",
@@ -79,6 +85,7 @@
       "back_to_class": "✕ Back to {class}"
     },
     "preset_detail": {
+      "back_to_grid": "Back to grid",
       "sharpen_on": "Sharpen: ON",
       "sharpen_off": "Sharpen: OFF",
       "image_n": "Image {n}",

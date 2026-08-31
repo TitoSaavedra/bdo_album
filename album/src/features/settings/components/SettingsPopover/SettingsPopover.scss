@@ -1,0 +1,111 @@
+// :global() on the classes handed to Popover.Trigger/Content/Close — Svelte's
+// scoped-CSS pruning can't see that those props land on a real DOM element
+// (it's forwarded through bits-ui, not used on a native element in this
+// template), so without :global() it silently drops these rules entirely.
+:global(.settings-trigger) {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 99px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  transition: color 0.15s;
+}
+
+:global(.settings-trigger:hover) { color: var(--color-text-primary); }
+
+:global(.settings-content) {
+  z-index: 50;
+  width: 300px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--color-modal-bg);
+  border: 1px solid var(--color-modal-border);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.03);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+:global(.settings-close) {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+:global(.settings-close:hover) { background: var(--color-bg-elevated); color: var(--color-text-primary); }
+
+.section { margin-bottom: 22px; }
+.section:last-child { margin-bottom: 0; }
+
+.label {
+  margin-bottom: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+}
+
+.seg-btn {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.seg-btn.active {
+  background: var(--color-bg-surface);
+  color: var(--color-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 99px;
+  border: none;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}

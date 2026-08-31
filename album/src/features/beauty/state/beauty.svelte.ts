@@ -79,12 +79,24 @@ export function selectClass(cls: ClassEntry) {
 
 // ── Preset detail modal ───────────────────────────────────────
 
+// Not reactive state on purpose — nothing renders off this directly, it's
+// only read when the mouse "forward" button asks to reopen whatever was
+// last closed (one-slot back/forward history, same idea as browser nav).
+let lastClosedPreset: (PresetEntry & { class_display: string }) | null = null;
+
 export function openPreset(preset: PresetEntry, classDisplay: string) {
   beauty.presetDetail = { ...preset, class_display: classDisplay };
 }
 
 export function closePreset() {
+  if (beauty.presetDetail) lastClosedPreset = beauty.presetDetail;
   beauty.presetDetail = null;
+}
+
+export function reopenLastPreset() {
+  if (lastClosedPreset && !beauty.presetDetail) {
+    beauty.presetDetail = lastClosedPreset;
+  }
 }
 
 // ── Class favorites ───────────────────────────────────────────

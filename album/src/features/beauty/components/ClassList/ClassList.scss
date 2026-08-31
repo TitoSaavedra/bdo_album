@@ -17,6 +17,13 @@
   flex-wrap: wrap;
 }
 
+.bar-divider {
+  width: 1px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
 .search-wrap {
   flex: 1 1 220px;
   min-width: 180px;
@@ -110,7 +117,7 @@
 .tool-btn .badge {
   font-size: 9.5px;
   font-weight: 800;
-  font-family: monospace;
+  font-family: var(--font-mono);
   padding: 1px 6px;
   border-radius: 99px;
   background: var(--color-bg-elevated);
@@ -211,13 +218,17 @@
   margin: 0;
 }
 
-// ── Favorite-creator chips (inline in the bar row) ────────────
+// ── Favorite-creator chips (own row below the class-pills strip) ──
+// Wraps rather than scrolling — there are rarely more than a handful of
+// favorited creators, unlike the ~30-class list above it.
 
 .creator-chips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
-  flex-shrink: 1;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .creator-chip {
@@ -342,16 +353,25 @@
 
 .clear-all:hover { color: var(--color-text-primary); }
 
-// ── Class pills strip ────────────────────────────────────────
+// ── Class pills strip — single line, horizontal scroll (not wrap) ──
 
 .class-pills {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 6px;
   transition: opacity 0.2s;
+  scrollbar-width: none; // Firefox
+  cursor: grab;
 }
 
 .class-pills.dimmed { opacity: 0.4; }
+.class-pills.dragging { cursor: grabbing; user-select: none; }
+
+// Hidden — a full-bleed row of pills mid-header already reads as scrollable
+// (cut-off pill at the edge, wheel scroll works), no track/thumb needed.
+.class-pills::-webkit-scrollbar { display: none; }
 
 .status {
   font-size: 11px;
@@ -360,6 +380,8 @@
   padding: 8px;
   letter-spacing: 0.05em;
 }
+
+.pill-wrap { flex-shrink: 0; }
 
 .class-pill {
   display: flex;
@@ -391,10 +413,14 @@
 
 .pill-count {
   font-size: 10px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   opacity: 0.7;
 }
 
+// Class icons come from the DB as raw SVG markup with their own (varied,
+// uncontrolled) fill colors — brightness(0) flattens any of them to solid
+// black, then invert(1) flips that to solid white for dark theme. Forces
+// icon color to always match theme text regardless of the source SVG.
 .pill-icon {
   width: 16px;
   height: 16px;
@@ -402,6 +428,11 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  filter: brightness(0) invert(1);
+}
+
+:global([data-theme='light']) .pill-icon {
+  filter: brightness(0);
 }
 
 .pill-icon :global(svg) {
@@ -411,7 +442,7 @@
 
 .live-badge {
   font-size: 9px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   color: #fff;
   background: #3d9e4a;

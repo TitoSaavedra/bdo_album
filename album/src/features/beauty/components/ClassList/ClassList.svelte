@@ -11,6 +11,7 @@
   } from '../../../../lib/album';
   import Input       from '../../../../ui/Input/Input.svelte';
   import PillSelector        from '../../../../ui/PillSelector/PillSelector.svelte';
+  import Dialog              from '../../../../ui/Dialog/Dialog.svelte';
   import WantedDownloadModal from '../WantedDownloadModal/WantedDownloadModal.svelte';
   import {
     beauty,
@@ -27,14 +28,61 @@
   interface Props {
     selectedClass: string | null;
     onselect:      (cls: ClassEntry) => void;
+    moduleSwitcher?: import('svelte').Snippet;
   }
 
-  const { selectedClass, onselect } = $props<Props>();
+  const { selectedClass, onselect, moduleSwitcher } = $props<Props>();
 
-  let searchInput  = $state('');
-  let popoverOpen  = $state(false);
-  let modalPresets = $state<PresetEntry[]>([]);
-  let modalOpen    = $state(false);
+  let searchInput   = $state('');
+  let popoverOpen   = $state(false);
+  let modalPresets  = $state<PresetEntry[]>([]);
+  let modalOpen     = $state(false);
+  let classPillsEl: HTMLElement | undefined = $state();
+
+  // The class strip only scrolls horizontally — redirect vertical wheel
+  // input into it (standard treatment for a horizontal-scroll row) instead
+  // of requiring a shift-scroll or a drag on the thin scrollbar. Only when
+  // there's actually overflow to scroll, so the page's own scroll isn't
+  // hijacked when every class pill already fits on screen.
+  function onClassPillsWheel(e: WheelEvent) {
+    if (!classPillsEl || e.deltaY === 0) return;
+    if (classPillsEl.scrollWidth <= classPillsEl.clientWidth) return;
+    e.preventDefault();
+    classPillsEl.scrollLeft += e.deltaY;
+  }
+
+  // Click-and-drag ("grab to scroll") on the same strip. `dragMoved` gates
+  // the click-capture handler below so a drag that ends on top of a pill
+  // doesn't also select that class — only a genuine stationary click does.
+  let isDragging   = $state(false);
+  let dragMoved    = $state(false);
+  let dragStartX   = 0;
+  let dragStartScroll = 0;
+
+  function onClassPillsMouseDown(e: MouseEvent) {
+    if (!classPillsEl || e.button !== 0) return;
+    isDragging   = true;
+    dragMoved    = false;
+    dragStartX   = e.clientX;
+    dragStartScroll = classPillsEl.scrollLeft;
+  }
+
+  function onWindowMouseMove(e: MouseEvent) {
+    if (!isDragging || !classPillsEl) return;
+    const dx = e.clientX - dragStartX;
+    if (Math.abs(dx) > 4) dragMoved = true;
+    if (dragMoved) classPillsEl.scrollLeft = dragStartScroll - dx;
+  }
+
+  function onWindowMouseUp() {
+    isDragging = false;
+  }
+
+  function onClassPillsClickCapture(e: MouseEvent) {
+    if (dragMoved) { e.preventDefault(); e.stopPropagation(); }
+  }
+
+  let confirmUnfavoriteCreator: string | null = $state(null);
 
   const SORT_PILLS = $derived([
     { value: 'downloads', label: $_('beauty.class_list.sort_downloads') },
@@ -134,8 +182,15 @@
   }
 </script>
 
+<svelte:window onmousemove={onWindowMouseMove} onmouseup={onWindowMouseUp} />
+
 <header class="command-bar">
   <div class="bar-row">
+    {#if moduleSwitcher}
+      {@render moduleSwitcher()}
+      <div class="bar-divider"></div>
+    {/if}
+
     <div class="search-wrap">
       <Input bind:value={searchInput} placeholder={$_('beauty.class_list.search_placeholder')}>
         {#snippet icon()}
@@ -161,24 +216,6 @@
         >{opt.label}</button>
       {/each}
     </div>
-
-    {#if favoriteCreatorNames.length > 0}
-      <div class="creator-chips" aria-label={$_('beauty.class_list.favorite_creators')}>
-        {#each favoriteCreatorNames as name (name)}
-          <span class="creator-chip" class:active={beauty.creatorFilter === name}>
-            <button class="creator-chip-main" onclick={() => handleCreatorChipClick(name)}>
-              <span class="avatar" style="background: hsl({creatorHue(name)} 55% 40%)">{name.charAt(0).toUpperCase()}</span>
-              <span class="name">{name}</span>
-            </button>
-            <button
-              class="creator-chip-remove"
-              onclick={() => handleToggleCreatorFavorite(name)}
-              title={$_('beauty.class_list.unfavorite_creator')}
-            >✕</button>
-          </span>
-        {/each}
-      </div>
-    {/if}
 
     <div class="bar-actions">
       <button
@@ -279,7 +316,16 @@
     </div>
   {/if}
 
-  <div class="class-pills custom-scroll" class:dimmed={!!beauty.creatorFilter} aria-label={$_('beauty.class_list.classes')}>
+  <div
+    class="class-pills"
+    class:dimmed={!!beauty.creatorFilter}
+    class:dragging={isDragging && dragMoved}
+    aria-label={$_('beauty.class_list.classes')}
+    bind:this={classPillsEl}
+    onwheel={onClassPillsWheel}
+    onmousedown={onClassPillsMouseDown}
+    onclickcapture={onClassPillsClickCapture}
+  >
     {#if beauty.classes.length === 0}
       <p class="status">{$_('beauty.class_list.waiting_db')}</p>
     {:else if sorted.length === 0}
@@ -320,7 +366,38 @@
       {/each}
     {/if}
   </div>
+
+  {#if favoriteCreatorNames.length > 0}
+    <div class="creator-chips" aria-label={$_('beauty.class_list.favorite_creators')}>
+      {#each favoriteCreatorNames as name (name)}
+        <span class="creator-chip" class:active={beauty.creatorFilter === name}>
+          <button class="creator-chip-main" onclick={() => handleCreatorChipClick(name)}>
+            <span class="avatar" style="background: hsl({creatorHue(name)} 55% 40%)">{name.charAt(0).toUpperCase()}</span>
+            <span class="name">{name}</span>
+          </button>
+          <button
+            class="creator-chip-remove"
+            onclick={() => (confirmUnfavoriteCreator = name)}
+            title={$_('beauty.class_list.unfavorite_creator')}
+          >✕</button>
+        </span>
+      {/each}
+    </div>
+  {/if}
 </header>
+
+{#if confirmUnfavoriteCreator}
+  <Dialog
+    title={$_('beauty.class_list.unfavorite_creator_title')}
+    message={$_('beauty.class_list.unfavorite_creator_msg', { values: { creator: confirmUnfavoriteCreator } })}
+    submitText={$_('beauty.class_list.unfavorite_creator_confirm')}
+    onsubmit={() => {
+      if (confirmUnfavoriteCreator) handleToggleCreatorFavorite(confirmUnfavoriteCreator);
+      confirmUnfavoriteCreator = null;
+    }}
+    oncancel={() => (confirmUnfavoriteCreator = null)}
+  />
+{/if}
 
 {#if modalOpen}
   <WantedDownloadModal

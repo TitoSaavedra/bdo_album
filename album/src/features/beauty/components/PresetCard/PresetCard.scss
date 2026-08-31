@@ -1,7 +1,7 @@
 .preset-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -107,10 +107,12 @@
   transform: translateY(0);
 }
 
+// Always white, regardless of theme — it sits on the gradient-overlay's
+// fixed black-based scrim over a photo, not on the page background.
 .card-title {
   font-size: 13px;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: #fff;
   letter-spacing: 0.03em;
   white-space: nowrap;
   overflow: hidden;
@@ -134,34 +136,39 @@
   border-radius: 4px;
 }
 
+.tier-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 99px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.tier-badge-pab     { background: var(--color-status-success-light); }
+.tier-badge-wanted  { background: var(--color-accent-quaternary); }
+.tier-badge-creator { background: var(--color-favorite-active); }
+
 .creator-row {
   display: flex;
   align-items: center;
   gap: 5px;
 }
 
+// Same fixed-light treatment as .card-title — same dark scrim underneath.
 .creator-name {
   font-size: 10.5px;
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.75);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.creator-fav-btn {
-  flex: 0 0 auto;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  line-height: 1;
-  transition: color 0.15s, transform 0.15s;
-}
-
-.creator-fav-btn:hover { color: var(--color-favorite-active-hover); transform: scale(1.15); }
-.creator-fav-btn.on { color: var(--color-favorite-active); }
 
 .card-actions {
   position: absolute;
@@ -243,7 +250,7 @@
 
 .stat {
   font-size: 10px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   color: var(--color-btn-text);
   letter-spacing: 0.04em;
 }

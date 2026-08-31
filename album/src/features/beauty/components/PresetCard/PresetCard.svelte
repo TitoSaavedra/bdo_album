@@ -1,13 +1,13 @@
 <script lang="ts">
   import { _ } from 'svelte-i18n';
   import type { PresetEntry } from '../../../../lib/album';
-  import { discardPreset, toggleWanted, setCreatorFavorite } from '../../../../lib/album';
+  import { discardPreset, toggleWanted } from '../../../../lib/album';
   import {
     beauty,
     toggleWantedPreset,
-    toggleCreatorFavorite,
     openPreset,
   } from '../../state/beauty.svelte';
+  import { withViewTransition } from '../../../../lib/viewTransition';
 
   interface Props {
     preset:     PresetEntry;
@@ -30,22 +30,32 @@
   // green (downloaded) or purple (wishlisted) — those two already earn a look.
   const showFavCreator = $derived(isFavoriteCreator && !hasPab && !isWanted);
 
+  const tierBadge = $derived(
+    hasPab ? 'pab' : isWanted ? 'wanted' : showFavCreator ? 'creator' : null
+  );
+  const tierBadgeLabel = $derived(
+    tierBadge === 'pab' ? $_('beauty.preset_card.tier_downloaded')
+    : tierBadge === 'wanted' ? $_('beauty.preset_card.tier_wishlist')
+    : tierBadge === 'creator' ? $_('beauty.preset_card.tier_favorite_creator')
+    : ''
+  );
+
+  let cardEl: HTMLElement | undefined = $state();
+
+  // Grow-in-place morph into PresetDetail via the View Transitions API — the
+  // thumb (not the whole card) carries the shared view-transition-name so
+  // only the image morphs into the detail hero; falls back to an instant
+  // swap when the API is unsupported or reduced-motion is requested.
   function handleClick() {
-    openPreset(preset, preset.class_name);
+    const thumb = cardEl?.querySelector<HTMLElement>('.thumb, .skeleton-thumb');
+    if (thumb) thumb.style.viewTransitionName = 'morph-thumb';
+    withViewTransition(() => openPreset(preset, preset.class_name));
   }
 
   async function handleToggleWant(e: MouseEvent) {
     e.stopPropagation();
     toggleWantedPreset(id);
     try { await toggleWanted(id); } catch { /* non-fatal */ }
-  }
-
-  async function handleToggleCreatorFavorite(e: MouseEvent) {
-    e.stopPropagation();
-    if (!nickname) return;
-    toggleCreatorFavorite(nickname);
-    const isFav = beauty.creatorFavorites.has(nickname);
-    try { await setCreatorFavorite(nickname, isFav); } catch { /* non-fatal */ }
   }
 
   async function handleDiscard(e: MouseEvent) {
@@ -64,6 +74,7 @@
   class:wished={isWanted}
   class:has-pab={hasPab}
   class:fav-creator={showFavCreator}
+  bind:this={cardEl}
   onclick={handleClick}
   role="button"
   tabindex="0"
@@ -80,17 +91,15 @@
       <span class="class-tag">{preset.class_name}</span>
     {/if}
 
+    {#if tierBadge}
+      <span class="tier-badge tier-badge-{tierBadge}">{tierBadgeLabel}</span>
+    {/if}
+
     <div class="gradient-overlay">
       <h3 class="card-title" title={title}>{title}</h3>
       {#if nickname}
         <div class="creator-row">
           <span class="creator-name" title={nickname}>@{nickname}</span>
-          <button
-            class="creator-fav-btn"
-            class:on={isFavoriteCreator}
-            title={isFavoriteCreator ? $_('beauty.preset_card.unfavorite_creator') : $_('beauty.preset_card.favorite_creator')}
-            onclick={handleToggleCreatorFavorite}
-          >♥</button>
         </div>
       {/if}
     </div>

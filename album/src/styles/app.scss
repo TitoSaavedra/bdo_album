@@ -1,9 +1,6 @@
 @use 'tokens';
 @use 'themes';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@use 'fonts';
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -15,7 +12,21 @@ html, body {
 body {
   background: linear-gradient(135deg, #06080a 0%, #0b0f14 100%);
   color: var(--color-text-primary);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
+}
+
+// Command Bar's card→detail morph (PresetCard → PresetDetail).
+::view-transition-group(morph-thumb) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }

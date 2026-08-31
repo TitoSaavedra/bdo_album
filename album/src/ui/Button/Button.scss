@@ -3,12 +3,11 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.15s, opacity 0.15s;
 
   &:disabled {
@@ -20,13 +19,13 @@
 
 .btn-primary {
   padding: 8px 14px;
-  background: transparent;
+  background: var(--color-accent);
   border: 1px solid var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-btn-text-on-accent);
 
   &:hover:not(:disabled) {
-    background: var(--color-accent);
-    color: #000;
+    background: var(--color-accent-primary-hover);
+    border-color: var(--color-accent-primary-hover);
   }
 
   &:active:not(:disabled) {

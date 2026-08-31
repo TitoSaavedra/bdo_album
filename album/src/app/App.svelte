@@ -19,7 +19,9 @@
     setAvailableRegions,
     setSearchCounts,
     setCreatorFilter,
+    reopenLastPreset,
   } from '../features/beauty/state/beauty.svelte';
+  import { withViewTransition } from '../lib/viewTransition';
   import type { ClassEntry, PresetEntry } from '../lib/album';
   import ClassList    from '../features/beauty/components/ClassList/ClassList.svelte';
   import PresetGrid   from '../features/beauty/components/PresetGrid/PresetGrid.svelte';
@@ -142,6 +144,34 @@
     });
   });
 
+  // Preserve the grid's scroll position across opening/closing a preset —
+  // PresetDetail replaces PresetGrid inside the same scrollable `mainEl`, so
+  // without this the browser clamps scrollTop to 0 while the (shorter)
+  // detail content is showing and that's lost for good once we're back.
+  // `$effect.pre` runs before the DOM patches for a given change, so on the
+  // opening transition `mainEl` still holds the outgoing grid when we read
+  // its scrollTop; the plain `$effect` below runs after the DOM patches, so
+  // on the closing transition `mainEl` already holds the restored grid.
+  let savedGridScrollTop = 0;
+  let presetDetailWasOpen = false;
+  $effect.pre(() => {
+    const isOpen = !!beauty.presetDetail;
+    if (isOpen && !presetDetailWasOpen && mainEl) savedGridScrollTop = mainEl.scrollTop;
+    presetDetailWasOpen = isOpen;
+  });
+  $effect(() => {
+    if (!beauty.presetDetail && mainEl) mainEl.scrollTop = savedGridScrollTop;
+  });
+
+  // Mouse side buttons: back (3) closes the open preset, forward (4) reopens
+  // whatever was last closed — same one-slot back/forward feel as a browser,
+  // scoped to the Beauty tab since Face Grid has no equivalent navigation.
+  function handleMouseNav(e: MouseEvent) {
+    if (activeTab !== 'beauty' || e.button !== 4) return;
+    e.preventDefault();
+    withViewTransition(() => reopenLastPreset());
+  }
+
   // Infinite scroll — fires when sentinel enters the scroll container
   $effect(() => {
     if (!sentinelEl || !mainEl) return;
@@ -226,6 +256,8 @@
   }
 </script>
 
+<svelte:window onmousedown={handleMouseNav} />
+
 <div class="app">
   <Titlebar />
 
@@ -238,38 +270,47 @@
       <div class="splash-text error">{$_(`errors.db.${beauty.dbError}`)}</div>
     </div>
   {:else}
-    <ModuleSwitcher active={activeTab} onchange={(m) => (activeTab = m)} />
+    {#snippet moduleSwitcherSnippet()}
+      <ModuleSwitcher active={activeTab} onchange={(m) => (activeTab = m)} />
+    {/snippet}
 
     {#if activeTab === 'beauty'}
       <ClassList
         selectedClass={beauty.selectedClass}
         onselect={handleSelectClass}
+        moduleSwitcher={moduleSwitcherSnippet}
       />
       <main class="main custom-scroll" bind:this={mainEl}>
-        {#if beauty.creatorFilter}
-          <div class="creator-banner">
-            {$_('beauty.preset_grid.creator_banner', { values: { creator: beauty.creatorFilter } })}
-            <button class="creator-banner-back" onclick={() => setCreatorFilter(null)}>
-              {$_('beauty.preset_grid.back_to_class', { values: { class: beauty.selectedClass ?? '' } })}
-            </button>
-          </div>
+        {#if beauty.presetDetail}
+          <PresetDetail />
+        {:else}
+          {#if beauty.creatorFilter}
+            <div class="creator-banner">
+              {$_('beauty.preset_grid.creator_banner', { values: { creator: beauty.creatorFilter } })}
+              <button class="creator-banner-back" onclick={() => setCreatorFilter(null)}>
+                {$_('beauty.preset_grid.back_to_class', { values: { class: beauty.selectedClass ?? '' } })}
+              </button>
+            </div>
+          {/if}
+          <PresetGrid
+            {presets}
+            {livePresets}
+            selectedClass={beauty.selectedClass}
+            loading={presetsLoading}
+            error={presetsError}
+            {loadingMore}
+          />
+          <div bind:this={sentinelEl} class="scroll-sentinel"></div>
         {/if}
-        <PresetGrid
-          {presets}
-          {livePresets}
-          selectedClass={beauty.selectedClass}
-          loading={presetsLoading}
-          error={presetsError}
-          {loadingMore}
-        />
-        <div bind:this={sentinelEl} class="scroll-sentinel"></div>
       </main>
     {:else}
+      <div class="module-row-solo">
+        {@render moduleSwitcherSnippet()}
+      </div>
       <FaceGridView />
     {/if}
   {/if}
 
-  <PresetDetail />
   <LiveDot />
 </div>
 
