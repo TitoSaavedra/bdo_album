@@ -5,11 +5,18 @@
 # only its Cargo.toml is copied in so the workspace graph resolves.
 #
 # Chromium + its Linux system deps are baked in at build time (not on first
-# container start): the apt step installs into the image's rootfs either way
-# (nothing to persist across a `--rm` container via a volume), so doing the
-# Playwright driver/Chromium download in the same RUN is free — it removes
-# first-run latency on the daily cron `scrape` run and lets the runtime
-# container run as non-root always.
+# container start), so a daily `--rm` cron run of `scrape` never re-downloads
+# ~240MB. Runtime container runs as root, not a security choice: verified by
+# testing — `bdo_scraper_core::scraper::browser::bootstrap_driver` calls
+# `install_browsers()`, which on Linux unconditionally re-runs the driver's
+# own `install --with-deps` on *every* browser launch (not just when
+# something is actually missing). `--with-deps` shells out to apt and, when
+# not already root, tries `su` to escalate — which fails non-interactively
+# (`su: Authentication failure`) with no root password configured. So a
+# non-root runtime user can never launch the browser at all today, no matter
+# what's pre-baked at build time. Dropping privileges here would require a
+# code change upstream (skip the redundant `--with-deps` when deps are
+# already known-present) — out of scope for this Dockerfile.
 
 ########## 1. builder ##########
 FROM rust:1-slim-bookworm AS builder
@@ -38,24 +45,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Never assume UID/GID 1000 — fed from compose's ${PUID}/${PGID}.
-ARG PUID=1000
-ARG PGID=1000
-RUN groupadd -g "${PGID}" scraper \
-    && useradd -u "${PUID}" -g "${PGID}" -m -d /home/scraper -s /usr/sbin/nologin scraper
-
 COPY --from=builder /build/target/release/scrape /usr/local/bin/scrape
 COPY --from=builder /build/target/release/download_daemon /usr/local/bin/download_daemon
 COPY --from=builder /build/playwright-rs-cli /opt/tools/playwright-rs-cli
 ENV PLAYWRIGHT_RS_CLI_PATH=/opt/tools/playwright-rs-cli/bin/playwright-rs
 
 # Bake driver + Chromium + system deps now (root, network available) instead
-# of on first container start.
+# of on first container start — first-run latency/flakiness avoided even
+# though the runtime container also ends up root (see header comment).
 RUN /opt/tools/playwright-rs-cli/bin/playwright-rs install --driver-only \
-    && /opt/tools/playwright-rs-cli/bin/playwright-rs install chromium --with-deps \
-    && chown -R scraper:scraper /home/scraper /opt/tools
+    && /opt/tools/playwright-rs-cli/bin/playwright-rs install chromium --with-deps
 
-USER scraper
-WORKDIR /home/scraper
+WORKDIR /root
 ENTRYPOINT []
 CMD ["/usr/local/bin/scrape"]
