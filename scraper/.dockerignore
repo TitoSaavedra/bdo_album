@@ -1,0 +1,11 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+target/
+**/target/
+src/
+src-tauri/gen/
+src-tauri/icons/
+.git/
+*.log

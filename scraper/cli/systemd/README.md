@@ -1,5 +1,10 @@
 # Headless scraper on Ubuntu (systemd)
 
+> **Note**: production deploy actually runs this via Docker (`scraper/Dockerfile`
+> + the homelab's `docker-compose.yml`), not systemd — everything on that host
+> runs containerized. This doc stays as a reference for a bare-metal/systemd
+> deploy elsewhere.
+
 Two independent units:
 
 - **`bdo-scraper.service`** + **`bdo-scraper.timer`** — the `scrape` binary. A
