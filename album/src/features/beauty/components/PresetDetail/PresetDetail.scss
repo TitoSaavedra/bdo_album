@@ -102,6 +102,32 @@
 .tier-badge-wanted  { background: var(--color-accent-quaternary); }
 .tier-badge-creator { background: var(--color-favorite-active); }
 
+// Independent of the tier-badge stack above (a preset can be both has_pab
+// and has_modifications at once) — sits in the opposite corner since
+// PresetDetail's .class-tag lives in .header-meta, not the hero, leaving
+// top-left free here (unlike PresetCard, which needs to stack them).
+.mods-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--color-accent-secondary);
+  padding: 4px 10px;
+  border-radius: 99px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.gallery-tabs {
+  flex-shrink: 0;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto 12px;
+}
+
 .sharpen-toggle {
   position: absolute;
   bottom: 12px;
@@ -269,8 +295,14 @@
   gap: 8px;
 }
 
-:global(.btn-export) {
-  width: 100%;
+.primary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+:global(.btn-export),
+:global(.btn-upload-mod) {
+  flex: 1;
   border-radius: 10px !important;
   font-weight: 700 !important;
 }

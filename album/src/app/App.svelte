@@ -105,24 +105,26 @@
   // filter changes. The creator filter takes over the grid entirely — it deliberately
   // ignores region/days so a favorited creator's full catalog always shows up.
   $effect(() => {
-    const cls     = beauty.selectedClass;
-    const region  = beauty.selectedRegion;
-    const search  = beauty.searchQuery;
-    const days    = beauty.selectedDays;
-    const sort    = beauty.sortBy;
-    const creator = beauty.creatorFilter;
+    const cls        = beauty.selectedClass;
+    const region      = beauty.selectedRegion;
+    const search      = beauty.searchQuery;
+    const days        = beauty.selectedDays;
+    const sort        = beauty.sortBy;
+    const creator     = beauty.creatorFilter;
+    const hasMods     = beauty.hasModificationsFilter;
     if (creator) resetAndLoadCreator(creator, search, sort);
-    else if (cls) resetAndLoad(cls, region, search, days, sort);
+    else if (cls) resetAndLoad(cls, region, search, days, sort, hasMods);
   });
 
-  // Update per-class counts whenever search, region, OR days changes
+  // Update per-class counts whenever search, region, days, OR has-modifications changes
   $effect(() => {
-    const search = beauty.searchQuery;
-    const region = beauty.selectedRegion;
-    const days   = beauty.selectedDays;
-    const hasFilter = !!search.trim() || !!region || days !== 'ever';
+    const search  = beauty.searchQuery;
+    const region  = beauty.selectedRegion;
+    const days    = beauty.selectedDays;
+    const hasMods = beauty.hasModificationsFilter;
+    const hasFilter = !!search.trim() || !!region || days !== 'ever' || hasMods;
     if (!hasFilter) { setSearchCounts([], false); return; }
-    getClassSearchCounts(search, region, days).then(r => setSearchCounts(r, true)).catch(() => {});
+    getClassSearchCounts(search, region, days, hasMods).then(r => setSearchCounts(r, true)).catch(() => {});
   });
 
   // Live uploads (scraper/auto-download finishing while the album is open) only
@@ -137,14 +139,15 @@
   $effect(() => {
     totalLiveUploaded;
     untrack(() => {
-      const search = beauty.searchQuery;
-      const region = beauty.selectedRegion;
-      const days   = beauty.selectedDays;
-      const hasFilter = !!search.trim() || !!region || days !== 'ever';
+      const search  = beauty.searchQuery;
+      const region  = beauty.selectedRegion;
+      const days    = beauty.selectedDays;
+      const hasMods = beauty.hasModificationsFilter;
+      const hasFilter = !!search.trim() || !!region || days !== 'ever' || hasMods;
       if (!hasFilter) return;
       clearTimeout(liveCountsDebounce);
       liveCountsDebounce = setTimeout(() => {
-        getClassSearchCounts(search, region, days).then(r => setSearchCounts(r, true)).catch(() => {});
+        getClassSearchCounts(search, region, days, hasMods).then(r => setSearchCounts(r, true)).catch(() => {});
       }, 800);
     });
   });
@@ -195,14 +198,14 @@
   // pagination logic in one place regardless of which mode is active.
   let fetchPage: ((off: number) => Promise<PresetEntry[]>) | null = null;
 
-  async function resetAndLoad(cls: string, region: string, search: string, days: string, sort: string) {
+  async function resetAndLoad(cls: string, region: string, search: string, days: string, sort: string, hasModifications: boolean) {
     offset = 0;
     hasMore = false;
     presets = [];
     presetsError = '';
     const entry = beauty.classes.find(c => c.name === cls);
     if (entry) clearLiveForClass(entry.class_id);
-    fetchPage = (off) => getPresets(cls, off, LIMIT, sort, search, region, days);
+    fetchPage = (off) => getPresets(cls, off, LIMIT, sort, search, region, days, hasModifications);
     await doLoad(true);
   }
 

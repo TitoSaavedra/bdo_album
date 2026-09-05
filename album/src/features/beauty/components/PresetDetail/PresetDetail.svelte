@@ -1,7 +1,8 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { _ } from 'svelte-i18n';
-  import { openUrl, toggleWanted, discardPreset, exportToBdo, setCreatorFavorite } from '../../../../lib/album';
+  import { openUrl, toggleWanted, discardPreset, exportToBdo, setCreatorFavorite, listPresetModifications } from '../../../../lib/album';
+  import type { ModificationEntry } from '../../../../lib/album';
   import {
     beauty,
     closePreset,
@@ -10,6 +11,10 @@
   } from '../../state/beauty.svelte';
   import { withViewTransition } from '../../../../lib/viewTransition';
   import Button from '../../../../ui/Button/Button.svelte';
+  import Dialog from '../../../../ui/Dialog/Dialog.svelte';
+  import TabBar from '../../../../ui/TabBar/TabBar.svelte';
+  import type { TabItem } from '../../../../ui/TabBar/TabBar.svelte';
+  import UploadModificationModal from '../UploadModificationModal/UploadModificationModal.svelte';
 
   let activeImage = $state('');
 
@@ -28,9 +33,44 @@
   });
 
   const p         = $derived(beauty.presetDetail);
-  const images = $derived(
-    p ? [p.image_1_url, p.image_2_url].filter((u): u is string => !!u) : []
-  );
+
+  // ── Modifications gallery ────────────────────────────────────
+  // Personal viewing gallery only — picking a modification here has no
+  // effect on export/PAB behavior, it just swaps which images the hero
+  // carousel below shows.
+  let modifications   = $state<ModificationEntry[]>([]);
+  let selectedGallery  = $state('original');
+  let uploadModalOpen  = $state(false);
+
+  $effect(() => {
+    const presetId    = p?.preset_id;
+    const shouldFetch = !!p?.has_modifications;
+    modifications = [];
+    selectedGallery = 'original';
+    if (!presetId || !shouldFetch) return;
+    listPresetModifications(presetId).then(list => {
+      // Guards against a stale response landing after a fast preset switch.
+      if (p?.preset_id === presetId) modifications = list;
+    }).catch(() => {});
+  });
+
+  const galleryTabs = $derived<TabItem[]>([
+    { id: 'original', label: $_('beauty.preset_detail.gallery_original') },
+    ...modifications.map((m, i) => ({
+      id: m.modification_id,
+      label: $_('beauty.preset_detail.gallery_modification_n', { values: { n: i + 1 } }),
+    })),
+  ]);
+
+  const images = $derived.by(() => {
+    if (!p) return [];
+    if (selectedGallery === 'original') {
+      return [p.image_1_url, p.image_2_url].filter((u): u is string => !!u);
+    }
+    const mod = modifications.find(m => m.modification_id === selectedGallery);
+    return mod ? [mod.image_1_url, mod.image_2_url].filter((u): u is string => !!u) : [];
+  });
+
   const title     = $derived(p ? (p.title || p.character_name || `#${p.preset_id}`) : '');
   const id        = $derived(p?.preset_id ?? '');
   const nickname  = $derived(p?.user_nickname || null);
@@ -44,6 +84,7 @@
   // Same tier priority as PresetCard's badge — the hero carries the same
   // "why this preset looks the way it does" signal the grid card had.
   const showFavCreator = $derived(isFavoriteCreator && !hasPab && !isWanted);
+  const hasModifications = $derived(p?.has_modifications ?? false);
   const tierBadge      = $derived(hasPab ? 'pab' : isWanted ? 'wanted' : showFavCreator ? 'creator' : null);
   const tierBadgeLabel = $derived(
     tierBadge === 'pab' ? $_('beauty.preset_card.tier_downloaded')
@@ -77,7 +118,17 @@
     try { await toggleWanted(p.preset_id); } catch { /* non-fatal */ }
   }
 
-  async function handleToggleCreatorFavorite() {
+  let confirmUnfavoriteCreator = $state(false);
+
+  // Removing a favorite creator asks for confirmation (matches ClassList's
+  // sidebar chip); adding one back stays a single click since it's non-destructive.
+  function handleToggleCreatorFavorite() {
+    if (!nickname) return;
+    if (isFavoriteCreator) confirmUnfavoriteCreator = true;
+    else doToggleCreatorFavorite();
+  }
+
+  async function doToggleCreatorFavorite() {
     if (!nickname) return;
     toggleCreatorFavorite(nickname);
     const isFav = beauty.creatorFavorites.has(nickname);
@@ -138,7 +189,17 @@
       <span class="back-arrow">‹</span> {$_('beauty.preset_detail.back_to_grid')}
     </button>
 
+    {#if modifications.length > 0}
+      <div class="gallery-tabs">
+        <TabBar tabs={galleryTabs} activeTab={selectedGallery} onselect={(id) => (selectedGallery = String(id))} />
+      </div>
+    {/if}
+
     <div class="detail-hero">
+      {#if hasModifications}
+        <span class="mods-badge">{$_('beauty.preset_card.has_modifications_badge')}</span>
+      {/if}
+
       {#if activeImage}
         {#key activeImage}
           <img
@@ -210,9 +271,14 @@
 
       <div class="actions">
         {#if hasPab}
-          <Button variant="primary" class="btn-export" onclick={handleExport} disabled={exporting}>
-            <span class="icon">⬆</span> {exporting ? $_('beauty.preset_detail.exporting') : $_('beauty.preset_detail.export_to_bdo')}
-          </Button>
+          <div class="primary-actions">
+            <Button variant="primary" class="btn-export" onclick={handleExport} disabled={exporting}>
+              <span class="icon">⬆</span> {exporting ? $_('beauty.preset_detail.exporting') : $_('beauty.preset_detail.export_to_bdo')}
+            </Button>
+            <Button variant="ghost" class="btn-upload-mod" onclick={() => (uploadModalOpen = true)}>
+              <span class="icon">✎</span> {$_('beauty.preset_detail.upload_modification')}
+            </Button>
+          </div>
           {#if exportError}
             <p class="export-error">{exportError}</p>
           {/if}
@@ -230,6 +296,23 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if confirmUnfavoriteCreator}
+  <Dialog
+    title={$_('beauty.preset_detail.unfavorite_creator_confirm_title')}
+    message={$_('beauty.preset_detail.unfavorite_creator_confirm_msg', { values: { creator: nickname ?? '' } })}
+    submitText={$_('beauty.preset_detail.unfavorite_creator_confirm_button')}
+    onsubmit={() => { doToggleCreatorFavorite(); confirmUnfavoriteCreator = false; }}
+    oncancel={() => (confirmUnfavoriteCreator = false)}
+  />
+{/if}
+
+{#if uploadModalOpen && p}
+  <UploadModificationModal
+    presetId={id}
+    onclose={() => (uploadModalOpen = false)}
+  />
 {/if}
 
 <style lang="scss">

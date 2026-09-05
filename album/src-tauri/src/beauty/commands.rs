@@ -1,9 +1,11 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
 use tauri::{Manager, State};
 
 use crate::core::state::AppState;
 use crate::beauty::service::BeautyService;
 use crate::db::repositories::class_repo::ClassRow;
+use crate::db::repositories::modification_repo::ModificationRow;
 use crate::db::repositories::preset_repo::PresetRow;
 
 #[derive(Serialize)]
@@ -39,14 +41,15 @@ pub async fn set_class_favorite(
 
 #[tauri::command]
 pub async fn get_presets(
-    class_name: String,
-    offset:     Option<i64>,
-    limit:      Option<i64>,
-    sort_by:    Option<String>,
-    search:     Option<String>,
-    region:     Option<String>,
-    days:       Option<String>,
-    state:      State<'_, AppState>,
+    class_name:        String,
+    offset:            Option<i64>,
+    limit:             Option<i64>,
+    sort_by:           Option<String>,
+    search:            Option<String>,
+    region:            Option<String>,
+    days:              Option<String>,
+    has_modifications: Option<bool>,
+    state:             State<'_, AppState>,
 ) -> Result<Vec<PresetRow>, String> {
     BeautyService::get_presets(
         &state.pool,
@@ -57,6 +60,7 @@ pub async fn get_presets(
         search.as_deref().unwrap_or(""),
         region.as_deref(),
         days.as_deref(),
+        has_modifications,
         &state.r2_public_url,
     )
     .await
@@ -214,15 +218,47 @@ pub async fn export_to_bdo(
 
 #[tauri::command]
 pub async fn get_class_search_counts(
-    search: Option<String>,
-    region: Option<String>,
-    days:   Option<String>,
-    state:  State<'_, AppState>,
+    search:            Option<String>,
+    region:            Option<String>,
+    days:              Option<String>,
+    has_modifications: Option<bool>,
+    state:             State<'_, AppState>,
 ) -> Result<Vec<ClassCount>, String> {
     let search = search.as_deref().unwrap_or("");
     let region = region.as_deref().filter(|s| !s.is_empty());
-    let counts = BeautyService::get_class_search_counts(&state.pool, search, region, days.as_deref())
+    let counts = BeautyService::get_class_search_counts(&state.pool, search, region, days.as_deref(), has_modifications)
         .await
         .map_err(|e| e.to_string())?;
     Ok(counts.into_iter().map(|(class_id, count)| ClassCount { class_id, count }).collect())
+}
+
+// ── Preset modifications ─────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_preset_modifications(
+    preset_id: String,
+    state:     State<'_, AppState>,
+) -> Result<Vec<ModificationRow>, String> {
+    let id: i64 = preset_id.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
+    BeautyService::list_preset_modifications(&state.pool, id, &state.r2_public_url)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn upload_preset_modification(
+    preset_id:      String,
+    image_1_base64: String,
+    image_2_base64: Option<String>,
+    state:          State<'_, AppState>,
+) -> Result<(), String> {
+    let id: i64 = preset_id.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
+    let image_1_bytes = STANDARD.decode(image_1_base64.as_bytes()).map_err(|e| e.to_string())?;
+    let image_2_bytes = match image_2_base64 {
+        Some(b64) => Some(STANDARD.decode(b64.as_bytes()).map_err(|e| e.to_string())?),
+        None => None,
+    };
+    BeautyService::upload_preset_modification(&state.pool, id, image_1_bytes, image_2_bytes)
+        .await
+        .map_err(|e| e.to_string())
 }

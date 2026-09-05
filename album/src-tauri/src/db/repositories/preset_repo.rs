@@ -16,6 +16,7 @@ pub struct PresetRow {
     pub image_2_url:    Option<String>,
     pub pab_url:        Option<String>,
     pub has_pab:        bool,
+    pub has_modifications: bool,
     pub downloads:      Option<i64>,
     pub views:          Option<i64>,
     pub likes:          Option<i64>,
@@ -47,6 +48,7 @@ impl PresetRepository {
         search:        &str,
         region:        Option<&str>,
         days_cutoff:   Option<i64>,
+        has_modifications: Option<bool>,
         r2_public_url: &str,
     ) -> Result<Vec<PresetRow>> {
         let col = validated_sort(sort_by);
@@ -64,6 +66,7 @@ impl PresetRepository {
                 $5 || p.image_2_url                               AS image_2_url,
                 CASE WHEN pab.url IS NOT NULL THEN $5 || pab.url END AS pab_url,
                 pab.url IS NOT NULL                               AS has_pab,
+                EXISTS (SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id) AS has_modifications,
                 p.downloads,
                 p.views,
                 p.likes,
@@ -92,6 +95,9 @@ impl PresetRepository {
               ))
               AND ($6 = '' OR p.region = $6)
               AND ($7::BIGINT IS NULL OR (p.creation_at IS NOT NULL AND p.creation_at >= $7))
+              AND ($8::BOOLEAN IS NOT TRUE OR EXISTS (
+                SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id
+              ))
             ORDER BY
               (pab.url IS NOT NULL) DESC,
               COALESCE(u.is_wanted, false) DESC,
@@ -107,6 +113,7 @@ impl PresetRepository {
             .bind(r2_public_url)
             .bind(region.unwrap_or(""))
             .bind(days_cutoff)
+            .bind(has_modifications)
             .fetch_all(pool)
             .await?;
         Ok(rows)
@@ -139,6 +146,7 @@ impl PresetRepository {
                 $4 || p.image_2_url                               AS image_2_url,
                 CASE WHEN pab.url IS NOT NULL THEN $4 || pab.url END AS pab_url,
                 pab.url IS NOT NULL                               AS has_pab,
+                EXISTS (SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id) AS has_modifications,
                 p.downloads,
                 p.views,
                 p.likes,
@@ -201,6 +209,7 @@ impl PresetRepository {
                 $2 || p.image_2_url                               AS image_2_url,
                 CASE WHEN pab.url IS NOT NULL THEN $2 || pab.url END AS pab_url,
                 pab.url IS NOT NULL                               AS has_pab,
+                EXISTS (SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id) AS has_modifications,
                 p.downloads,
                 p.views,
                 p.likes,
@@ -355,6 +364,7 @@ impl PresetRepository {
                 $1 || p.image_2_url                                           AS image_2_url,
                 NULL::TEXT                                                    AS pab_url,
                 false                                                         AS has_pab,
+                EXISTS (SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id) AS has_modifications,
                 p.downloads,
                 p.views,
                 p.likes,
@@ -381,10 +391,11 @@ impl PresetRepository {
     }
 
     pub async fn count_by_search(
-        pool:        &PgPool,
-        search:      &str,
-        region:      Option<&str>,
-        days_cutoff: Option<i64>,
+        pool:              &PgPool,
+        search:            &str,
+        region:            Option<&str>,
+        days_cutoff:       Option<i64>,
+        has_modifications: Option<bool>,
     ) -> Result<Vec<(i32, i64)>> {
         let rows = sqlx::query_as::<_, (i32, i64)>(
             r#"
@@ -400,12 +411,16 @@ impl PresetRepository {
               ))
               AND ($2 = '' OR p.region = $2)
               AND ($3::BIGINT IS NULL OR (p.creation_at IS NOT NULL AND p.creation_at >= $3))
+              AND ($4::BOOLEAN IS NOT TRUE OR EXISTS (
+                SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id
+              ))
             GROUP BY p.class_id
             "#,
         )
         .bind(search)
         .bind(region.unwrap_or(""))
         .bind(days_cutoff)
+        .bind(has_modifications)
         .fetch_all(pool)
         .await?;
         Ok(rows)

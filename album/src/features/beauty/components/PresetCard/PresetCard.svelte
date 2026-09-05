@@ -87,8 +87,11 @@
       <div class="skeleton-thumb"></div>
     {/if}
 
-    {#if beauty.creatorFilter}
-      <span class="class-tag">{preset.class_name}</span>
+    {#if beauty.creatorFilter || preset.has_modifications}
+      <div class="corner-badges">
+        {#if beauty.creatorFilter}<span class="class-tag">{preset.class_name}</span>{/if}
+        {#if preset.has_modifications}<span class="mods-badge">{$_('beauty.preset_card.has_modifications_badge')}</span>{/if}
+      </div>
     {/if}
 
     {#if tierBadge}

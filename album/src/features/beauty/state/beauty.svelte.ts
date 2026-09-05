@@ -39,6 +39,9 @@ export const beauty = $state({
   // Days filter
   selectedDays: 'ever',
 
+  // Has-modifications filter
+  hasModificationsFilter: false,
+
   // Search
   searchQuery:        '',
   searchCounts:       {} as Record<number, number>,
@@ -158,6 +161,12 @@ export function setSelectedDays(days: string) {
 
 export function setSelectedSort(sort: 'downloads' | 'views' | 'likes') {
   beauty.sortBy = sort;
+}
+
+// ── Has-modifications filter ──────────────────────────────────
+
+export function setHasModificationsFilter(v: boolean) {
+  beauty.hasModificationsFilter = v;
 }
 
 // ── Live upload tracking ──────────────────────────────────────

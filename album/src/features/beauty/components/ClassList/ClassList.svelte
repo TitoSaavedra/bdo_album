@@ -11,6 +11,7 @@
   } from '../../../../lib/album';
   import Input       from '../../../../ui/Input/Input.svelte';
   import PillSelector        from '../../../../ui/PillSelector/PillSelector.svelte';
+  import Toggle               from '../../../../ui/Toggle/Toggle.svelte';
   import Dialog              from '../../../../ui/Dialog/Dialog.svelte';
   import WantedDownloadModal from '../WantedDownloadModal/WantedDownloadModal.svelte';
   import {
@@ -23,6 +24,7 @@
     setSelectedRegion,
     setSelectedDays,
     setSelectedSort,
+    setHasModificationsFilter,
   } from '../../state/beauty.svelte';
 
   interface Props {
@@ -121,13 +123,13 @@
   });
 
   function displayCount(cls: ClassEntry): number {
-    const hasFilter = beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever';
+    const hasFilter = beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever' || beauty.hasModificationsFilter;
     if (hasFilter) return beauty.searchCounts[cls.class_id] ?? 0;
     return cls.preset_count + (beauty.liveUploaded[cls.class_id] ?? 0);
   }
 
   const sorted = $derived.by(() => {
-    const hasFilter   = !!(beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever');
+    const hasFilter   = !!(beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever' || beauty.hasModificationsFilter);
     const countsReady = hasFilter && beauty.searchCountsLoaded;
     return [...beauty.classes]
       .filter(cls => !countsReady || displayCount(cls) > 0)
@@ -140,7 +142,7 @@
   });
 
   const activeFilterCount = $derived(
-    (beauty.selectedRegion ? 1 : 0) + (beauty.selectedDays !== 'ever' ? 1 : 0)
+    (beauty.selectedRegion ? 1 : 0) + (beauty.selectedDays !== 'ever' ? 1 : 0) + (beauty.hasModificationsFilter ? 1 : 0)
   );
 
   const favoriteCreatorNames = $derived(Array.from(beauty.creatorFavorites).sort());
@@ -278,6 +280,14 @@
               />
             </div>
 
+            <div class="pop-group pop-group-toggle" class:disabled={!!beauty.creatorFilter}>
+              <span class="pop-label">{$_('beauty.class_list.has_modifications_label')}</span>
+              <Toggle
+                checked={beauty.hasModificationsFilter}
+                onclick={() => setHasModificationsFilter(!beauty.hasModificationsFilter)}
+              />
+            </div>
+
             {#if beauty.creatorFilter}
               <p class="pop-note">{$_('beauty.class_list.filters_ignored_creator')}</p>
             {/if}
@@ -287,7 +297,7 @@
     </div>
   </div>
 
-  {#if beauty.creatorFilter || beauty.selectedRegion || beauty.selectedDays !== 'ever'}
+  {#if beauty.creatorFilter || beauty.selectedRegion || beauty.selectedDays !== 'ever' || beauty.hasModificationsFilter}
     <div class="active-chips">
       {#if beauty.creatorFilter}
         <span class="chip creator">
@@ -307,8 +317,14 @@
             <button class="x" onclick={() => setSelectedDays('ever')}>✕</button>
           </span>
         {/if}
+        {#if beauty.hasModificationsFilter}
+          <span class="chip">
+            <b>{$_('beauty.class_list.chip_has_modifications')}</b>
+            <button class="x" onclick={() => setHasModificationsFilter(false)}>✕</button>
+          </span>
+        {/if}
         {#if activeFilterCount > 1}
-          <button class="clear-all" onclick={() => { setSelectedRegion(''); setSelectedDays('ever'); }}>
+          <button class="clear-all" onclick={() => { setSelectedRegion(''); setSelectedDays('ever'); setHasModificationsFilter(false); }}>
             {$_('beauty.class_list.clear_all')}
           </button>
         {/if}

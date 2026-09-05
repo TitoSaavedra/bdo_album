@@ -27,7 +27,8 @@
   let discarded = $state(new Set<string>());
 
   const hasFilters = $derived(
-    !!beauty.searchQuery.trim() || !!beauty.selectedRegion || beauty.selectedDays !== 'ever' || !!beauty.creatorFilter
+    !!beauty.searchQuery.trim() || !!beauty.selectedRegion || beauty.selectedDays !== 'ever' ||
+    !!beauty.creatorFilter || !!beauty.hasModificationsFilter
   );
 
   const liveIds = $derived(new Set(livePresets.map(p => p.preset_id)));

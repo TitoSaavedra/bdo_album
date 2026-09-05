@@ -87,7 +87,8 @@ pub fn run() {
                     }),
                 ).await.ok();
                 app_h.manage(AppState::new(pool.clone()));
-                tauri::async_runtime::spawn(bdo_scraper_core::scraper::auto_download::run_loop(Arc::clone(&sink), pool));
+                tauri::async_runtime::spawn(bdo_scraper_core::scraper::auto_download::run_loop(Arc::clone(&sink), pool.clone()));
+                tauri::async_runtime::spawn(bdo_scraper_core::scraper::preset_modifications::run_loop(Arc::clone(&sink), pool));
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
                 Events::db_ready(&app_h, DbReady { success: true, error: None });
             });

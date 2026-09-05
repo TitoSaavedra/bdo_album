@@ -46,6 +46,7 @@ class AlbumEventBus {
           image_2_url:    p.image_2_url,
           pab_url:        null,
           has_pab:        false,
+          has_modifications: false,
           downloads:      null,
           views:          null,
           likes:          null,

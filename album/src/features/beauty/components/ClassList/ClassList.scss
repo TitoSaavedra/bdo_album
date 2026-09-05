@@ -202,6 +202,16 @@
   pointer-events: none;
 }
 
+.pop-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pop-group-toggle .pop-label {
+  margin-bottom: 0;
+}
+
 .pop-label {
   font-size: 9.5px;
   letter-spacing: 0.07em;

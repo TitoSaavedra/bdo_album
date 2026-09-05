@@ -15,6 +15,14 @@ export interface ClassCount {
   count:    number;
 }
 
+export interface ModificationEntry {
+  modification_id: string;
+  preset_id:       string;
+  image_1_url:     string;
+  image_2_url:     string | null;
+  created_at:      number;
+}
+
 export interface PresetEntry {
   preset_id:      string;
   class_id:       number;
@@ -27,6 +35,7 @@ export interface PresetEntry {
   image_2_url:    string | null;
   pab_url:        string | null;
   has_pab:        boolean;
+  has_modifications: boolean;
   downloads:      number | null;
   views:          number | null;
   likes:          number | null;
@@ -74,15 +83,16 @@ export const getPresetsByCreator = (
 // ── Presets ───────────────────────────────────────────────────
 
 export const getPresets = (
-  className: string,
-  offset    = 0,
-  limit     = 40,
-  sortBy    = 'downloads',
-  search    = '',
-  region    = '',
-  days      = 'ever',
+  className:         string,
+  offset             = 0,
+  limit              = 40,
+  sortBy             = 'downloads',
+  search             = '',
+  region             = '',
+  days               = 'ever',
+  hasModifications   = false,
 ): Promise<PresetEntry[]> =>
-  invoke('get_presets', { className, offset, limit, sortBy, search, region, days });
+  invoke('get_presets', { className, offset, limit, sortBy, search, region, days, hasModifications });
 
 export const getPreset = (presetId: string): Promise<PresetEntry | null> =>
   invoke('get_preset', { presetId });
@@ -91,11 +101,24 @@ export const getRegions = (): Promise<string[]> =>
   invoke('get_regions');
 
 export const getClassSearchCounts = (
-  search = '',
-  region = '',
-  days   = 'ever',
+  search           = '',
+  region           = '',
+  days             = 'ever',
+  hasModifications = false,
 ): Promise<ClassCount[]> =>
-  invoke('get_class_search_counts', { search, region, days });
+  invoke('get_class_search_counts', { search, region, days, hasModifications });
+
+// ── Preset modifications ──────────────────────────────────────
+
+export const listPresetModifications = (presetId: string): Promise<ModificationEntry[]> =>
+  invoke('list_preset_modifications', { presetId });
+
+export const uploadPresetModification = (
+  presetId:      string,
+  image1Base64:  string,
+  image2Base64:  string | null = null,
+): Promise<void> =>
+  invoke('upload_preset_modification', { presetId, image1Base64, image2Base64 });
 
 export const discardPreset = (presetId: string): Promise<void> =>
   invoke('discard_preset', { presetId });

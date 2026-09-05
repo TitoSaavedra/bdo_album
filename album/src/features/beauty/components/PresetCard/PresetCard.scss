@@ -120,11 +120,18 @@
   margin-bottom: 2px;
 }
 
-.class-tag {
+.corner-badges {
   position: absolute;
   top: 8px;
   left: 8px;
   z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.class-tag {
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -134,6 +141,17 @@
   color: var(--color-text-primary);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+.mods-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--color-accent-secondary);
+  padding: 3px 8px;
+  border-radius: 99px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .tier-badge {

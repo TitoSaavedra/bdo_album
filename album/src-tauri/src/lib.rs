@@ -136,6 +136,8 @@ pub fn run() {
             beauty::commands::get_presets_by_creator,
             beauty::commands::get_presets,
             beauty::commands::get_preset,
+            beauty::commands::list_preset_modifications,
+            beauty::commands::upload_preset_modification,
             beauty::commands::get_regions,
             beauty::commands::discard_preset,
             beauty::commands::toggle_wanted,

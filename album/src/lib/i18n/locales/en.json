@@ -62,7 +62,9 @@
       "chip_uploaded": "Uploaded",
       "chip_creator": "Creator",
       "clear_all": "Clear all",
-      "filters_ignored_creator": "Ignored while browsing by creator"
+      "filters_ignored_creator": "Ignored while browsing by creator",
+      "has_modifications_label": "Has Modifications",
+      "chip_has_modifications": "Has modifications"
     },
     "preset_card": {
       "remove_wishlist": "Remove from wishlist",
@@ -75,7 +77,8 @@
       "likes": "Likes",
       "tier_downloaded": "Downloaded",
       "tier_wishlist": "Wishlist",
-      "tier_favorite_creator": "Favorite creator"
+      "tier_favorite_creator": "Favorite creator",
+      "has_modifications_badge": "Modified"
     },
     "preset_grid": {
       "select_class": "Select a class to browse presets",
@@ -107,8 +110,14 @@
       "discard": "Discard",
       "exporting": "Exporting...",
       "export_to_bdo": "Export to Black Desert",
+      "upload_modification": "Upload Modification",
       "view_on_garmoth": "View on Garmoth",
-      "no_media": "NO MEDIA"
+      "no_media": "NO MEDIA",
+      "gallery_original": "Original",
+      "gallery_modification_n": "Mod {n}",
+      "unfavorite_creator_confirm_title": "Remove favorite creator?",
+      "unfavorite_creator_confirm_msg": "\"{creator}\" will no longer be pinned or highlighted across the grid. You can re-favorite them anytime.",
+      "unfavorite_creator_confirm_button": "Remove"
     },
     "wanted_modal": {
       "title": "Presets to download",
@@ -121,6 +130,17 @@
       "cancel": "Cancel",
       "open_in_browser": "Open {count} in browser",
       "send_to_auto_download": "Send {count} to auto-download"
+    },
+    "upload_modification": {
+      "title": "Upload Modification",
+      "slot_1_required": "Image 1 (required)",
+      "slot_2_optional": "Image 2 (optional)",
+      "paste_hint": "Copy an image, then press Ctrl+V to paste it into the selected slot.",
+      "cancel": "Cancel",
+      "submit": "Upload",
+      "uploading": "Uploading...",
+      "queued_message": "Queued — it'll appear here in about a minute.",
+      "close": "Close"
     }
   },
   "face_grid": {

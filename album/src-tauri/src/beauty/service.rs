@@ -4,6 +4,7 @@ use crate::core::errors::Result;
 use crate::db::repositories::{
     class_repo::{ClassRepository, ClassRow},
     creator_repo::CreatorRepository,
+    modification_repo::{ModificationRepository, ModificationRow, PendingModificationRepository},
     preset_repo::{PresetRepository, PresetRow},
 };
 
@@ -37,22 +38,23 @@ impl BeautyService {
     }
 
     pub async fn get_presets(
-        pool:          &PgPool,
-        class_name:    &str,
-        offset:        i64,
-        limit:         i64,
-        sort_by:       &str,
-        search:        &str,
-        region:        Option<&str>,
-        days:          Option<&str>,
-        r2_public_url: &str,
+        pool:              &PgPool,
+        class_name:        &str,
+        offset:            i64,
+        limit:             i64,
+        sort_by:           &str,
+        search:            &str,
+        region:            Option<&str>,
+        days:              Option<&str>,
+        has_modifications: Option<bool>,
+        r2_public_url:     &str,
     ) -> Result<Vec<PresetRow>> {
         let class_id = PresetRepository::get_class_id(pool, class_name).await?;
         let Some(class_id) = class_id else {
             return Ok(vec![]);
         };
         let days_cutoff = days_to_cutoff(days);
-        PresetRepository::get_by_class(pool, class_id, offset, limit, sort_by, search, region, days_cutoff, r2_public_url).await
+        PresetRepository::get_by_class(pool, class_id, offset, limit, sort_by, search, region, days_cutoff, has_modifications, r2_public_url).await
     }
 
     pub async fn get_preset_by_id(pool: &PgPool, preset_id: i64, r2_public_url: &str) -> Result<Option<PresetRow>> {
@@ -124,12 +126,29 @@ impl BeautyService {
     }
 
     pub async fn get_class_search_counts(
-        pool:   &PgPool,
-        search: &str,
-        region: Option<&str>,
-        days:   Option<&str>,
+        pool:              &PgPool,
+        search:            &str,
+        region:            Option<&str>,
+        days:              Option<&str>,
+        has_modifications: Option<bool>,
     ) -> Result<Vec<(i32, i64)>> {
         let days_cutoff = days_to_cutoff(days);
-        PresetRepository::count_by_search(pool, search, region, days_cutoff).await
+        PresetRepository::count_by_search(pool, search, region, days_cutoff, has_modifications).await
+    }
+
+    pub async fn list_preset_modifications(pool: &PgPool, preset_id: i64, r2_public_url: &str) -> Result<Vec<ModificationRow>> {
+        ModificationRepository::list_by_preset(pool, preset_id, r2_public_url).await
+    }
+
+    /// Stages the raw pasted image bytes only — album never talks to R2 for
+    /// this feature. The scraper's `preset_modifications` worker uploads them
+    /// on its next 60s tick (see the migration's comment on the staging table).
+    pub async fn upload_preset_modification(
+        pool:      &PgPool,
+        preset_id: i64,
+        image_1:   Vec<u8>,
+        image_2:   Option<Vec<u8>>,
+    ) -> Result<()> {
+        PendingModificationRepository::insert(pool, preset_id, &image_1, image_2.as_deref()).await
     }
 }

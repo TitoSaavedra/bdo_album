@@ -21,3 +21,4 @@ aws-config = "1"
 zip    = "2"
 base64 = "0.22"
 dirs   = "6"
+image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png", "webp"] }
