@@ -20,6 +20,7 @@ export interface ModificationEntry {
   preset_id:       string;
   image_1_url:     string;
   image_2_url:     string | null;
+  pab_url:         string | null;
   created_at:      number;
 }
 

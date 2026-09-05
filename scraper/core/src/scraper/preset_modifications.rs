@@ -45,12 +45,20 @@ async fn process_one(sink: &Arc<dyn Sink>, pool: &PgPool, pending: PendingRow) {
         }
     };
 
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
+    // Names files `modificacion_{n}` (1-indexed, per preset) instead of a
+    // timestamp — so `preset X`'s 3rd modification is recognizable by name
+    // alone as `modificacion_3`, not an opaque millisecond count.
+    let index = match ModificationRepository::count_by_preset(pool, pending.preset_id).await {
+        Ok(n) => n + 1,
+        Err(e) => {
+            let msg = format!("preset {}: count failed: {e}", pending.preset_id);
+            PendingModificationRepository::mark_failed(pool, pending.id, &msg).await.ok();
+            LogRepository::insert(sink.as_ref(), pool, None, "ERR", "preset_modifications", &msg).await.ok();
+            return;
+        }
+    };
 
-    let key_1 = match upload_one(&r2, pending.preset_id, ts, 1, &pending.image_1_data).await {
+    let key_1 = match upload_one(&r2, pending.preset_id, index, 1, &pending.image_1_data).await {
         Ok(k) => k,
         Err(e) => {
             let msg = format!("preset {}: image 1 upload failed: {e}", pending.preset_id);
@@ -61,7 +69,7 @@ async fn process_one(sink: &Arc<dyn Sink>, pool: &PgPool, pending: PendingRow) {
     };
 
     let key_2 = match &pending.image_2_data {
-        Some(bytes) => match upload_one(&r2, pending.preset_id, ts, 2, bytes).await {
+        Some(bytes) => match upload_one(&r2, pending.preset_id, index, 2, bytes).await {
             Ok(k) => Some(k),
             Err(e) => {
                 let msg = format!("preset {}: image 2 upload failed: {e}", pending.preset_id);
@@ -73,12 +81,40 @@ async fn process_one(sink: &Arc<dyn Sink>, pool: &PgPool, pending: PendingRow) {
         None => None,
     };
 
-    match ModificationRepository::insert(pool, pending.preset_id, &key_1, key_2.as_deref()).await {
+    let pab_key = match &pending.pab_data {
+        Some(bytes) => match upload_pab(&r2, pending.preset_id, index, bytes).await {
+            Ok(k) => Some(k),
+            Err(e) => {
+                let msg = format!("preset {}: pab upload failed: {e}", pending.preset_id);
+                PendingModificationRepository::mark_failed(pool, pending.id, &msg).await.ok();
+                LogRepository::insert(sink.as_ref(), pool, None, "ERR", "preset_modifications", &msg).await.ok();
+                return;
+            }
+        },
+        None => None,
+    };
+
+    match ModificationRepository::insert(pool, pending.preset_id, &key_1, key_2.as_deref(), pab_key.as_deref()).await {
         Ok(()) => {
             // Purge the staging row — the finished row above is now the copy of record.
             PendingModificationRepository::delete(pool, pending.id).await.ok();
             LogRepository::insert(sink.as_ref(), pool, None, "SYNC", "preset_modifications",
                 &format!("preset {}: modification uploaded → {key_1}", pending.preset_id)).await.ok();
+
+            // Tell any open Album instance to refresh this preset — same event
+            // scraper's image/PAB pipeline already fires, so the existing
+            // listener (which always refetches the full row) just works; null
+            // image URLs here since scraper_presets' own images didn't change.
+            sqlx::query("SELECT pg_notify('preset_uploaded', $1)")
+                .bind(serde_json::json!({
+                    "preset_id": pending.preset_id,
+                    "class_id": pending.class_id,
+                    "image_1_url": Option::<String>::None,
+                    "image_2_url": Option::<String>::None,
+                }).to_string())
+                .execute(pool)
+                .await
+                .ok();
         }
         Err(e) => {
             let msg = format!("preset {}: insert failed: {e}", pending.preset_id);
@@ -93,7 +129,7 @@ async fn process_one(sink: &Arc<dyn Sink>, pool: &PgPool, pending: PendingRow) {
 /// sizes), re-encodes as WebP, uploads to R2, and returns the key (not the
 /// full URL `upload()` returns — every existing caller discards that and
 /// keeps the key it built itself, same convention here).
-async fn upload_one(r2: &R2Client, preset_id: i64, ts: u128, slot: u8, bytes: &[u8]) -> Result<String> {
+async fn upload_one(r2: &R2Client, preset_id: i64, index: i64, slot: u8, bytes: &[u8]) -> Result<String> {
     let img = image::load_from_memory(bytes)
         .map_err(|e| crate::errors::AppError::Scrape(format!("invalid image: {e}")))?;
     let resized = img.thumbnail(1600, 1600);
@@ -103,7 +139,16 @@ async fn upload_one(r2: &R2Client, preset_id: i64, ts: u128, slot: u8, bytes: &[
         .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::WebP)
         .map_err(|e| crate::errors::AppError::Scrape(format!("image encode: {e}")))?;
 
-    let key = format!("preset-modifications/{preset_id}/{ts}-{slot}.webp");
+    let key = format!("preset-modifications/{preset_id}/modificacion_{index}-{slot}.webp");
     let _ = r2.upload(&key, buf).await?;
+    Ok(key)
+}
+
+/// Uploads the .pab as-is — a binary game format, never decoded/re-encoded
+/// as an image. No file extension, matching how PAB files elsewhere in this
+/// system are already keyed (see `service::upload_pab`).
+async fn upload_pab(r2: &R2Client, preset_id: i64, index: i64, bytes: &[u8]) -> Result<String> {
+    let key = format!("preset-modifications/{preset_id}/modificacion_{index}-pab");
+    let _ = r2.upload(&key, bytes.to_vec()).await?;
     Ok(key)
 }

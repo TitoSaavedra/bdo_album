@@ -140,15 +140,17 @@ impl BeautyService {
         ModificationRepository::list_by_preset(pool, preset_id, r2_public_url).await
     }
 
-    /// Stages the raw pasted image bytes only — album never talks to R2 for
-    /// this feature. The scraper's `preset_modifications` worker uploads them
-    /// on its next 60s tick (see the migration's comment on the staging table).
+    /// Stages the raw pasted image bytes (plus, optionally, the local .pab
+    /// file bytes) only — album never talks to R2 for this feature. The
+    /// scraper's `preset_modifications` worker uploads them on its next 60s
+    /// tick (see the migration's comment on the staging table).
     pub async fn upload_preset_modification(
         pool:      &PgPool,
         preset_id: i64,
         image_1:   Vec<u8>,
         image_2:   Option<Vec<u8>>,
+        pab:       Option<Vec<u8>>,
     ) -> Result<()> {
-        PendingModificationRepository::insert(pool, preset_id, &image_1, image_2.as_deref()).await
+        PendingModificationRepository::insert(pool, preset_id, &image_1, image_2.as_deref(), pab.as_deref()).await
     }
 }

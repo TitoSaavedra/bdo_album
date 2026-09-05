@@ -188,6 +188,14 @@ export function onPresetUploaded(preset: PresetEntry, isNewPreset: boolean) {
     preset,
     ...(beauty.livePresets[preset.class_id] ?? []).filter(p => p.preset_id !== preset.preset_id),
   ];
+
+  // If this preset's detail view is currently open, patch it in place too —
+  // e.g. has_modifications flipping true once the scraper's daemon finishes
+  // a staged upload, or has_pab flipping on a PAB-only sync. class_display
+  // isn't part of PresetEntry, so it survives this merge untouched.
+  if (beauty.presetDetail?.preset_id === preset.preset_id) {
+    beauty.presetDetail = { ...beauty.presetDetail, ...preset };
+  }
 }
 
 export function clearLiveForClass(classId: number) {

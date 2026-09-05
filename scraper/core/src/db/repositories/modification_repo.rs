@@ -3,10 +3,12 @@ use sqlx::PgPool;
 use crate::errors::Result;
 
 pub struct PendingRow {
-    pub id:            i64,
-    pub preset_id:      i64,
-    pub image_1_data:   Vec<u8>,
-    pub image_2_data:   Option<Vec<u8>>,
+    pub id:          i64,
+    pub preset_id:   i64,
+    pub class_id:    i32,
+    pub image_1_data: Vec<u8>,
+    pub image_2_data: Option<Vec<u8>>,
+    pub pab_data:    Option<Vec<u8>>,
 }
 
 pub struct PendingModificationRepository;
@@ -14,23 +16,28 @@ pub struct PendingModificationRepository;
 impl PendingModificationRepository {
     /// Oldest not-yet-failed staged row (album writes these, never touches R2
     /// itself — see the migration's comment on `album_pending_preset_modifications`).
+    /// Joins `scraper_presets` for `class_id`, needed for the `preset_uploaded`
+    /// live-notify payload once the upload succeeds.
     pub async fn next_pending(pool: &PgPool) -> Result<Option<PendingRow>> {
-        let row = sqlx::query_as::<_, (i64, i64, Vec<u8>, Option<Vec<u8>>)>(
+        let row = sqlx::query_as::<_, (i64, i64, i32, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>)>(
             r#"
-            SELECT id, preset_id, image_1_data, image_2_data
-            FROM album_pending_preset_modifications
-            WHERE error IS NULL
-            ORDER BY requested_at
+            SELECT m.id, m.preset_id, p.class_id, m.image_1_data, m.image_2_data, m.pab_data
+            FROM album_pending_preset_modifications m
+            JOIN scraper_presets p ON p.id = m.preset_id
+            WHERE m.error IS NULL
+            ORDER BY m.requested_at
             LIMIT 1
             "#,
         )
         .fetch_optional(pool)
         .await?
-        .map(|(id, preset_id, image_1_data, image_2_data)| PendingRow {
+        .map(|(id, preset_id, class_id, image_1_data, image_2_data, pab_data)| PendingRow {
             id,
             preset_id,
+            class_id,
             image_1_data,
             image_2_data,
+            pab_data,
         });
         Ok(row)
     }
@@ -61,23 +68,37 @@ impl PendingModificationRepository {
 pub struct ModificationRepository;
 
 impl ModificationRepository {
-    /// Inserts the finished, R2-backed row. `image_1_key`/`image_2_key` are R2
-    /// keys (not full URLs) — same convention as `scraper_presets.image_1_url`.
+    /// How many finished modifications this preset already has — used to name
+    /// the next one `modificacion_{n+1}` (1-indexed, per preset).
+    pub async fn count_by_preset(pool: &PgPool, preset_id: i64) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM album_preset_modifications WHERE preset_id = $1",
+        )
+        .bind(preset_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
+    }
+
+    /// Inserts the finished, R2-backed row. `image_1_key`/`image_2_key`/`pab_key`
+    /// are R2 keys (not full URLs) — same convention as `scraper_presets.image_1_url`.
     pub async fn insert(
         pool:        &PgPool,
         preset_id:   i64,
         image_1_key: &str,
         image_2_key: Option<&str>,
+        pab_key:     Option<&str>,
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO album_preset_modifications (preset_id, image_1_url, image_2_url)
-            VALUES ($1, $2, $3)
+            INSERT INTO album_preset_modifications (preset_id, image_1_url, image_2_url, pab_url)
+            VALUES ($1, $2, $3, $4)
             "#,
         )
         .bind(preset_id)
         .bind(image_1_key)
         .bind(image_2_key)
+        .bind(pab_key)
         .execute(pool)
         .await?;
         Ok(())

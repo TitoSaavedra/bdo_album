@@ -35,9 +35,9 @@
   const p         = $derived(beauty.presetDetail);
 
   // ── Modifications gallery ────────────────────────────────────
-  // Personal viewing gallery only — picking a modification here has no
-  // effect on export/PAB behavior, it just swaps which images the hero
-  // carousel below shows.
+  // Picking a modification swaps which images the hero carousel shows, and
+  // — when that modification has its own attached .pab — which file
+  // "Export to BDO" writes into the game's Customization folder.
   let modifications   = $state<ModificationEntry[]>([]);
   let selectedGallery  = $state('original');
   let uploadModalOpen  = $state(false);
@@ -62,14 +62,23 @@
     })),
   ]);
 
+  const selectedModification = $derived(
+    selectedGallery === 'original' ? null : modifications.find(m => m.modification_id === selectedGallery) ?? null
+  );
+
   const images = $derived.by(() => {
     if (!p) return [];
-    if (selectedGallery === 'original') {
+    if (!selectedModification) {
       return [p.image_1_url, p.image_2_url].filter((u): u is string => !!u);
     }
-    const mod = modifications.find(m => m.modification_id === selectedGallery);
-    return mod ? [mod.image_1_url, mod.image_2_url].filter((u): u is string => !!u) : [];
+    return [selectedModification.image_1_url, selectedModification.image_2_url].filter((u): u is string => !!u);
   });
+
+  // Which .pab "Export to BDO" writes — the original preset's, unless a
+  // modification with its own attached .pab is selected. A modification
+  // uploaded without ever exporting first has no .pab of its own, so the
+  // button disables rather than silently falling back to the original.
+  const exportPabUrl = $derived(selectedModification ? selectedModification.pab_url : (p?.pab_url ?? null));
 
   const title     = $derived(p ? (p.title || p.character_name || `#${p.preset_id}`) : '');
   const id        = $derived(p?.preset_id ?? '');
@@ -151,11 +160,11 @@
   let sharpenOn     = $state(true);
 
   async function handleExport() {
-    if (!p?.pab_url) return;
+    if (!exportPabUrl) return;
     exporting   = true;
     exportError = '';
     try {
-      await exportToBdo(p.pab_url);
+      await exportToBdo(exportPabUrl);
     } catch (e) {
       exportError = String(e);
     } finally {
@@ -272,7 +281,13 @@
       <div class="actions">
         {#if hasPab}
           <div class="primary-actions">
-            <Button variant="primary" class="btn-export" onclick={handleExport} disabled={exporting}>
+            <Button
+              variant="primary"
+              class="btn-export"
+              onclick={handleExport}
+              disabled={exporting || !exportPabUrl}
+              title={!exportPabUrl ? $_('beauty.preset_detail.export_no_pab') : ''}
+            >
               <span class="icon">⬆</span> {exporting ? $_('beauty.preset_detail.exporting') : $_('beauty.preset_detail.export_to_bdo')}
             </Button>
             <Button variant="ghost" class="btn-upload-mod" onclick={() => (uploadModalOpen = true)}>
@@ -281,6 +296,8 @@
           </div>
           {#if exportError}
             <p class="export-error">{exportError}</p>
+          {:else if selectedModification && !exportPabUrl}
+            <p class="export-error">{$_('beauty.preset_detail.export_no_pab')}</p>
           {/if}
         {:else}
           <Button variant="ghost" class="btn-garmoth" onclick={openOnGarmoth}>

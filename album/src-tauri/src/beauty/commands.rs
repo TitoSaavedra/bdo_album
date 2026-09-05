@@ -245,11 +245,25 @@ pub async fn list_preset_modifications(
         .map_err(|e| e.to_string())
 }
 
+/// Reads whatever single file sits in the local BDO "Customization" export
+/// folder (same folder `export_to_bdo` writes into and clears beforehand) —
+/// there's always at most one file there by construction. Missing folder/no
+/// file is not an error: a modification with only images is still valid.
+fn read_exported_pab(app: &tauri::AppHandle) -> Option<Vec<u8>> {
+    let docs = app.path().document_dir().ok()?;
+    let customization = docs.join("Black Desert").join("Customization");
+    let entry = std::fs::read_dir(&customization).ok()?
+        .filter_map(|e| e.ok())
+        .find(|e| e.path().is_file())?;
+    std::fs::read(entry.path()).ok()
+}
+
 #[tauri::command]
 pub async fn upload_preset_modification(
     preset_id:      String,
     image_1_base64: String,
     image_2_base64: Option<String>,
+    app:            tauri::AppHandle,
     state:          State<'_, AppState>,
 ) -> Result<(), String> {
     let id: i64 = preset_id.parse().map_err(|e: std::num::ParseIntError| e.to_string())?;
@@ -258,7 +272,8 @@ pub async fn upload_preset_modification(
         Some(b64) => Some(STANDARD.decode(b64.as_bytes()).map_err(|e| e.to_string())?),
         None => None,
     };
-    BeautyService::upload_preset_modification(&state.pool, id, image_1_bytes, image_2_bytes)
+    let pab_bytes = read_exported_pab(&app);
+    BeautyService::upload_preset_modification(&state.pool, id, image_1_bytes, image_2_bytes, pab_bytes)
         .await
         .map_err(|e| e.to_string())
 }

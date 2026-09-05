@@ -117,7 +117,8 @@
       "gallery_modification_n": "Mod {n}",
       "unfavorite_creator_confirm_title": "Remove favorite creator?",
       "unfavorite_creator_confirm_msg": "\"{creator}\" will no longer be pinned or highlighted across the grid. You can re-favorite them anytime.",
-      "unfavorite_creator_confirm_button": "Remove"
+      "unfavorite_creator_confirm_button": "Remove",
+      "export_no_pab": "This modification has no attached .pab to export"
     },
     "wanted_modal": {
       "title": "Presets to download",
