@@ -126,9 +126,12 @@ async fn process_one(sink: &Arc<dyn Sink>, pool: &PgPool, pending: PendingRow) {
 
 /// Decodes, resizes to a large-but-bounded long edge (viewed full-size in
 /// album's PresetDetail hero, so bigger than face_grid's 512/256 working
-/// sizes), re-encodes as WebP, uploads to R2, and returns the key (not the
-/// full URL `upload()` returns — every existing caller discards that and
-/// keeps the key it built itself, same convention here).
+/// sizes), re-encodes as WebP, uploads to R2 under the raw key, and returns
+/// the **DB-storage form** (leading `/`) — matching `service::upload_pab`'s
+/// established split between the R2 key (no leading slash) and the value
+/// stored in the DB (with one, so `r2_public_url || column` concatenates
+/// into a valid URL — `scraper_presets.image_1_url` follows this exact
+/// convention, e.g. `/images/Guardian/1123335/51372_1.png`).
 async fn upload_one(r2: &R2Client, preset_id: i64, index: i64, slot: u8, bytes: &[u8]) -> Result<String> {
     let img = image::load_from_memory(bytes)
         .map_err(|e| crate::errors::AppError::Scrape(format!("invalid image: {e}")))?;
@@ -141,14 +144,15 @@ async fn upload_one(r2: &R2Client, preset_id: i64, index: i64, slot: u8, bytes: 
 
     let key = format!("preset-modifications/{preset_id}/modificacion_{index}-{slot}.webp");
     let _ = r2.upload(&key, buf).await?;
-    Ok(key)
+    Ok(format!("/{key}"))
 }
 
 /// Uploads the .pab as-is — a binary game format, never decoded/re-encoded
 /// as an image. No file extension, matching how PAB files elsewhere in this
-/// system are already keyed (see `service::upload_pab`).
+/// system are already keyed (see `service::upload_pab`). Same R2-key-vs-
+/// DB-storage-form split as `upload_one` above.
 async fn upload_pab(r2: &R2Client, preset_id: i64, index: i64, bytes: &[u8]) -> Result<String> {
     let key = format!("preset-modifications/{preset_id}/modificacion_{index}-pab");
     let _ = r2.upload(&key, bytes.to_vec()).await?;
-    Ok(key)
+    Ok(format!("/{key}"))
 }
