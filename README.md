@@ -2,10 +2,10 @@
 
 A two-app desktop suite for browsing and curating Black Desert Online "Beauty Album" character presets, built with [Tauri 2](https://tauri.app/) and [Svelte 5](https://svelte.dev/).
 
-- **[Dashboard](scraper/)** — scrapes popular presets from [Garmoth](https://garmoth.com), uploads preset images to Cloudflare R2, and writes metadata to PostgreSQL.
-- **[Album](album/)** — reads the same PostgreSQL database and lets the user browse presets, manage favorites/discards, and import them onto their own in-game characters (via face grid).
+- **[Dashboard](scraper/)** — scrapes popular presets from [Garmoth](https://garmoth.com), uploads preset images to Cloudflare R2, and writes metadata to PostgreSQL. Also ships a headless background worker (`download_daemon`) that keeps running independently of the GUI — see [Background workers](#background-workers-scraper) below.
+- **[Album](album/)** — reads the same PostgreSQL database and lets the user browse presets, manage favorites/discards, attach personal "modifications" (before/after images) to a preset, and import them onto their own in-game characters (via face grid).
 
-The two apps are fully independent Tauri/Rust projects (no shared crate or workspace); they only share a Postgres database and an R2 bucket.
+The two apps are fully independent Tauri/Rust projects (no shared crate or workspace); they only share a Postgres database and an R2 bucket. **Album never talks to R2 directly** — every R2 write, including user-submitted modification images, goes through the Dashboard side (either its live scraping session or the `download_daemon` background worker), with Postgres as the only channel between the two apps.
 
 ## Architecture
 
@@ -26,6 +26,21 @@ The two apps are fully independent Tauri/Rust projects (no shared crate or works
 - **Scraping**: `playwright-rs` (headless Chromium) to get past Cloudflare's JS challenge on Garmoth
 - **Storage**: PostgreSQL for metadata, Cloudflare R2 for preset images
 - **Auto-update**: Tauri updater plugin, manifests published as GitHub Release assets
+
+## Background workers (scraper)
+
+`download_daemon` (`scraper/cli/src/bin/download_daemon.rs`) is a long-running, GUI-free
+worker that polls every 60 seconds for two independent queues and drains them:
+
+- **Auto-download** — PABs for presets the Album user marked "wanted" (`album_user_prefs.auto_download_requested_at`), fetched via an authenticated Garmoth session.
+- **Preset modifications** — images the Album user pasted onto a preset (staged in `album_pending_preset_modifications`, since Album itself never touches R2), uploaded to R2 and moved into `album_preset_modifications`.
+
+It runs two ways:
+
+- **Alongside the Windows GUI** — spawned automatically when the Dashboard app starts (`scraper/src-tauri/src/lib.rs`), no separate process to manage.
+- **Standalone on a headless Linux host** — same binary, no GUI/display required. Production runs this via Docker (`scraper/Dockerfile`, builds both `scrape` and `download_daemon`); a bare-metal/systemd alternative is documented in [`scraper/cli/systemd/README.md`](scraper/cli/systemd/README.md).
+
+Both paths need the same Garmoth session file (`garmoth_auth.json`, exported once from the Windows GUI) for the auto-download half — the preset-modifications half needs nothing beyond the usual `DATABASE_URL`/R2 credentials.
 
 ## Getting started
 
@@ -102,3 +117,4 @@ Semantic versioning (`MAJOR.MINOR.PATCH`), one shared number for the whole suite
 
 - [ ] **Figure out how to distribute `.env` config to end users.** Neither MSI bundles `.env` anymore, which means an installed app has no `DATABASE_URL`/R2 credentials at all unless something places a `.env` next to the executable by hand. Needs a real solution before this goes beyond personal/internal use: e.g. a first-run setup screen that stores config in the OS app-data dir, a remote config endpoint, or per-build secrets injection scoped to the intended user.
 - [ ] **Playwright driver first-run download has no user-facing progress.** `browser.rs::bootstrap_driver` shells out to the bundled CLI and blocks until it's done (silent from the UI's perspective beyond the one log line) — fine for now, but a session that starts on a slow connection will look stuck rather than downloading.
+- [ ] **No UI to inspect/retry a failed preset-modification upload.** A row that fails in `download_daemon`'s preset-modifications worker (bad image data, R2 hiccup) gets `error` set on `album_pending_preset_modifications` and is skipped on future polls (see [Background workers](#background-workers-scraper)), but nothing in Album surfaces that it happened beyond the Dashboard's own log feed — same dead-letter shape as `auto_download`, just without that one's re-queue affordance yet.
