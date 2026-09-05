@@ -1,0 +1,8 @@
+# TODO
+
+Known limitations and planned work, not tracked elsewhere (see `specs/` for
+the Album's actual roadmap under Spec-Driven Development).
+
+- [ ] **Figure out how to distribute `.env` config to end users.** Neither MSI bundles `.env` anymore, which means an installed app has no `DATABASE_URL`/R2 credentials at all unless something places a `.env` next to the executable by hand. Needs a real solution before this goes beyond personal/internal use: e.g. a first-run setup screen that stores config in the OS app-data dir, a remote config endpoint, or per-build secrets injection scoped to the intended user.
+- [ ] **Playwright driver first-run download has no user-facing progress.** `browser.rs::bootstrap_driver` shells out to the bundled CLI and blocks until it's done (silent from the UI's perspective beyond the one log line) — fine for now, but a session that starts on a slow connection will look stuck rather than downloading.
+- [ ] **No UI to inspect/retry a failed preset-modification upload.** A row that fails in `download_daemon`'s preset-modifications worker (bad image data, R2 hiccup) gets `error` set on `album_pending_preset_modifications` and is skipped on future polls (see [README.md#background-workers-scraper](README.md#background-workers-scraper)), but nothing in Album surfaces that it happened beyond the Dashboard's own log feed — same dead-letter shape as `auto_download`, just without that one's re-queue affordance yet.

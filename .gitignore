@@ -39,6 +39,7 @@ Thumbs.db
 # Markdown
 *.md
 !README.md
+!TODO.md
 !CLAUDE.md
 !AGENTS.md
 !specs/**/*.md

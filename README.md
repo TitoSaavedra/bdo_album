@@ -9,16 +9,20 @@ The two apps are fully independent Tauri/Rust projects (no shared crate or works
 
 ## Architecture
 
-```
-┌─────────────┐        ┌──────────────────┐        ┌─────────────┐
-│  Dashboard  │──write→│    PostgreSQL     │←─read──│    Album    │
-│ (scraper/)  │        │   (bdo_album db)  │        │  (album/)   │
-└──────┬──────┘        └──────────────────┘        └─────────────┘
-       │
-       ▼
-┌─────────────┐
-│ Cloudflare R2│  ← preset images
-└─────────────┘
+```mermaid
+flowchart LR
+    Dashboard["Dashboard<br/>(scraper/)"]
+    Daemon["download_daemon<br/>(headless — Docker or systemd,<br/>independent of the GUI)"]
+    PG[("PostgreSQL<br/>bdo_album db")]
+    R2[("Cloudflare R2")]
+    Album["Album<br/>(album/)"]
+
+    Dashboard -->|"writes metadata,<br/>scraped images"| PG
+    Dashboard -->|"uploads scraped<br/>preset images"| R2
+    Daemon -->|"drains auto-download +<br/>pending-modification queues,<br/>every 60s"| PG
+    Daemon -->|"uploads PABs,<br/>modification images"| R2
+    PG -->|"reads presets,<br/>modifications"| Album
+    Album -->|"writes staged<br/>modification bytes only<br/>(never touches R2)"| PG
 ```
 
 - **Frontend**: Svelte 5 (runes), TypeScript, SCSS, Vite
@@ -27,7 +31,7 @@ The two apps are fully independent Tauri/Rust projects (no shared crate or works
 - **Storage**: PostgreSQL for metadata, Cloudflare R2 for preset images
 - **Auto-update**: Tauri updater plugin, manifests published as GitHub Release assets
 
-## Background workers (scraper)
+### Background workers (scraper)
 
 `download_daemon` (`scraper/cli/src/bin/download_daemon.rs`) is a long-running, GUI-free
 worker that polls every 60 seconds for two independent queues and drains them:
@@ -73,7 +77,7 @@ No Rust/sqlx-cli involved — it's a standalone script that tracks applied migra
 
 ### Playwright driver bootstrap CLI (scraper only)
 
-The scraper bundles a small `playwright-rs` CLI binary in its installer, which it shells out to on first run to fetch the actual Playwright driver into the user's cache — see the TODO note below. Build it once (also required before `tauri build`/`pnpm tauri:build`, since the MSI resource has to exist on disk):
+The scraper bundles a small `playwright-rs` CLI binary in its installer, which it shells out to on first run to fetch the actual Playwright driver into the user's cache — see [TODO.md](TODO.md). Build it once (also required before `tauri build`/`pnpm tauri:build`, since the MSI resource has to exist on disk):
 
 ```bash
 cargo install playwright-rs --version 0.15.0 --locked --features cli --root scraper/src-tauri/tools/playwright-rs-cli --bin playwright-rs
@@ -113,8 +117,6 @@ Semantic versioning (`MAJOR.MINOR.PATCH`), one shared number for the whole suite
 
 **Always bump before pushing to `releases`.** The Tauri updater compares version numbers, not content — pushing under an unchanged version silently ships a build nobody's app will ever detect as an update (this happened once already; see the `v0.1.0` → `v0.2.0` jump in git history).
 
-## TODO
+## Known limitations
 
-- [ ] **Figure out how to distribute `.env` config to end users.** Neither MSI bundles `.env` anymore, which means an installed app has no `DATABASE_URL`/R2 credentials at all unless something places a `.env` next to the executable by hand. Needs a real solution before this goes beyond personal/internal use: e.g. a first-run setup screen that stores config in the OS app-data dir, a remote config endpoint, or per-build secrets injection scoped to the intended user.
-- [ ] **Playwright driver first-run download has no user-facing progress.** `browser.rs::bootstrap_driver` shells out to the bundled CLI and blocks until it's done (silent from the UI's perspective beyond the one log line) — fine for now, but a session that starts on a slow connection will look stuck rather than downloading.
-- [ ] **No UI to inspect/retry a failed preset-modification upload.** A row that fails in `download_daemon`'s preset-modifications worker (bad image data, R2 hiccup) gets `error` set on `album_pending_preset_modifications` and is skipped on future polls (see [Background workers](#background-workers-scraper)), but nothing in Album surfaces that it happened beyond the Dashboard's own log feed — same dead-letter shape as `auto_download`, just without that one's re-queue affordance yet.
+See [TODO.md](TODO.md) for open items and planned work.
