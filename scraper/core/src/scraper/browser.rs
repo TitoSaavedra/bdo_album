@@ -391,7 +391,7 @@ impl BrowserSession {
         if let Some((used, limit)) = parse_quota(&label) {
             if used >= limit {
                 let _ = page.close().await;
-                return Ok(PabDownloadOutcome::QuotaExceeded { used, limit });
+                return Ok(PabDownloadOutcome::QuotaExceeded { used, limit, label });
             }
         }
 
@@ -455,7 +455,12 @@ impl BrowserSession {
 
 pub enum PabDownloadOutcome {
     Saved { path: PathBuf, filename: String },
-    QuotaExceeded { used: u32, limit: u32 },
+    /// `label` is the raw button text Garmoth served (e.g. "Download (0/30)")
+    /// — kept alongside the parsed numbers so a mismatch between what a
+    /// human sees logged into a real browser and what the headless session
+    /// gets back is diagnosable from the log alone, instead of re-guessing
+    /// whether the imported cookies actually authenticated.
+    QuotaExceeded { used: u32, limit: u32, label: String },
 }
 
 /// Parses a "Download (9/30)" style label into `(used, limit)`.

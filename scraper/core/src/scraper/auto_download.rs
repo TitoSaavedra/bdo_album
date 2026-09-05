@@ -110,9 +110,9 @@ async fn process_queue(sink: &Arc<dyn Sink>, pool: &PgPool) {
                     }
                 }
             }
-            Ok(PabDownloadOutcome::QuotaExceeded { used, limit }) => {
+            Ok(PabDownloadOutcome::QuotaExceeded { used, limit, label }) => {
                 LogRepository::insert(sink.as_ref(), pool, None, "INFO", "auto_download",
-                    &format!("Garmoth monthly download quota reached ({used}/{limit}) — will retry later")).await.ok();
+                    &format!("Garmoth monthly download quota reached ({used}/{limit}) — will retry later. Raw button label: {label:?}")).await.ok();
                 sink.auto_download_status(AutoDownloadStatus::QuotaExceeded { used, limit });
                 break;
             }

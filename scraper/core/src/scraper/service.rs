@@ -146,11 +146,13 @@ pub async fn run_session(
         if mode == "images" {
             LogRepository::insert_coded(sink.as_ref(), &pool, Some(session_id), "ORCH", "session", "Images-only mode — skipping fetch", Some(LogCode::ImagesOnlyMode)).await.ok();
             sink.sync_loading(SyncPhase::DownloadingImages);
+            // No concurrent fetch in this mode — "nothing pending" is trustworthy from the start.
+            let fetch_done = Arc::new(AtomicBool::new(true));
             let (dl, _) = if specific_class_ids.is_empty() {
                 // ALL: use original fairness-based loop
                 tokio::join!(
                     run_download_pipeline(&sink, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
-                    run_pending_loop(&sink, &pool, session_id, cancel.clone(), tx, img_total),
+                    run_pending_loop(&sink, &pool, session_id, cancel.clone(), tx, img_total, fetch_done),
                 )
             } else {
                 // Specific classes: drain each one fully, in the order they were selected,
@@ -160,11 +162,12 @@ pub async fn run_session(
                 let img_total_priority   = img_total.clone();
                 let cancel_priority      = cancel.clone();
                 let cancel_fairness      = cancel.clone();
+                let fetch_done_priority  = fetch_done.clone();
                 tokio::join!(
                     run_download_pipeline(&sink, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
                     async {
-                        run_class_sequential_loop(&sink, &pool, session_id, cancel_priority, tx_priority, img_total_priority, specific_class_ids).await;
-                        run_pending_loop(&sink, &pool, session_id, cancel_fairness, tx, img_total).await;
+                        run_class_sequential_loop(&sink, &pool, session_id, cancel_priority, tx_priority, img_total_priority, specific_class_ids, fetch_done_priority).await;
+                        run_pending_loop(&sink, &pool, session_id, cancel_fairness, tx, img_total, fetch_done).await;
                     },
                 )
             };
@@ -173,28 +176,35 @@ pub async fn run_session(
             LogRepository::insert_coded(sink.as_ref(), &pool, Some(session_id), "ORCH", "fetch", "Fetch phase started", Some(LogCode::FetchPhaseStarted)).await.ok();
             sink.sync_loading(SyncPhase::FetchingAndDownloading);
 
+            // Fetch runs concurrently with the image loops below and writes the very
+            // presets they're querying for — starts false, flips once run_fetch (via
+            // run_fetch_tracked) actually returns, so an early empty query doesn't
+            // read as "there's nothing to download this session".
+            let fetch_done = Arc::new(AtomicBool::new(false));
+
             let (fetch_result, dl, _) = if specific_class_ids.is_empty() {
                 tokio::join!(
-                    run_fetch(&sink, &pool, Arc::clone(&browser), session_id, cancel.clone(), parallelism, days, regions, classes, false),
+                    run_fetch_tracked(&sink, &pool, Arc::clone(&browser), session_id, cancel.clone(), parallelism, days, regions, classes, false, fetch_done.clone()),
                     run_download_pipeline(&sink, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
-                    run_pending_loop(&sink, &pool, session_id, cancel.clone(), tx, img_total),
+                    run_pending_loop(&sink, &pool, session_id, cancel.clone(), tx, img_total, fetch_done),
                 )
             } else {
                 // Same as images mode: drain the selected classes' downloads fully,
                 // in order, before falling through to fairness across the rest —
                 // "both" mode's fetch phase already respects the class filter, but
                 // the download phase used to ignore it entirely.
-                let tx_priority        = tx.clone();
-                let img_total_priority = img_total.clone();
-                let cancel_priority    = cancel.clone();
-                let cancel_fairness    = cancel.clone();
-                let priority_ids       = specific_class_ids.clone();
+                let tx_priority          = tx.clone();
+                let img_total_priority   = img_total.clone();
+                let cancel_priority      = cancel.clone();
+                let cancel_fairness      = cancel.clone();
+                let priority_ids         = specific_class_ids.clone();
+                let fetch_done_priority  = fetch_done.clone();
                 tokio::join!(
-                    run_fetch(&sink, &pool, Arc::clone(&browser), session_id, cancel.clone(), parallelism, days, regions, classes, false),
+                    run_fetch_tracked(&sink, &pool, Arc::clone(&browser), session_id, cancel.clone(), parallelism, days, regions, classes, false, fetch_done.clone()),
                     run_download_pipeline(&sink, Arc::clone(&browser), &r2, &pool, session_id, cancel.clone(), img_done, img_total.clone(), rx, parallelism),
                     async {
-                        run_class_sequential_loop(&sink, &pool, session_id, cancel_priority, tx_priority, img_total_priority, priority_ids).await;
-                        run_pending_loop(&sink, &pool, session_id, cancel_fairness, tx, img_total).await;
+                        run_class_sequential_loop(&sink, &pool, session_id, cancel_priority, tx_priority, img_total_priority, priority_ids, fetch_done_priority).await;
+                        run_pending_loop(&sink, &pool, session_id, cancel_fairness, tx, img_total, fetch_done).await;
                     },
                 )
             };
@@ -537,6 +547,32 @@ pub async fn run_fetch(
     }
     sink.fetch_done();
     Ok(FetchResult { total_fetched, total_updated, total_errors, total_skipped })
+}
+
+/// Wraps `run_fetch`, flipping `fetch_done` once it resolves — Ok or Err alike,
+/// since this only ever runs a fixed number of steps and always reaches its own
+/// return. Used so the image-download loops running alongside it (`run_pending_loop`,
+/// `run_class_sequential_loop`) know when "nothing pending right now" really means
+/// "nothing left this session" instead of "the fetch just hasn't gotten there yet".
+#[allow(clippy::too_many_arguments)]
+async fn run_fetch_tracked(
+    sink:            &Arc<dyn Sink>,
+    pool:            &PgPool,
+    browser:         Arc<BrowserSession>,
+    session_id:      i64,
+    cancel:          Arc<AtomicBool>,
+    parallelism:     usize,
+    days:            Vec<String>,
+    regions:         Vec<String>,
+    classes_filter:  Vec<serde_json::Value>,
+    update_existing: bool,
+    fetch_done:      Arc<AtomicBool>,
+) -> Result<FetchResult> {
+    let result = run_fetch(
+        sink, pool, browser, session_id, cancel, parallelism, days, regions, classes_filter, update_existing,
+    ).await;
+    fetch_done.store(true, Ordering::Relaxed);
+    result
 }
 
 // ── Phase: Download pipeline ──────────────────────────────────
@@ -968,6 +1004,13 @@ async fn insert_preset_and_queue(
 // once the previous one has nothing left pending. Once every selected class is
 // drained, the caller falls through to run_pending_loop so the session keeps
 // going across the rest of the classes instead of ending.
+//
+// `fetch_done` is `true` from the start in images-only mode (nothing writes new
+// presets concurrently). In fetch+images mode it starts `false` and flips once
+// `run_fetch` returns — see `run_fetch_tracked`. Without it, a class queried
+// before the fetch phase has inserted anything for it looks permanently empty
+// and gets skipped for the rest of the session (this is what silently produced
+// 0 images despite dozens of new presets fetched in the same run).
 
 async fn run_class_sequential_loop(
     sink:       &Arc<dyn Sink>,
@@ -977,6 +1020,7 @@ async fn run_class_sequential_loop(
     tx:         mpsc::Sender<ImageTask>,
     img_total:  Arc<AtomicUsize>,
     class_ids:  Vec<i32>,
+    fetch_done: Arc<AtomicBool>,
 ) {
     use std::collections::HashSet;
 
@@ -1010,6 +1054,12 @@ async fn run_class_sequential_loop(
                 .collect();
 
             if batch.is_empty() {
+                if !fetch_done.load(Ordering::Relaxed) {
+                    // Fetch is still discovering presets for this class — don't give up
+                    // yet, just wait for the next wave and check again.
+                    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                    continue;
+                }
                 if round > 0 {
                     LogRepository::insert_coded(sink.as_ref(), pool, Some(session_id), "ORCH", "pending",
                         &format!("{}: no more pending images — moving to next selected class", class_name),
@@ -1065,6 +1115,12 @@ async fn run_class_sequential_loop(
 // Runs concurrently with run_fetch. Each round queries the top-10 pending presets
 // per class (by downloads), enqueues them, then waits until that batch is processed
 // before querying again. Repeats until no pending images remain.
+//
+// `fetch_done` gates when "nothing pending right now" is allowed to mean "nothing
+// left, ever" — see the comment on `run_class_sequential_loop` above for why this
+// matters: this loop starts querying at the same instant `run_fetch` starts
+// writing, so an empty first query only means the fetch phase hasn't gotten
+// around to inserting anything yet, not that there's nothing to do this session.
 
 async fn run_pending_loop(
     sink:       &Arc<dyn Sink>,
@@ -1073,6 +1129,7 @@ async fn run_pending_loop(
     cancel:     Arc<AtomicBool>,
     tx:         mpsc::Sender<ImageTask>,
     img_total:  Arc<AtomicUsize>,
+    fetch_done: Arc<AtomicBool>,
 ) {
     use std::collections::HashSet;
 
@@ -1122,6 +1179,12 @@ async fn run_pending_loop(
             .collect();
 
         if batch.is_empty() {
+            if !fetch_done.load(Ordering::Relaxed) {
+                // Fetch is still running and may still insert presets this loop hasn't
+                // seen yet — wait for the next wave instead of declaring victory early.
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                continue;
+            }
             if round > 0 {
                 // If classes were excluded due to fairness, don't stop — retry without exclusion
                 // so those classes can eventually drain their pending presets.
