@@ -19,7 +19,7 @@ flowchart LR
 
     Dashboard -->|"writes metadata,<br/>scraped images"| PG
     Dashboard -->|"uploads scraped<br/>preset images"| R2
-    Daemon -->|"drains auto-download +<br/>pending-modification queues,<br/>every 60s"| PG
+    Daemon -->|"drains auto-download +<br/>pending-modification queues,<br/>on NOTIFY (5min fallback poll)"| PG
     Daemon -->|"uploads PABs,<br/>modification images"| R2
     PG -->|"reads presets,<br/>modifications"| Album
     Album -->|"writes staged<br/>modification bytes only<br/>(never touches R2)"| PG
@@ -34,7 +34,8 @@ flowchart LR
 ### Background workers (scraper)
 
 `download_daemon` (`scraper/cli/src/bin/download_daemon.rs`) is a long-running, GUI-free
-worker that polls every 60 seconds for two independent queues and drains them:
+worker that drains two independent queues as soon as Album queues something — via
+Postgres `LISTEN`/`NOTIFY` — with a 5-minute fallback poll in case a notification is missed:
 
 - **Auto-download** — PABs for presets the Album user marked "wanted" (`album_user_prefs.auto_download_requested_at`), fetched via an authenticated Garmoth session.
 - **Preset modifications** — images the Album user pasted onto a preset (staged in `album_pending_preset_modifications`, since Album itself never touches R2), uploaded to R2 and moved into `album_preset_modifications`.

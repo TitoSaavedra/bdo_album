@@ -140,8 +140,9 @@ impl BeautyService {
 
     /// Stages the raw pasted image bytes (plus, optionally, the local .pab
     /// file bytes) only — album never talks to R2 for this feature. The
-    /// scraper's `preset_modifications` worker uploads them on its next 60s
-    /// tick (see the migration's comment on the staging table).
+    /// scraper's `preset_modifications` worker wakes up immediately via the
+    /// `preset_modification_queued` NOTIFY sent by the repository insert
+    /// (see the migration's comment on the staging table).
     pub async fn upload_preset_modification(
         pool:      &PgPool,
         preset_id: i64,

@@ -246,7 +246,9 @@ impl PresetRepository {
     }
 
     /// Queues presets for the scraper's auto-download worker (picked up from
-    /// `album_user_prefs.auto_download_requested_at` — see scraper's `auto_download.rs`).
+    /// `album_user_prefs.auto_download_requested_at` — see scraper's `auto_download.rs`,
+    /// which wakes up immediately via the `auto_download_queued` NOTIFY sent
+    /// here instead of waiting on its fallback poll).
     /// Re-queueing clears a previous error so a failed item can be retried.
     pub async fn queue_auto_download(pool: &PgPool, preset_ids: &[i64]) -> Result<()> {
         sqlx::query(
@@ -262,6 +264,11 @@ impl PresetRepository {
         .bind(preset_ids)
         .execute(pool)
         .await?;
+
+        sqlx::query("SELECT pg_notify('auto_download_queued', $1)")
+            .bind(serde_json::json!({ "preset_ids": preset_ids }).to_string())
+            .execute(pool)
+            .await?;
         Ok(())
     }
 

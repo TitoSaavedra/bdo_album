@@ -8,18 +8,22 @@ use crate::db::repositories::log_repo::LogRepository;
 use crate::events::{AutoDownloadStatus, Sink};
 
 use super::browser::{BrowserSession, PabDownloadOutcome};
+use super::pg_notify_loop;
 use super::r2::R2Client;
 use super::service;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(60);
+/// Safety net only — real wake-ups come from `NOTIFY auto_download_queued`
+/// (fired by the album's `queue_auto_download`, see `pg_notify_loop`). This
+/// just catches anything missed while the LISTEN connection was down.
+const FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(300);
 const BETWEEN_ITEMS: Duration = Duration::from_secs(5);
 
-/// Background worker: periodically checks for presets the user queued from
-/// the album ("Enviar a descarga automática") and downloads their `.pab` via
-/// the authenticated Playwright session (see `session.rs` for how that
-/// session gets imported). Independent of the "Iniciar Scraping"
-/// button/session — runs continuously in both the desktop GUI (spawned
-/// alongside the app) and the headless `download_daemon` binary.
+/// Background worker: reacts immediately to presets the user queues from the
+/// album ("Enviar a descarga automática") via `LISTEN auto_download_queued`,
+/// and downloads their `.pab` via the authenticated Playwright session (see
+/// `session.rs` for how that session gets imported). Independent of the
+/// "Iniciar Scraping" button/session — runs continuously in both the desktop
+/// GUI (spawned alongside the app) and the headless `download_daemon` binary.
 ///
 /// `driver_path`/`session_base_dir` are forwarded to `BrowserSession::new` —
 /// `None` in both cases lets the env-var/default fallbacks apply (see
@@ -30,16 +34,28 @@ const BETWEEN_ITEMS: Duration = Duration::from_secs(5);
 /// scrape), and `GARMOTH_SESSION_FILE` is how `download_daemon` supplies its
 /// session file on the server.
 pub async fn run_loop(sink: Arc<dyn Sink>, pool: PgPool) {
-    loop {
-        tokio::time::sleep(POLL_INTERVAL).await;
+    // Drain anything already queued before we start listening (e.g. queued
+    // while this process was down).
+    check_and_process(&sink, &pool).await;
 
-        match AutoDownloadRepository::next_pending(&pool).await {
-            Ok(Some(_)) => process_queue(&sink, &pool).await,
-            Ok(None) => {}
-            Err(e) => {
-                LogRepository::insert(sink.as_ref(), &pool, None, "ERR", "auto_download",
-                    &format!("queue check failed: {e}")).await.ok();
-            }
+    pg_notify_loop::run(
+        &sink,
+        &pool,
+        "auto_download_queued",
+        "auto_download",
+        FALLBACK_POLL_INTERVAL,
+        || check_and_process(&sink, &pool),
+    )
+    .await;
+}
+
+async fn check_and_process(sink: &Arc<dyn Sink>, pool: &PgPool) {
+    match AutoDownloadRepository::next_pending(pool).await {
+        Ok(Some(_)) => process_queue(sink, pool).await,
+        Ok(None) => {}
+        Err(e) => {
+            LogRepository::insert(sink.as_ref(), pool, None, "ERR", "auto_download",
+                &format!("queue check failed: {e}")).await.ok();
         }
     }
 }

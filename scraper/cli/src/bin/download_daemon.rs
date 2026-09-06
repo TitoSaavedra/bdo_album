@@ -67,11 +67,11 @@ async fn main() -> ExitCode {
     };
 
     let sink: Arc<dyn Sink> = CliSink::new();
-    tracing::info!("download_daemon started — polling auto_download + preset_modifications queues every 60s");
+    tracing::info!("download_daemon started — listening for auto_download + preset_modifications NOTIFYs (5min fallback poll)");
 
     // Drains the staged preset-modification images (pasted in album, uploaded
-    // to R2 here) on the same 60s cadence, in this same long-running process —
-    // no separate service/container needed for it.
+    // to R2 here) in this same long-running process — no separate
+    // service/container needed for it.
     tokio::spawn(bdo_scraper_core::scraper::preset_modifications::run_loop(
         Arc::clone(&sink),
         pool.clone(),

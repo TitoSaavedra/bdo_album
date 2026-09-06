@@ -8,28 +8,46 @@ use crate::db::repositories::modification_repo::{ModificationRepository, Pending
 use crate::errors::Result;
 use crate::events::Sink;
 
+use super::pg_notify_loop;
 use super::r2::R2Client;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(60);
+/// Safety net only — real wake-ups come from `NOTIFY
+/// preset_modification_queued` (fired by the album's
+/// `PendingModificationRepository::insert`, see `pg_notify_loop`). This just
+/// catches anything missed while the LISTEN connection was down.
+const FALLBACK_POLL_INTERVAL: Duration = Duration::from_secs(300);
 
-/// Background worker: drains the album's staged-modification-image queue
-/// every 60s and uploads to R2 — album never talks to R2 directly for this
-/// feature, it only stages raw pasted bytes (see the migration's comment on
+/// Background worker: drains the album's staged-modification-image queue as
+/// soon as it's queued (via `LISTEN preset_modification_queued`) and uploads
+/// to R2 — album never talks to R2 directly for this feature, it only stages
+/// raw pasted bytes (see the migration's comment on
 /// `album_pending_preset_modifications`). Runs alongside `auto_download`'s
 /// loop, in both the desktop GUI and the headless `download_daemon` binary.
 pub async fn run_loop(sink: Arc<dyn Sink>, pool: PgPool) {
-    loop {
-        tokio::time::sleep(POLL_INTERVAL).await;
+    // Drain anything already queued before we start listening (e.g. queued
+    // while this process was down).
+    drain_queue(&sink, &pool).await;
 
-        loop {
-            match PendingModificationRepository::next_pending(&pool).await {
-                Ok(Some(pending)) => process_one(&sink, &pool, pending).await,
-                Ok(None) => break,
-                Err(e) => {
-                    LogRepository::insert(sink.as_ref(), &pool, None, "ERR", "preset_modifications",
-                        &format!("queue check failed: {e}")).await.ok();
-                    break;
-                }
+    pg_notify_loop::run(
+        &sink,
+        &pool,
+        "preset_modification_queued",
+        "preset_modifications",
+        FALLBACK_POLL_INTERVAL,
+        || drain_queue(&sink, &pool),
+    )
+    .await;
+}
+
+async fn drain_queue(sink: &Arc<dyn Sink>, pool: &PgPool) {
+    loop {
+        match PendingModificationRepository::next_pending(pool).await {
+            Ok(Some(pending)) => process_one(sink, pool, pending).await,
+            Ok(None) => break,
+            Err(e) => {
+                LogRepository::insert(sink.as_ref(), pool, None, "ERR", "preset_modifications",
+                    &format!("queue check failed: {e}")).await.ok();
+                break;
             }
         }
     }

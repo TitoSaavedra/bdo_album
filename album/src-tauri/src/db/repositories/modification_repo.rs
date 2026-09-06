@@ -50,8 +50,9 @@ impl PendingModificationRepository {
     /// currently sitting in the local BDO export folder — see
     /// `beauty::commands::upload_preset_modification`) — album never talks
     /// to R2 directly for this feature; the scraper's `preset_modifications`
-    /// worker drains this queue every 60s, uploads to R2, and purges the row
-    /// (see the migration and `scraper/core/src/scraper/preset_modifications.rs`).
+    /// worker wakes up immediately via the `preset_modification_queued`
+    /// NOTIFY sent here, uploads to R2, and purges the row (see the
+    /// migration and `scraper/core/src/scraper/preset_modifications.rs`).
     pub async fn insert(
         pool:          &PgPool,
         preset_id:     i64,
@@ -71,6 +72,11 @@ impl PendingModificationRepository {
         .bind(pab_bytes)
         .execute(pool)
         .await?;
+
+        sqlx::query("SELECT pg_notify('preset_modification_queued', $1)")
+            .bind(serde_json::json!({ "preset_id": preset_id }).to_string())
+            .execute(pool)
+            .await?;
         Ok(())
     }
 }
