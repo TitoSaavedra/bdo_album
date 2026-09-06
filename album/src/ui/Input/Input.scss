@@ -13,7 +13,7 @@
   color: var(--color-text-muted);
   pointer-events: none;
 
-  :global(svg) {
+  svg {
     width: 14px;
     height: 14px;
   }

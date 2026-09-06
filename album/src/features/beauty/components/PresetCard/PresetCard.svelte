@@ -33,6 +33,11 @@
   const tierBadge = $derived(
     hasPab ? 'pab' : isWanted ? 'wanted' : showFavCreator ? 'creator' : null
   );
+
+  // Cards from different classes are interleaved together whenever a creator
+  // filter is active or the browse isn't scoped to exactly one class (0 = all,
+  // 2+ = several) — the class tag tells them apart in that mixed view.
+  const showClassTag = $derived(!!beauty.creatorFilter || beauty.selectedClasses.size !== 1);
   const tierBadgeLabel = $derived(
     tierBadge === 'pab' ? $_('beauty.preset_card.tier_downloaded')
     : tierBadge === 'wanted' ? $_('beauty.preset_card.tier_wishlist')
@@ -87,9 +92,9 @@
       <div class="skeleton-thumb"></div>
     {/if}
 
-    {#if beauty.creatorFilter || preset.has_modifications}
+    {#if showClassTag || preset.has_modifications}
       <div class="corner-badges">
-        {#if beauty.creatorFilter}<span class="class-tag">{preset.class_name}</span>{/if}
+        {#if showClassTag}<span class="class-tag">{preset.class_name}</span>{/if}
         {#if preset.has_modifications}<span class="mods-badge">{$_('beauty.preset_card.has_modifications_badge')}</span>{/if}
       </div>
     {/if}

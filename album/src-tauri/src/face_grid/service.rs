@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tauri::{AppHandle, Emitter};
@@ -98,12 +98,9 @@ impl FaceGridService {
                 .unwrap_or("unknown")
                 .to_string();
 
-            match parse_character_order(&xml_path, &face_dir) {
-                Ok(mut characters) => {
-                    characters.sort_by_key(|c| c.order);
-                    accounts.push(BdoAccount { account_id, characters });
-                }
-                Err(_) => {}
+            if let Ok(mut characters) = parse_character_order(&xml_path, &face_dir) {
+                characters.sort_by_key(|c| c.order);
+                accounts.push(BdoAccount { account_id, characters });
             }
         }
 
@@ -152,7 +149,7 @@ impl FaceGridService {
         let dest = face_texture_path().join(format!("{}.bmp", character_no));
         img.to_rgb8()
             .save(&dest)
-            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| AppError::Io(std::io::Error::other(e.to_string())))?;
 
         Ok(())
     }
@@ -220,9 +217,8 @@ impl FaceGridService {
         if let Some(r2) = r2_client {
             if let Some(first) = final_slots.iter().min_by_key(|s| s.slot_order) {
                 if !first.image_url.is_empty() {
-                    match Self::fetch_and_upload_thumb(r2, grid.id, &first.image_url).await {
-                        Ok(url) => thumbnail_url = Some(url),
-                        Err(_)  => {},
+                    if let Ok(url) = Self::fetch_and_upload_thumb(r2, grid.id, &first.image_url).await {
+                        thumbnail_url = Some(url);
                     }
                 }
             }
@@ -365,7 +361,7 @@ impl FaceGridService {
         let disk_path = face_dir.join(format!("{}.bmp", character_no));
         resized.to_rgb8()
             .save_with_format(&disk_path, image::ImageFormat::Bmp)
-            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| AppError::Io(std::io::Error::other(e.to_string())))?;
 
         // Upload to R2 as WebP with organized path
         let key = if let (Some(acc_id), Some(gid)) = (account_id, grid_id) {
@@ -402,7 +398,7 @@ impl FaceGridService {
         img.thumbnail(512, 512)
             .to_rgb8()
             .save_with_format(&disk_path, image::ImageFormat::Bmp)
-            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+            .map_err(|e| AppError::Io(std::io::Error::other(e.to_string())))?;
 
         Ok(())
     }
@@ -433,7 +429,7 @@ impl FaceGridService {
 
 // ── XML parsing ──────────────────────────────────────────────────────────────
 
-fn parse_character_order(xml_path: &PathBuf, face_dir: &PathBuf) -> Result<Vec<CharacterEntry>> {
+fn parse_character_order(xml_path: &Path, face_dir: &Path) -> Result<Vec<CharacterEntry>> {
     use quick_xml::events::Event;
     use quick_xml::Reader;
 
@@ -446,35 +442,35 @@ fn parse_character_order(xml_path: &PathBuf, face_dir: &PathBuf) -> Result<Vec<C
 
     loop {
         match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) | Ok(Event::Empty(ref e)) => {
-                if e.name().as_ref() == b"CharacterOrderList" {
-                    let mut char_no: Option<String> = None;
-                    let mut order:   Option<u32>    = None;
+            Ok(Event::Start(ref e)) | Ok(Event::Empty(ref e))
+                if e.name().as_ref() == b"CharacterOrderList" =>
+            {
+                let mut char_no: Option<String> = None;
+                let mut order:   Option<u32>    = None;
 
-                    for attr in e.attributes().flatten() {
-                        let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                        let val = attr.unescape_value().unwrap_or_default().to_string();
-                        match key {
-                            "CharacterNo" => char_no = Some(val),
-                            "Order"       => order   = val.parse().ok(),
-                            _             => {}
-                        }
+                for attr in e.attributes().flatten() {
+                    let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
+                    let val = attr.unescape_value().unwrap_or_default().to_string();
+                    match key {
+                        "CharacterNo" => char_no = Some(val),
+                        "Order"       => order   = val.parse().ok(),
+                        _             => {}
                     }
+                }
 
-                    if let (Some(character_no), Some(order)) = (char_no, order) {
-                        let bmp_path = face_dir.join(format!("{}.bmp", character_no));
-                        let has_bmp  = bmp_path.exists();
-                        characters.push(CharacterEntry {
-                            bmp_path: if has_bmp {
-                                Some(bmp_path.to_string_lossy().into_owned())
-                            } else {
-                                None
-                            },
-                            character_no,
-                            order,
-                            has_bmp,
-                        });
-                    }
+                if let (Some(character_no), Some(order)) = (char_no, order) {
+                    let bmp_path = face_dir.join(format!("{}.bmp", character_no));
+                    let has_bmp  = bmp_path.exists();
+                    characters.push(CharacterEntry {
+                        bmp_path: if has_bmp {
+                            Some(bmp_path.to_string_lossy().into_owned())
+                        } else {
+                            None
+                        },
+                        character_no,
+                        order,
+                        has_bmp,
+                    });
                 }
             }
             Ok(Event::Eof) => break,

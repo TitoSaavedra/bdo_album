@@ -72,28 +72,29 @@ export const getCreatorFavorites = (): Promise<string[]> =>
 export const setCreatorFavorite = (creatorNickname: string, isFavorite: boolean): Promise<void> =>
   invoke('set_creator_favorite', { creatorNickname, isFavorite });
 
-export const getPresetsByCreator = (
-  creatorNickname: string,
-  offset  = 0,
-  limit   = 40,
-  sortBy  = 'downloads',
-  search  = '',
-): Promise<PresetEntry[]> =>
-  invoke('get_presets_by_creator', { creatorNickname, offset, limit, sortBy, search });
-
 // ── Presets ───────────────────────────────────────────────────
 
+// classIds empty = every class; creator null = any creator — one unified
+// query now covers what get_presets/get_presets_by_creator used to split
+// across two Tauri commands (see preset_repo.rs::get_filtered's docs for why).
 export const getPresets = (
-  className:         string,
-  offset             = 0,
-  limit              = 40,
-  sortBy             = 'downloads',
-  search             = '',
-  region             = '',
-  days               = 'ever',
-  hasModifications   = false,
+  classIds:         number[],
+  creator:          string | null = null,
+  offset            = 0,
+  limit             = 40,
+  sortBy            = 'downloads',
+  search            = '',
+  region            = '',
+  days              = 'ever',
+  hasModifications  = false,
+  isWanted          = false,
+  hasPab            = false,
+  showDiscarded     = false,
 ): Promise<PresetEntry[]> =>
-  invoke('get_presets', { className, offset, limit, sortBy, search, region, days, hasModifications });
+  invoke('get_presets', {
+    classIds, creator, offset, limit, sortBy, search, region, days,
+    hasModifications, isWanted, hasPab, showDiscarded,
+  });
 
 export const getPreset = (presetId: string): Promise<PresetEntry | null> =>
   invoke('get_preset', { presetId });
@@ -106,8 +107,11 @@ export const getClassSearchCounts = (
   region           = '',
   days             = 'ever',
   hasModifications = false,
+  isWanted         = false,
+  hasPab           = false,
+  showDiscarded    = false,
 ): Promise<ClassCount[]> =>
-  invoke('get_class_search_counts', { search, region, days, hasModifications });
+  invoke('get_class_search_counts', { search, region, days, hasModifications, isWanted, hasPab, showDiscarded });
 
 // ── Preset modifications ──────────────────────────────────────
 

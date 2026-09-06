@@ -9,7 +9,6 @@
   interface Props {
     presets:       PresetEntry[];
     livePresets?:  PresetEntry[];
-    selectedClass: string | null;
     loading?:      boolean;
     error?:        string;
     loadingMore?:  boolean;
@@ -18,7 +17,6 @@
   const {
     presets,
     livePresets = [],
-    selectedClass,
     loading = false,
     error = '',
     loadingMore = false,
@@ -28,7 +26,8 @@
 
   const hasFilters = $derived(
     !!beauty.searchQuery.trim() || !!beauty.selectedRegion || beauty.selectedDays !== 'ever' ||
-    !!beauty.creatorFilter || !!beauty.hasModificationsFilter
+    !!beauty.creatorFilter || beauty.selectedClasses.size !== 1 ||
+    !!beauty.hasModificationsFilter || !!beauty.wantedFilter || !!beauty.hasPabFilter || !!beauty.showDiscardedFilter
   );
 
   const liveIds = $derived(new Set(livePresets.map(p => p.preset_id)));
@@ -60,7 +59,7 @@
   }
 </script>
 
-{#if !selectedClass}
+{#if beauty.classes.length === 0}
   <div class="state-msg">
     <div class="state-hint">{$_('beauty.preset_grid.select_class')}</div>
   </div>

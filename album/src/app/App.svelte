@@ -9,20 +9,17 @@
   import type { ToastItem } from '../ui/Toast/Toast.svelte';
   import Titlebar from '../ui/Titlebar/Titlebar.svelte';
   import ModuleSwitcher from '../ui/ModuleSwitcher/ModuleSwitcher.svelte';
-  import { getPresets, getPresetsByCreator, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
+  import { getPresets, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
   import {
     beauty,
-    selectClass,
     setWantedPresets,
     clearLiveForClass,
-    setSelectedRegion,
     setAvailableRegions,
     setSearchCounts,
-    setCreatorFilter,
     reopenLastPreset,
   } from '../features/beauty/state/beauty.svelte';
   import { withViewTransition } from '../lib/viewTransition';
-  import type { ClassEntry, PresetEntry } from '../lib/album';
+  import type { PresetEntry } from '../lib/album';
   import ClassList    from '../features/beauty/components/ClassList/ClassList.svelte';
   import PresetGrid   from '../features/beauty/components/PresetGrid/PresetGrid.svelte';
   import PresetDetail from '../features/beauty/components/PresetDetail/PresetDetail.svelte';
@@ -45,15 +42,20 @@
   let sentinelEl:          HTMLElement | null = $state(null);
   let sentinelIntersecting                    = $state(false);
 
-  const selectedClassId = $derived(
-    beauty.classes.find(c => c.name === beauty.selectedClass)?.class_id ?? null
-  );
+  // Only the single-class-and-no-creator case has one class's feed to patch —
+  // 0/2+ classes or a creator filter falls back to "no live patch, shows up
+  // on next natural reload" (same as creator-browsing already did before
+  // filters composed; just a generalized condition now).
+  const singleSelectedClassId = $derived.by(() => {
+    if (beauty.selectedClasses.size !== 1) return null;
+    const name = [...beauty.selectedClasses][0];
+    return beauty.classes.find(c => c.name === name)?.class_id ?? null;
+  });
 
   const livePresets = $derived.by(() => {
-    // Cross-class creator browsing doesn't map onto any single class's live feed.
     if (beauty.creatorFilter) return [];
-    if (selectedClassId === null) return [];
-    let all = beauty.livePresets[selectedClassId] ?? [];
+    if (singleSelectedClassId === null) return [];
+    let all = beauty.livePresets[singleSelectedClassId] ?? [];
     const region = beauty.selectedRegion;
     if (region) all = all.filter(p => p.region === region);
     const days = beauty.selectedDays;
@@ -101,30 +103,58 @@
     return () => eventBus.destroy();
   });
 
-  // Reload when selected class, region, search, days, sort, OR the favorite-creator
-  // filter changes. The creator filter takes over the grid entirely — it deliberately
-  // ignores region/days so a favorited creator's full catalog always shows up.
+  // Reload whenever any filter changes — class(es), creator, region, search,
+  // days, sort, or any status toggle. One unified path now (see
+  // preset_repo.rs::get_filtered): every filter is just an optional narrowing
+  // condition on the same query, none of them exclusive branches anymore.
+  // Guarded on classes having loaded so this doesn't fire a "browse every
+  // class" query during the brief startup window before loadClasses()'s
+  // auto-select-first-class runs (selectedClasses is empty then too, but for
+  // "nothing's loaded yet", not "the user chose to browse everything").
+  // Debounced (unlike the search box's own 300ms upstream in ClassList, this
+  // one covers every OTHER filter — pills/toggles fire with no debounce of
+  // their own, so a quick run through several of them used to queue up one
+  // full round-trip per click) — same clearTimeout/setTimeout shape as
+  // liveCountsDebounce below.
+  let reloadDebounce: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    const cls        = beauty.selectedClass;
-    const region      = beauty.selectedRegion;
-    const search      = beauty.searchQuery;
-    const days        = beauty.selectedDays;
-    const sort        = beauty.sortBy;
-    const creator     = beauty.creatorFilter;
-    const hasMods     = beauty.hasModificationsFilter;
-    if (creator) resetAndLoadCreator(creator, search, sort);
-    else if (cls) resetAndLoad(cls, region, search, days, sort, hasMods);
+    if (beauty.classes.length === 0) return;
+    const classIds = [...beauty.selectedClasses]
+      .map(name => beauty.classes.find(c => c.name === name)?.class_id)
+      .filter((id): id is number => id !== undefined);
+    const creator       = beauty.creatorFilter;
+    const region         = beauty.selectedRegion;
+    const search         = beauty.searchQuery;
+    const days           = beauty.selectedDays;
+    const sort           = beauty.sortBy;
+    const hasMods        = beauty.hasModificationsFilter;
+    const wanted         = beauty.wantedFilter;
+    const hasPab         = beauty.hasPabFilter;
+    const showDiscarded  = beauty.showDiscardedFilter;
+    clearTimeout(reloadDebounce);
+    reloadDebounce = setTimeout(() => {
+      resetAndLoad(classIds, creator, region, search, days, sort, hasMods, wanted, hasPab, showDiscarded);
+    }, 150);
   });
 
-  // Update per-class counts whenever search, region, days, OR has-modifications changes
+  // Update per-class counts whenever any non-class filter changes (counts are
+  // already class-agnostic — one row per class regardless of what's selected).
+  // Same debounce reasoning as the reload effect above.
+  let countsDebounce: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    const search  = beauty.searchQuery;
-    const region  = beauty.selectedRegion;
-    const days    = beauty.selectedDays;
-    const hasMods = beauty.hasModificationsFilter;
-    const hasFilter = !!search.trim() || !!region || days !== 'ever' || hasMods;
+    const search        = beauty.searchQuery;
+    const region         = beauty.selectedRegion;
+    const days           = beauty.selectedDays;
+    const hasMods        = beauty.hasModificationsFilter;
+    const wanted         = beauty.wantedFilter;
+    const hasPab         = beauty.hasPabFilter;
+    const showDiscarded  = beauty.showDiscardedFilter;
+    const hasFilter = !!search.trim() || !!region || days !== 'ever' || hasMods || wanted || hasPab || showDiscarded;
+    clearTimeout(countsDebounce);
     if (!hasFilter) { setSearchCounts([], false); return; }
-    getClassSearchCounts(search, region, days, hasMods).then(r => setSearchCounts(r, true)).catch(() => {});
+    countsDebounce = setTimeout(() => {
+      getClassSearchCounts(search, region, days, hasMods, wanted, hasPab, showDiscarded).then(r => setSearchCounts(r, true)).catch(() => {});
+    }, 150);
   });
 
   // Live uploads (scraper/auto-download finishing while the album is open) only
@@ -139,15 +169,18 @@
   $effect(() => {
     totalLiveUploaded;
     untrack(() => {
-      const search  = beauty.searchQuery;
-      const region  = beauty.selectedRegion;
-      const days    = beauty.selectedDays;
-      const hasMods = beauty.hasModificationsFilter;
-      const hasFilter = !!search.trim() || !!region || days !== 'ever' || hasMods;
+      const search        = beauty.searchQuery;
+      const region         = beauty.selectedRegion;
+      const days           = beauty.selectedDays;
+      const hasMods        = beauty.hasModificationsFilter;
+      const wanted         = beauty.wantedFilter;
+      const hasPab         = beauty.hasPabFilter;
+      const showDiscarded  = beauty.showDiscardedFilter;
+      const hasFilter = !!search.trim() || !!region || days !== 'ever' || hasMods || wanted || hasPab || showDiscarded;
       if (!hasFilter) return;
       clearTimeout(liveCountsDebounce);
       liveCountsDebounce = setTimeout(() => {
-        getClassSearchCounts(search, region, days, hasMods).then(r => setSearchCounts(r, true)).catch(() => {});
+        getClassSearchCounts(search, region, days, hasMods, wanted, hasPab, showDiscarded).then(r => setSearchCounts(r, true)).catch(() => {});
       }, 800);
     });
   });
@@ -194,27 +227,21 @@
     return () => obs.disconnect();
   });
 
-  // Set by resetAndLoad/resetAndLoadCreator, called by doLoad/loadMore — keeps
-  // pagination logic in one place regardless of which mode is active.
+  // Set by resetAndLoad, called by doLoad/loadMore — keeps pagination logic
+  // in one place regardless of how many classes/which creator is active.
   let fetchPage: ((off: number) => Promise<PresetEntry[]>) | null = null;
 
-  async function resetAndLoad(cls: string, region: string, search: string, days: string, sort: string, hasModifications: boolean) {
+  async function resetAndLoad(
+    classIds: number[], creator: string | null, region: string, search: string,
+    days: string, sort: string, hasModifications: boolean, isWanted: boolean,
+    hasPab: boolean, showDiscarded: boolean,
+  ) {
     offset = 0;
     hasMore = false;
     presets = [];
     presetsError = '';
-    const entry = beauty.classes.find(c => c.name === cls);
-    if (entry) clearLiveForClass(entry.class_id);
-    fetchPage = (off) => getPresets(cls, off, LIMIT, sort, search, region, days, hasModifications);
-    await doLoad(true);
-  }
-
-  async function resetAndLoadCreator(creator: string, search: string, sort: string) {
-    offset = 0;
-    hasMore = false;
-    presets = [];
-    presetsError = '';
-    fetchPage = (off) => getPresetsByCreator(creator, off, LIMIT, sort, search);
+    if (classIds.length === 1) clearLiveForClass(classIds[0]);
+    fetchPage = (off) => getPresets(classIds, creator, off, LIMIT, sort, search, region, days, hasModifications, isWanted, hasPab, showDiscarded);
     await doLoad(true);
   }
 
@@ -257,11 +284,6 @@
     }
   }
 
-  function handleSelectClass(cls: ClassEntry) {
-    setSelectedRegion('');
-    setCreatorFilter(null);
-    selectClass(cls);
-  }
 </script>
 
 <svelte:window onmousedown={handleMouseNav} />
@@ -283,27 +305,14 @@
     {/snippet}
 
     {#if activeTab === 'beauty'}
-      <ClassList
-        selectedClass={beauty.selectedClass}
-        onselect={handleSelectClass}
-        moduleSwitcher={moduleSwitcherSnippet}
-      />
+      <ClassList moduleSwitcher={moduleSwitcherSnippet} />
       <main class="main custom-scroll" bind:this={mainEl}>
         {#if beauty.presetDetail}
           <PresetDetail />
         {:else}
-          {#if beauty.creatorFilter}
-            <div class="creator-banner">
-              {$_('beauty.preset_grid.creator_banner', { values: { creator: beauty.creatorFilter } })}
-              <button class="creator-banner-back" onclick={() => setCreatorFilter(null)}>
-                {$_('beauty.preset_grid.back_to_class', { values: { class: beauty.selectedClass ?? '' } })}
-              </button>
-            </div>
-          {/if}
           <PresetGrid
             {presets}
             {livePresets}
-            selectedClass={beauty.selectedClass}
             loading={presetsLoading}
             error={presetsError}
             {loadingMore}

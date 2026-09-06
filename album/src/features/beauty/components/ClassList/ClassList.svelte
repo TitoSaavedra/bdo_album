@@ -25,15 +25,18 @@
     setSelectedDays,
     setSelectedSort,
     setHasModificationsFilter,
+    setWantedFilter,
+    setHasPabFilter,
+    setShowDiscardedFilter,
+    toggleSelectedClass,
+    selectOnlyClass,
   } from '../../state/beauty.svelte';
 
   interface Props {
-    selectedClass: string | null;
-    onselect:      (cls: ClassEntry) => void;
     moduleSwitcher?: import('svelte').Snippet;
   }
 
-  const { selectedClass, onselect, moduleSwitcher }: Props = $props();
+  const { moduleSwitcher }: Props = $props();
 
   let searchInput   = $state('');
   let popoverOpen   = $state(false);
@@ -122,18 +125,25 @@
     if (creatorFavs.status === 'fulfilled') setCreatorFavorites(creatorFavs.value);
   });
 
+  const anyStatusFilterActive = $derived(
+    beauty.hasModificationsFilter || beauty.wantedFilter || beauty.hasPabFilter || beauty.showDiscardedFilter
+  );
+
   function displayCount(cls: ClassEntry): number {
-    const hasFilter = beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever' || beauty.hasModificationsFilter;
+    const hasFilter = beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever' || anyStatusFilterActive;
     if (hasFilter) return beauty.searchCounts[cls.class_id] ?? 0;
     return cls.preset_count + (beauty.liveUploaded[cls.class_id] ?? 0);
   }
 
   const sorted = $derived.by(() => {
-    const hasFilter   = !!(beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever' || beauty.hasModificationsFilter);
+    const hasFilter   = !!(beauty.searchQuery.trim() || beauty.selectedRegion || beauty.selectedDays !== 'ever' || anyStatusFilterActive);
     const countsReady = hasFilter && beauty.searchCountsLoaded;
     return [...beauty.classes]
       .filter(cls => !countsReady || displayCount(cls) > 0)
       .sort((a, b) => {
+        const aSel = beauty.selectedClasses.has(a.name);
+        const bSel = beauty.selectedClasses.has(b.name);
+        if (aSel !== bSel) return aSel ? -1 : 1;
         const aFav = beauty.classFavorites.has(a.name);
         const bFav = beauty.classFavorites.has(b.name);
         if (aFav !== bFav) return aFav ? -1 : 1;
@@ -142,7 +152,9 @@
   });
 
   const activeFilterCount = $derived(
-    (beauty.selectedRegion ? 1 : 0) + (beauty.selectedDays !== 'ever' ? 1 : 0) + (beauty.hasModificationsFilter ? 1 : 0)
+    (beauty.selectedRegion ? 1 : 0) + (beauty.selectedDays !== 'ever' ? 1 : 0) +
+    (beauty.hasModificationsFilter ? 1 : 0) + (beauty.wantedFilter ? 1 : 0) +
+    (beauty.hasPabFilter ? 1 : 0) + (beauty.showDiscardedFilter ? 1 : 0)
   );
 
   const favoriteCreatorNames = $derived(Array.from(beauty.creatorFavorites).sort());
@@ -253,7 +265,12 @@
         </button>
 
         {#if popoverOpen}
-          <div class="backdrop" onclick={() => (popoverOpen = false)}></div>
+          <div
+            class="backdrop"
+            role="presentation"
+            onclick={() => (popoverOpen = false)}
+            onkeydown={(e) => e.key === 'Escape' && (popoverOpen = false)}
+          ></div>
           <div class="popover" transition:fly={{ y: -6, duration: 140 }}>
             <div class="pop-head">
               <span class="pop-title">{$_('beauty.class_list.filters')}</span>
@@ -261,7 +278,7 @@
             </div>
 
             {#if beauty.availableRegions.length > 0}
-              <div class="pop-group" class:disabled={!!beauty.creatorFilter}>
+              <div class="pop-group">
                 <span class="pop-label">{$_('beauty.class_list.region_label')}</span>
                 <PillSelector
                   value={beauty.selectedRegion}
@@ -271,7 +288,7 @@
               </div>
             {/if}
 
-            <div class="pop-group" class:disabled={!!beauty.creatorFilter}>
+            <div class="pop-group">
               <span class="pop-label">{$_('beauty.class_list.uploaded_label')}</span>
               <PillSelector
                 value={beauty.selectedDays}
@@ -280,61 +297,89 @@
               />
             </div>
 
-            <div class="pop-group pop-group-toggle" class:disabled={!!beauty.creatorFilter}>
-              <span class="pop-label">{$_('beauty.class_list.has_modifications_label')}</span>
-              <Toggle
-                checked={beauty.hasModificationsFilter}
-                onclick={() => setHasModificationsFilter(!beauty.hasModificationsFilter)}
-              />
+            <div class="pop-group">
+              <span class="pop-label">{$_('beauty.class_list.status_label')}</span>
+              <div class="pop-group-toggle">
+                <span>{$_('beauty.class_list.has_modifications_label')}</span>
+                <Toggle checked={beauty.hasModificationsFilter} onclick={() => setHasModificationsFilter(!beauty.hasModificationsFilter)} />
+              </div>
+              <div class="pop-group-toggle">
+                <span>{$_('beauty.class_list.is_wanted_label')}</span>
+                <Toggle checked={beauty.wantedFilter} onclick={() => setWantedFilter(!beauty.wantedFilter)} />
+              </div>
+              <div class="pop-group-toggle">
+                <span>{$_('beauty.class_list.has_pab_label')}</span>
+                <Toggle checked={beauty.hasPabFilter} onclick={() => setHasPabFilter(!beauty.hasPabFilter)} />
+              </div>
+              <div class="pop-group-toggle">
+                <span>{$_('beauty.class_list.show_discarded_label')}</span>
+                <Toggle checked={beauty.showDiscardedFilter} onclick={() => setShowDiscardedFilter(!beauty.showDiscardedFilter)} />
+              </div>
             </div>
-
-            {#if beauty.creatorFilter}
-              <p class="pop-note">{$_('beauty.class_list.filters_ignored_creator')}</p>
-            {/if}
           </div>
         {/if}
       </div>
     </div>
   </div>
 
-  {#if beauty.creatorFilter || beauty.selectedRegion || beauty.selectedDays !== 'ever' || beauty.hasModificationsFilter}
+  {#if beauty.creatorFilter || beauty.selectedRegion || beauty.selectedDays !== 'ever' || anyStatusFilterActive}
     <div class="active-chips">
       {#if beauty.creatorFilter}
         <span class="chip creator">
           ♥ <b>{$_('beauty.class_list.chip_creator')}:</b> {beauty.creatorFilter}
           <button class="x" onclick={() => setCreatorFilter(null)}>✕</button>
         </span>
-      {:else}
-        {#if beauty.selectedRegion}
-          <span class="chip">
-            <b>{$_('beauty.class_list.chip_region')}:</b> {beauty.selectedRegion.toUpperCase()}
-            <button class="x" onclick={() => setSelectedRegion('')}>✕</button>
-          </span>
-        {/if}
-        {#if beauty.selectedDays !== 'ever'}
-          <span class="chip">
-            <b>{$_('beauty.class_list.chip_uploaded')}:</b> {DAY_PILLS.find(d => d.value === beauty.selectedDays)?.label}
-            <button class="x" onclick={() => setSelectedDays('ever')}>✕</button>
-          </span>
-        {/if}
-        {#if beauty.hasModificationsFilter}
-          <span class="chip">
-            <b>{$_('beauty.class_list.chip_has_modifications')}</b>
-            <button class="x" onclick={() => setHasModificationsFilter(false)}>✕</button>
-          </span>
-        {/if}
-        {#if activeFilterCount > 1}
-          <button class="clear-all" onclick={() => { setSelectedRegion(''); setSelectedDays('ever'); setHasModificationsFilter(false); }}>
+      {/if}
+      {#if beauty.selectedRegion}
+        <span class="chip">
+          <b>{$_('beauty.class_list.chip_region')}:</b> {beauty.selectedRegion.toUpperCase()}
+          <button class="x" onclick={() => setSelectedRegion('')}>✕</button>
+        </span>
+      {/if}
+      {#if beauty.selectedDays !== 'ever'}
+        <span class="chip">
+          <b>{$_('beauty.class_list.chip_uploaded')}:</b> {DAY_PILLS.find(d => d.value === beauty.selectedDays)?.label}
+          <button class="x" onclick={() => setSelectedDays('ever')}>✕</button>
+        </span>
+      {/if}
+      {#if beauty.hasModificationsFilter}
+        <span class="chip">
+          <b>{$_('beauty.class_list.chip_has_modifications')}</b>
+          <button class="x" onclick={() => setHasModificationsFilter(false)}>✕</button>
+        </span>
+      {/if}
+      {#if beauty.wantedFilter}
+        <span class="chip">
+          <b>{$_('beauty.class_list.chip_is_wanted')}</b>
+          <button class="x" onclick={() => setWantedFilter(false)}>✕</button>
+        </span>
+      {/if}
+      {#if beauty.hasPabFilter}
+        <span class="chip">
+          <b>{$_('beauty.class_list.chip_has_pab')}</b>
+          <button class="x" onclick={() => setHasPabFilter(false)}>✕</button>
+        </span>
+      {/if}
+      {#if beauty.showDiscardedFilter}
+        <span class="chip">
+          <b>{$_('beauty.class_list.chip_show_discarded')}</b>
+          <button class="x" onclick={() => setShowDiscardedFilter(false)}>✕</button>
+        </span>
+      {/if}
+      {#if activeFilterCount + (beauty.creatorFilter ? 1 : 0) > 1}
+        <button class="clear-all" onclick={() => {
+          setCreatorFilter(null); setSelectedRegion(''); setSelectedDays('ever');
+          setHasModificationsFilter(false); setWantedFilter(false); setHasPabFilter(false); setShowDiscardedFilter(false);
+        }}>
             {$_('beauty.class_list.clear_all')}
           </button>
         {/if}
-      {/if}
     </div>
   {/if}
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="class-pills"
-    class:dimmed={!!beauty.creatorFilter}
     class:dragging={isDragging && dragMoved}
     aria-label={$_('beauty.class_list.classes')}
     bind:this={classPillsEl}
@@ -355,8 +400,9 @@
         <div animate:flip={{ duration: 220 }} in:fly={{ y: 8, duration: 180 }} class="pill-wrap">
           <button
             class="class-pill"
-            class:active={cls.name === selectedClass && !beauty.creatorFilter}
-            onclick={() => onselect(cls)}
+            class:active={beauty.selectedClasses.has(cls.name)}
+            onclick={() => toggleSelectedClass(cls.name)}
+            ondblclick={() => selectOnlyClass(cls.name)}
           >
             {#if cls.icon_svg}
               <span class="pill-icon">{@html cls.icon_svg}</span>

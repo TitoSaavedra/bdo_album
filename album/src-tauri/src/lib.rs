@@ -133,7 +133,6 @@ pub fn run() {
             beauty::commands::set_class_favorite,
             beauty::commands::get_creator_favorites,
             beauty::commands::set_creator_favorite,
-            beauty::commands::get_presets_by_creator,
             beauty::commands::get_presets,
             beauty::commands::get_preset,
             beauty::commands::list_preset_modifications,

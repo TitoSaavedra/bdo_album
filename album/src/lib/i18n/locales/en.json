@@ -62,9 +62,15 @@
       "chip_uploaded": "Uploaded",
       "chip_creator": "Creator",
       "clear_all": "Clear all",
-      "filters_ignored_creator": "Ignored while browsing by creator",
       "has_modifications_label": "Has Modifications",
-      "chip_has_modifications": "Has modifications"
+      "chip_has_modifications": "Has modifications",
+      "status_label": "Status",
+      "is_wanted_label": "Wishlisted",
+      "chip_is_wanted": "Wishlisted",
+      "has_pab_label": "Downloaded",
+      "chip_has_pab": "Downloaded",
+      "show_discarded_label": "Show discarded",
+      "chip_show_discarded": "Discarded only"
     },
     "preset_card": {
       "remove_wishlist": "Remove from wishlist",
@@ -83,9 +89,7 @@
     "preset_grid": {
       "select_class": "Select a class to browse presets",
       "no_match_filters": "No presets match your filters",
-      "no_presets": "No presets found in this class",
-      "creator_banner": "Showing every preset by {creator}, across all classes — region & upload-date filters are ignored in this view.",
-      "back_to_class": "✕ Back to {class}"
+      "no_presets": "No presets found in this class"
     },
     "preset_detail": {
       "back_to_grid": "Back to grid",

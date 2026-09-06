@@ -39,19 +39,43 @@ fn validated_sort(sort_by: &str) -> &'static str {
 pub struct PresetRepository;
 
 impl PresetRepository {
-    pub async fn get_by_class(
-        pool:          &PgPool,
-        class_id:      i32,
-        offset:        i64,
-        limit:         i64,
-        sort_by:       &str,
-        search:        &str,
-        region:        Option<&str>,
-        days_cutoff:   Option<i64>,
+    /// Unified browse query — replaces the old `get_by_class`/`get_by_creator` split.
+    /// That split was *why* filters didn't compose: two separate functions with two
+    /// separate parameter sets, so a creator filter structurally couldn't also apply
+    /// region/day/etc. `class_ids` empty means "every class" (same shape the old
+    /// creator-only path used); `creator` `None`/`""` means "any creator" — every
+    /// filter is now just an optional narrowing condition on one query.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn get_filtered(
+        pool:              &PgPool,
+        class_ids:         &[i32],
+        creator:           Option<&str>,
+        offset:            i64,
+        limit:             i64,
+        sort_by:           &str,
+        search:            &str,
+        region:            Option<&str>,
+        days_cutoff:       Option<i64>,
         has_modifications: Option<bool>,
-        r2_public_url: &str,
+        is_wanted:         Option<bool>,
+        has_pab:           Option<bool>,
+        show_discarded:    bool,
+        r2_public_url:     &str,
     ) -> Result<Vec<PresetRow>> {
         let col = validated_sort(sort_by);
+        // Built as a Rust-side conditional rather than a runtime
+        // `cardinality($1) = 0 OR class_id = ANY($1)` check: the OR form
+        // defeats `idx_presets_class(class_id, downloads DESC)` for the
+        // common "exactly one class selected" case, since the planner can't
+        // prove the class_id branch is the only live one without knowing the
+        // bound value. Keeping `$1` referenced either way (as a no-op
+        // `IS NOT NULL` check when empty) so the bind-parameter count still
+        // lines up with the rest of the query.
+        let class_clause = if class_ids.is_empty() {
+            "$1::int[] IS NOT NULL"
+        } else {
+            "p.class_id = ANY($1::int[])"
+        };
         let sql = format!(
             r#"
             SELECT
@@ -62,9 +86,9 @@ impl PresetRepository {
                 p.user_nickname,
                 p.character_name,
                 p.region,
-                $5 || p.image_1_url                               AS image_1_url,
-                $5 || p.image_2_url                               AS image_2_url,
-                CASE WHEN pab.url IS NOT NULL THEN $5 || pab.url END AS pab_url,
+                $6 || p.image_1_url                               AS image_1_url,
+                $6 || p.image_2_url                               AS image_2_url,
+                CASE WHEN pab.url IS NOT NULL THEN $6 || pab.url END AS pab_url,
                 pab.url IS NOT NULL                               AS has_pab,
                 EXISTS (SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id) AS has_modifications,
                 p.downloads,
@@ -85,28 +109,32 @@ impl PresetRepository {
                 ORDER BY id
                 LIMIT 1
             ) pab ON true
-            WHERE p.class_id = $1
+            WHERE {class_clause}
+              AND ($2 = '' OR p.user_nickname = $2)
               AND (p.image_1_url IS NOT NULL OR p.image_2_url IS NOT NULL)
-              AND COALESCE(u.is_discarded, false) = false
-              AND ($2 = '' OR (
-                LOWER(COALESCE(p.title,          '')) LIKE '%' || LOWER($2) || '%' OR
-                LOWER(COALESCE(p.user_nickname,  '')) LIKE '%' || LOWER($2) || '%' OR
-                LOWER(COALESCE(p.character_name, '')) LIKE '%' || LOWER($2) || '%'
+              AND ($3 = '' OR (
+                LOWER(COALESCE(p.title,          '')) LIKE '%' || LOWER($3) || '%' OR
+                LOWER(COALESCE(p.user_nickname,  '')) LIKE '%' || LOWER($3) || '%' OR
+                LOWER(COALESCE(p.character_name, '')) LIKE '%' || LOWER($3) || '%'
               ))
-              AND ($6 = '' OR p.region = $6)
-              AND ($7::BIGINT IS NULL OR (p.creation_at IS NOT NULL AND p.creation_at >= $7))
-              AND ($8::BOOLEAN IS NOT TRUE OR EXISTS (
+              AND ($7 = '' OR p.region = $7)
+              AND ($8::BIGINT IS NULL OR (p.creation_at IS NOT NULL AND p.creation_at >= $8))
+              AND ($9::BOOLEAN IS NOT TRUE OR EXISTS (
                 SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id
               ))
+              AND ($10::BOOLEAN IS NOT TRUE OR COALESCE(u.is_wanted, false) = true)
+              AND ($11::BOOLEAN IS NOT TRUE OR pab.url IS NOT NULL)
+              AND COALESCE(u.is_discarded, false) = $12
             ORDER BY
               (pab.url IS NOT NULL) DESC,
               COALESCE(u.is_wanted, false) DESC,
               p.{col} DESC NULLS LAST
-            LIMIT $3 OFFSET $4
+            LIMIT $4 OFFSET $5
             "#
         );
         let rows = sqlx::query_as::<_, PresetRow>(&sql)
-            .bind(class_id)
+            .bind(class_ids)
+            .bind(creator.unwrap_or(""))
             .bind(search)
             .bind(limit)
             .bind(offset)
@@ -114,77 +142,9 @@ impl PresetRepository {
             .bind(region.unwrap_or(""))
             .bind(days_cutoff)
             .bind(has_modifications)
-            .fetch_all(pool)
-            .await?;
-        Ok(rows)
-    }
-
-    /// Every preset by one creator, across all classes — used by the favorite-creator
-    /// filter, which intentionally ignores region/upload-date so a favorited creator's
-    /// full catalog always shows up regardless of what the class browser is filtered to.
-    pub async fn get_by_creator(
-        pool:             &PgPool,
-        creator_nickname: &str,
-        offset:           i64,
-        limit:            i64,
-        sort_by:          &str,
-        search:           &str,
-        r2_public_url:    &str,
-    ) -> Result<Vec<PresetRow>> {
-        let col = validated_sort(sort_by);
-        let sql = format!(
-            r#"
-            SELECT
-                p.id::TEXT                                         AS preset_id,
-                p.class_id,
-                c.display                                          AS class_name,
-                p.title,
-                p.user_nickname,
-                p.character_name,
-                p.region,
-                $4 || p.image_1_url                               AS image_1_url,
-                $4 || p.image_2_url                               AS image_2_url,
-                CASE WHEN pab.url IS NOT NULL THEN $4 || pab.url END AS pab_url,
-                pab.url IS NOT NULL                               AS has_pab,
-                EXISTS (SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id) AS has_modifications,
-                p.downloads,
-                p.views,
-                p.likes,
-                COALESCE(u.is_wanted,    false)                   AS is_wanted,
-                COALESCE(u.is_discarded, false)                   AS is_discarded,
-                p.creation_at,
-                EXTRACT(EPOCH FROM p.updated_at)::BIGINT          AS updated_at,
-                EXTRACT(EPOCH FROM u.auto_download_requested_at)::BIGINT AS auto_download_requested_at,
-                u.auto_download_error
-            FROM scraper_presets p
-            JOIN scraper_classes c ON c.id = p.class_id
-            LEFT JOIN album_user_prefs u ON u.preset_id = p.id
-            LEFT JOIN LATERAL (
-                SELECT url FROM scraper_preset_pabs
-                WHERE preset_id = p.id
-                ORDER BY id
-                LIMIT 1
-            ) pab ON true
-            WHERE p.user_nickname = $1
-              AND (p.image_1_url IS NOT NULL OR p.image_2_url IS NOT NULL)
-              AND COALESCE(u.is_discarded, false) = false
-              AND ($2 = '' OR (
-                LOWER(COALESCE(p.title,          '')) LIKE '%' || LOWER($2) || '%' OR
-                LOWER(COALESCE(p.character_name, '')) LIKE '%' || LOWER($2) || '%'
-              ))
-            ORDER BY
-              (pab.url IS NOT NULL) DESC,
-              COALESCE(u.is_wanted, false) DESC,
-              p.{col} DESC NULLS LAST
-            LIMIT $3 OFFSET $5
-            "#
-        );
-        let rows = sqlx::query_as::<_, PresetRow>(&sql)
-            .bind(creator_nickname)
-            .bind(search)
-            .bind(limit)
-            .bind(r2_public_url)
-            .bind(offset)
+            .bind(is_wanted)
+            .bind(has_pab)
+            .bind(show_discarded)
             .fetch_all(pool)
             .await?;
         Ok(rows)
@@ -251,16 +211,6 @@ impl PresetRepository {
         .fetch_all(pool)
         .await?;
         Ok(regions)
-    }
-
-    pub async fn get_class_id(pool: &PgPool, class_name: &str) -> Result<Option<i32>> {
-        let id = sqlx::query_scalar::<_, i32>(
-            "SELECT id FROM scraper_classes WHERE display = $1",
-        )
-        .bind(class_name)
-        .fetch_optional(pool)
-        .await?;
-        Ok(id)
     }
 
     pub async fn upsert_discard(pool: &PgPool, preset_id: i64) -> Result<()> {
@@ -390,12 +340,16 @@ impl PresetRepository {
         Ok(rows)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn count_by_search(
         pool:              &PgPool,
         search:            &str,
         region:            Option<&str>,
         days_cutoff:       Option<i64>,
         has_modifications: Option<bool>,
+        is_wanted:         Option<bool>,
+        has_pab:           Option<bool>,
+        show_discarded:    bool,
     ) -> Result<Vec<(i32, i64)>> {
         let rows = sqlx::query_as::<_, (i32, i64)>(
             r#"
@@ -403,7 +357,6 @@ impl PresetRepository {
             FROM scraper_presets p
             LEFT JOIN album_user_prefs u ON u.preset_id = p.id
             WHERE (p.image_1_url IS NOT NULL OR p.image_2_url IS NOT NULL)
-              AND COALESCE(u.is_discarded, false) = false
               AND ($1 = '' OR (
                 LOWER(COALESCE(p.title,          '')) LIKE '%' || LOWER($1) || '%' OR
                 LOWER(COALESCE(p.user_nickname,  '')) LIKE '%' || LOWER($1) || '%' OR
@@ -414,6 +367,11 @@ impl PresetRepository {
               AND ($4::BOOLEAN IS NOT TRUE OR EXISTS (
                 SELECT 1 FROM album_preset_modifications m WHERE m.preset_id = p.id
               ))
+              AND ($5::BOOLEAN IS NOT TRUE OR COALESCE(u.is_wanted, false) = true)
+              AND ($6::BOOLEAN IS NOT TRUE OR EXISTS (
+                SELECT 1 FROM scraper_preset_pabs WHERE preset_id = p.id
+              ))
+              AND COALESCE(u.is_discarded, false) = $7
             GROUP BY p.class_id
             "#,
         )
@@ -421,6 +379,9 @@ impl PresetRepository {
         .bind(region.unwrap_or(""))
         .bind(days_cutoff)
         .bind(has_modifications)
+        .bind(is_wanted)
+        .bind(has_pab)
+        .bind(show_discarded)
         .fetch_all(pool)
         .await?;
         Ok(rows)

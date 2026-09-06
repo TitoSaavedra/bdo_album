@@ -73,6 +73,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
   class="picker-backdrop"
   onclick={close}
@@ -110,6 +111,7 @@
           {@const slots      = getAllGridSlots()[grid.id] ?? []}
           {@const r2urls     = slots.filter(s => s.image_url).map(s => s.image_url)}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
           <div
             class="preset-item"
             class:active={isActive}

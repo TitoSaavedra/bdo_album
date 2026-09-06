@@ -11,8 +11,8 @@ export const beauty = $state({
   classes:        [] as ClassEntry[],
   classesLoading: false,
 
-  // Selected class
-  selectedClass: null as string | null,
+  // Selected classes — empty set = browse every class at once
+  selectedClasses: new Set<string>(),
 
   // Preset detail modal
   presetDetail: null as (PresetEntry & { class_display: string }) | null,
@@ -39,8 +39,14 @@ export const beauty = $state({
   // Days filter
   selectedDays: 'ever',
 
-  // Has-modifications filter
+  // Status filters — each is "show only X" except showDiscardedFilter, which
+  // is a two-way switch (off = hide discarded like today, on = show ONLY
+  // discarded) since "discarded" already means something when off, unlike
+  // the others where off just means "don't narrow by this."
   hasModificationsFilter: false,
+  wantedFilter:           false,
+  hasPabFilter:           false,
+  showDiscardedFilter:    false,
 
   // Search
   searchQuery:        '',
@@ -67,17 +73,26 @@ export async function loadClasses() {
   beauty.classesLoading = true;
   try {
     beauty.classes = await getClasses();
-    if (beauty.selectedClass === null && beauty.classes.length > 0) {
-      beauty.selectedClass = beauty.classes[0].name;
+    if (beauty.selectedClasses.size === 0 && beauty.classes.length > 0) {
+      beauty.selectedClasses = new Set([beauty.classes[0].name]);
     }
   } catch { /* non-fatal */ }
   finally { beauty.classesLoading = false; }
 }
 
-// ── Selected class ────────────────────────────────────────────
+// ── Selected classes ──────────────────────────────────────────
 
-export function selectClass(cls: ClassEntry) {
-  beauty.selectedClass = cls.name;
+export function toggleSelectedClass(name: string) {
+  const next = new Set(beauty.selectedClasses);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  beauty.selectedClasses = next;
+}
+
+// Double-click shortcut on a pill — jumps straight to "only this class",
+// instead of having to toggle every other selected one off by hand.
+export function selectOnlyClass(name: string) {
+  beauty.selectedClasses = new Set([name]);
 }
 
 // ── Preset detail modal ───────────────────────────────────────
@@ -163,10 +178,22 @@ export function setSelectedSort(sort: 'downloads' | 'views' | 'likes') {
   beauty.sortBy = sort;
 }
 
-// ── Has-modifications filter ──────────────────────────────────
+// ── Status filters ────────────────────────────────────────────
 
 export function setHasModificationsFilter(v: boolean) {
   beauty.hasModificationsFilter = v;
+}
+
+export function setWantedFilter(v: boolean) {
+  beauty.wantedFilter = v;
+}
+
+export function setHasPabFilter(v: boolean) {
+  beauty.hasPabFilter = v;
+}
+
+export function setShowDiscardedFilter(v: boolean) {
+  beauty.showDiscardedFilter = v;
 }
 
 // ── Live upload tracking ──────────────────────────────────────

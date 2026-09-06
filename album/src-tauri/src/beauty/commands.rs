@@ -40,8 +40,10 @@ pub async fn set_class_favorite(
 // ── Presets ───────────────────────────────────────────────────
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn get_presets(
-    class_name:        String,
+    class_ids:         Vec<i32>,
+    creator:           Option<String>,
     offset:            Option<i64>,
     limit:             Option<i64>,
     sort_by:           Option<String>,
@@ -49,11 +51,15 @@ pub async fn get_presets(
     region:            Option<String>,
     days:              Option<String>,
     has_modifications: Option<bool>,
+    is_wanted:         Option<bool>,
+    has_pab:           Option<bool>,
+    show_discarded:    Option<bool>,
     state:             State<'_, AppState>,
 ) -> Result<Vec<PresetRow>, String> {
     BeautyService::get_presets(
         &state.pool,
-        &class_name,
+        &class_ids,
+        creator.as_deref(),
         offset.unwrap_or(0),
         limit.unwrap_or(50),
         sort_by.as_deref().unwrap_or("downloads"),
@@ -61,6 +67,9 @@ pub async fn get_presets(
         region.as_deref(),
         days.as_deref(),
         has_modifications,
+        is_wanted,
+        has_pab,
+        show_discarded.unwrap_or(false),
         &state.r2_public_url,
     )
     .await
@@ -83,28 +92,6 @@ pub async fn set_creator_favorite(
     BeautyService::set_creator_favorite(&state.pool, &creator_nickname, is_favorite)
         .await
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn get_presets_by_creator(
-    creator_nickname: String,
-    offset:           Option<i64>,
-    limit:            Option<i64>,
-    sort_by:          Option<String>,
-    search:           Option<String>,
-    state:            State<'_, AppState>,
-) -> Result<Vec<PresetRow>, String> {
-    BeautyService::get_presets_by_creator(
-        &state.pool,
-        &creator_nickname,
-        offset.unwrap_or(0),
-        limit.unwrap_or(50),
-        sort_by.as_deref().unwrap_or("downloads"),
-        search.as_deref().unwrap_or(""),
-        &state.r2_public_url,
-    )
-    .await
-    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -194,7 +181,7 @@ pub async fn export_to_bdo(
     // Extract filename from URL (strip query params)
     let filename = pab_url
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or("preset.pab")
         .split('?')
         .next()
@@ -217,16 +204,20 @@ pub async fn export_to_bdo(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn get_class_search_counts(
     search:            Option<String>,
     region:            Option<String>,
     days:              Option<String>,
     has_modifications: Option<bool>,
+    is_wanted:         Option<bool>,
+    has_pab:           Option<bool>,
+    show_discarded:    Option<bool>,
     state:             State<'_, AppState>,
 ) -> Result<Vec<ClassCount>, String> {
     let search = search.as_deref().unwrap_or("");
     let region = region.as_deref().filter(|s| !s.is_empty());
-    let counts = BeautyService::get_class_search_counts(&state.pool, search, region, days.as_deref(), has_modifications)
+    let counts = BeautyService::get_class_search_counts(&state.pool, search, region, days.as_deref(), has_modifications, is_wanted, has_pab, show_discarded.unwrap_or(false))
         .await
         .map_err(|e| e.to_string())?;
     Ok(counts.into_iter().map(|(class_id, count)| ClassCount { class_id, count }).collect())

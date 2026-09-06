@@ -37,9 +37,16 @@ impl BeautyService {
         ClassRepository::set_favorite(pool, class_name, is_fav).await
     }
 
+    /// Unified browse — one query for every combination of class(es)/creator/filters.
+    /// See `PresetRepository::get_filtered`'s docs for why this replaces the old
+    /// `get_presets`/`get_presets_by_creator` split. `class_ids` empty = every class;
+    /// the frontend already has every class's id (loaded via `get_classes`), so no
+    /// name→id lookup happens here anymore.
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_presets(
         pool:              &PgPool,
-        class_name:        &str,
+        class_ids:         &[i32],
+        creator:           Option<&str>,
         offset:            i64,
         limit:             i64,
         sort_by:           &str,
@@ -47,14 +54,13 @@ impl BeautyService {
         region:            Option<&str>,
         days:              Option<&str>,
         has_modifications: Option<bool>,
+        is_wanted:         Option<bool>,
+        has_pab:           Option<bool>,
+        show_discarded:    bool,
         r2_public_url:     &str,
     ) -> Result<Vec<PresetRow>> {
-        let class_id = PresetRepository::get_class_id(pool, class_name).await?;
-        let Some(class_id) = class_id else {
-            return Ok(vec![]);
-        };
         let days_cutoff = days_to_cutoff(days);
-        PresetRepository::get_by_class(pool, class_id, offset, limit, sort_by, search, region, days_cutoff, has_modifications, r2_public_url).await
+        PresetRepository::get_filtered(pool, class_ids, creator, offset, limit, sort_by, search, region, days_cutoff, has_modifications, is_wanted, has_pab, show_discarded, r2_public_url).await
     }
 
     pub async fn get_preset_by_id(pool: &PgPool, preset_id: i64, r2_public_url: &str) -> Result<Option<PresetRow>> {
@@ -67,18 +73,6 @@ impl BeautyService {
 
     pub async fn set_creator_favorite(pool: &PgPool, creator_nickname: &str, is_fav: bool) -> Result<()> {
         CreatorRepository::set_favorite(pool, creator_nickname, is_fav).await
-    }
-
-    pub async fn get_presets_by_creator(
-        pool:             &PgPool,
-        creator_nickname: &str,
-        offset:           i64,
-        limit:            i64,
-        sort_by:          &str,
-        search:           &str,
-        r2_public_url:    &str,
-    ) -> Result<Vec<PresetRow>> {
-        PresetRepository::get_by_creator(pool, creator_nickname, offset, limit, sort_by, search, r2_public_url).await
     }
 
     pub async fn get_regions(pool: &PgPool) -> Result<Vec<String>> {
@@ -125,15 +119,19 @@ impl BeautyService {
         bytes
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_class_search_counts(
         pool:              &PgPool,
         search:            &str,
         region:            Option<&str>,
         days:              Option<&str>,
         has_modifications: Option<bool>,
+        is_wanted:         Option<bool>,
+        has_pab:           Option<bool>,
+        show_discarded:    bool,
     ) -> Result<Vec<(i32, i64)>> {
         let days_cutoff = days_to_cutoff(days);
-        PresetRepository::count_by_search(pool, search, region, days_cutoff, has_modifications).await
+        PresetRepository::count_by_search(pool, search, region, days_cutoff, has_modifications, is_wanted, has_pab, show_discarded).await
     }
 
     pub async fn list_preset_modifications(pool: &PgPool, preset_id: i64, r2_public_url: &str) -> Result<Vec<ModificationRow>> {

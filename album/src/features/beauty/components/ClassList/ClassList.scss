@@ -197,19 +197,13 @@
 
 .pop-close:hover { color: var(--color-text-primary); }
 
-.pop-group.disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
 .pop-group-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.pop-group-toggle .pop-label {
-  margin-bottom: 0;
+  font-size: 11px;
+  color: var(--color-text-primary);
+  padding: 4px 0;
 }
 
 .pop-label {
@@ -219,13 +213,6 @@
   color: var(--color-text-muted);
   display: block;
   margin-bottom: 7px;
-}
-
-.pop-note {
-  font-size: 10.5px;
-  color: var(--color-favorite-active-hover);
-  line-height: 1.5;
-  margin: 0;
 }
 
 // ── Favorite-creator chips (own row below the class-pills strip) ──
@@ -376,7 +363,6 @@
   cursor: grab;
 }
 
-.class-pills.dimmed { opacity: 0.4; }
 .class-pills.dragging { cursor: grabbing; user-select: none; }
 
 // Hidden — a full-bleed row of pills mid-header already reads as scrollable
