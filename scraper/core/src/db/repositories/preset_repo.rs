@@ -6,6 +6,7 @@ pub struct PresetRepository;
 
 impl PresetRepository {
     /// Inserts a new preset. Returns `true` if inserted, `false` if it already existed.
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_new(
         pool:           &PgPool,
         id:             i64,

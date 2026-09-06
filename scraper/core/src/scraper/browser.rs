@@ -272,8 +272,8 @@ impl BrowserSession {
         for _ in 0..5 {
             {
                 let data = captured.lock().unwrap();
-                let got1 = image_1.map_or(true, |n| data.contains_key(n));
-                let got2 = image_2.map_or(true, |n| data.contains_key(n));
+                let got1 = image_1.is_none_or(|n| data.contains_key(n));
+                let got2 = image_2.is_none_or(|n| data.contains_key(n));
                 if got1 && got2 { break; }
             }
             tokio::time::sleep(Duration::from_secs(1)).await;

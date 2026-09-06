@@ -347,7 +347,7 @@ pub async fn run_fetch(
     // without touching `cancel` (shared with the image pipeline, which should keep going).
     let mut stop_fetching = false;
 
-    let total_chunks = (work.len() + parallelism - 1) / parallelism;
+    let total_chunks = work.len().div_ceil(parallelism);
     let mut chunk_idx = 0usize;
 
     // Process in batches of `parallelism`:
@@ -1012,6 +1012,7 @@ async fn insert_preset_and_queue(
 // and gets skipped for the rest of the session (this is what silently produced
 // 0 images despite dozens of new presets fetched in the same run).
 
+#[allow(clippy::too_many_arguments)]
 async fn run_class_sequential_loop(
     sink:       &Arc<dyn Sink>,
     pool:       &PgPool,

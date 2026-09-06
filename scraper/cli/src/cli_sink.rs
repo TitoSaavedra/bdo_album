@@ -19,6 +19,7 @@ use bdo_scraper_core::events::{
 pub struct CliSink;
 
 impl CliSink {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> Arc<dyn Sink> {
         Arc::new(Self)
     }

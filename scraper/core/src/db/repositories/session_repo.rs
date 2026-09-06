@@ -72,6 +72,7 @@ impl SessionRepository {
         Ok(id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn finish(
         pool: &PgPool,
         id: i64,
