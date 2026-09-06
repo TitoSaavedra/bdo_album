@@ -1,5 +1,5 @@
 import type { ClassCount, ClassEntry, PresetEntry } from '../../../lib/album';
-import { getClasses } from '../../../lib/album';
+import { getClasses, getRegions } from '../../../lib/album';
 import type { DbErrorCode } from '../../../lib/events/types';
 
 export const beauty = $state({
@@ -64,7 +64,10 @@ export const beauty = $state({
 export function setDbReady(ok: boolean, error: DbErrorCode | null) {
   beauty.dbReady = ok;
   beauty.dbError = error;
-  if (ok) loadClasses();
+  if (ok) {
+    loadClasses();
+    loadRegions();
+  }
 }
 
 // ── Classes ───────────────────────────────────────────────────
@@ -168,6 +171,16 @@ export function setSelectedRegion(region: string) {
 
 export function setAvailableRegions(regions: string[]) {
   beauty.availableRegions = regions;
+}
+
+// Fetched once the DB connection is confirmed up (see `setDbReady`) —
+// calling it any earlier races the backend's `AppState::manage()` and
+// silently leaves `availableRegions` empty forever (the region filter
+// picker in ClassList only renders when it's non-empty).
+async function loadRegions() {
+  try {
+    setAvailableRegions(await getRegions());
+  } catch { /* non-fatal */ }
 }
 
 export function setSelectedDays(days: string) {

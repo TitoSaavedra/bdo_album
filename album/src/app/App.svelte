@@ -9,12 +9,11 @@
   import type { ToastItem } from '../ui/Toast/Toast.svelte';
   import Titlebar from '../ui/Titlebar/Titlebar.svelte';
   import ModuleSwitcher from '../ui/ModuleSwitcher/ModuleSwitcher.svelte';
-  import { getPresets, getWanted, getRegions, getClassSearchCounts } from '../lib/album';
+  import { getPresets, getWanted, getClassSearchCounts } from '../lib/album';
   import {
     beauty,
     setWantedPresets,
     clearLiveForClass,
-    setAvailableRegions,
     setSearchCounts,
     reopenLastPreset,
   } from '../features/beauty/state/beauty.svelte';
@@ -91,14 +90,7 @@
   );
 
   onMount(() => {
-    // Svelte ignores the return value of an async onMount callback — the
-    // cleanup below only actually registers if this stays synchronous, so
-    // the async init runs as a fire-and-forget IIFE instead.
-    (async () => {
-      await eventBus.init();
-      const regions = await getRegions().catch(() => []);
-      setAvailableRegions(regions);
-    })();
+    eventBus.init();
     check().then((u) => { if (u) pendingUpdate = u; }).catch(() => {});
     return () => eventBus.destroy();
   });
