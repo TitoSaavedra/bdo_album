@@ -1,4 +1,215 @@
 {
+  "app": {
+    "connecting": "Conectando a la base de datos...",
+    "tabs": {
+      "beauty": "Beauty",
+      "face_grid": "Grid"
+    },
+    "update": {
+      "installing": "Instalando actualización...",
+      "available": "Actualización {version} disponible — haz clic para instalar"
+    }
+  },
+  "titlebar": {
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "close": "Cerrar"
+  },
+  "settings": {
+    "title": "Configuración",
+    "appearance": "Apariencia",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "accent_color": "Color de acento",
+    "accent_amber": "Ámbar",
+    "accent_violet": "Violeta",
+    "accent_coral": "Coral",
+    "accent_teal": "Verde Champán",
+    "accent_sage": "Salvia",
+    "accent_azure": "Azur",
+    "accent_rose": "Rosa",
+    "accent_slate": "Pizarra",
+    "language": "Idioma",
+    "language_en": "Inglés",
+    "language_es": "Español"
+  },
+  "beauty": {
+    "class_list": {
+      "search_placeholder": "Buscar título, autor, personaje...",
+      "open_wanted_title": "Abrir todos los PAB deseados en el navegador ({count})",
+      "filter_sort": "Filtrar y ordenar",
+      "wishlist": "Lista de deseos",
+      "filters": "Filtros",
+      "sort_label": "Ordenar",
+      "region_label": "Región",
+      "uploaded_label": "Subido",
+      "pin_to_top": "Fijar arriba",
+      "waiting_db": "Esperando la base de datos...",
+      "no_match_filters": "Ninguna clase coincide con tus filtros",
+      "no_results": "Sin resultados",
+      "sort_downloads": "↓ Desc",
+      "sort_views": "◉ Vistas",
+      "sort_likes": "♥ Me gusta",
+      "day_all": "Todos",
+      "day_20": "20d",
+      "day_30": "30d",
+      "day_60": "2m",
+      "day_90": "3m",
+      "day_180": "6m",
+      "day_365": "1a",
+      "classes": "Clases",
+      "favorite_creators": "Creadores favoritos",
+      "tap_to_filter": "toca para filtrar",
+      "no_favorite_creators": "Aún no hay creadores favoritos — toca el ♥ junto al nombre de cualquier creador para fijarlo aquí.",
+      "unfavorite_creator": "Quitar creador de favoritos",
+      "unfavorite_creator_title": "¿Quitar creador favorito?",
+      "unfavorite_creator_msg": "\"{creator}\" ya no se fijará ni se destacará en la cuadrícula. Puedes volver a marcarlo como favorito cuando quieras.",
+      "unfavorite_creator_confirm": "Quitar",
+      "chip_region": "Región",
+      "chip_uploaded": "Subido",
+      "chip_creator": "Creador",
+      "clear_all": "Borrar todo",
+      "has_modifications_label": "Tiene modificaciones",
+      "chip_has_modifications": "Tiene modificaciones",
+      "status_label": "Estado",
+      "is_wanted_label": "En lista de deseos",
+      "chip_is_wanted": "En lista de deseos",
+      "has_pab_label": "Descargado",
+      "chip_has_pab": "Descargado",
+      "show_discarded_label": "Mostrar descartados",
+      "chip_show_discarded": "Solo descartados"
+    },
+    "preset_card": {
+      "remove_wishlist": "Quitar de la lista de deseos",
+      "add_wishlist": "Añadir a la lista de deseos",
+      "favorite_creator": "Marcar creador como favorito",
+      "unfavorite_creator": "Quitar creador de favoritos",
+      "discard": "Descartar",
+      "downloads": "Descargas",
+      "views": "Vistas",
+      "likes": "Me gusta",
+      "tier_downloaded": "Descargado",
+      "tier_wishlist": "Lista de deseos",
+      "tier_favorite_creator": "Creador favorito",
+      "has_modifications_badge": "Modificado"
+    },
+    "preset_grid": {
+      "select_class": "Selecciona una clase para ver presets",
+      "no_match_filters": "Ningún preset coincide con tus filtros",
+      "no_presets": "No se encontraron presets en esta clase"
+    },
+    "preset_detail": {
+      "back_to_grid": "Volver a la cuadrícula",
+      "sharpen_on": "Nitidez: ACTIVADA",
+      "sharpen_off": "Nitidez: DESACTIVADA",
+      "image_n": "Imagen {n}",
+      "downloads": "Descargas",
+      "views": "Vistas",
+      "likes": "Me gusta",
+      "character": "Personaje",
+      "region": "Región",
+      "uploaded": "Subido",
+      "synced": "Sincronizado",
+      "images": "Imágenes",
+      "pab": "PAB",
+      "available": "Disponible",
+      "not_available": "No disponible",
+      "remove_wishlist": "Quitar de la lista de deseos",
+      "add_wishlist": "Añadir a la lista de deseos",
+      "favorite_creator": "Marcar creador como favorito",
+      "unfavorite_creator": "Quitar creador de favoritos",
+      "discard": "Descartar",
+      "exporting": "Exportando...",
+      "export_to_bdo": "Exportar a Black Desert",
+      "upload_modification": "Subir modificación",
+      "view_on_garmoth": "Ver en Garmoth",
+      "no_media": "SIN CONTENIDO",
+      "gallery_original": "Original",
+      "gallery_modification_n": "Mod {n}",
+      "unfavorite_creator_confirm_title": "¿Quitar creador favorito?",
+      "unfavorite_creator_confirm_msg": "\"{creator}\" ya no se fijará ni se destacará en la cuadrícula. Puedes volver a marcarlo como favorito cuando quieras.",
+      "unfavorite_creator_confirm_button": "Quitar",
+      "export_no_pab": "Esta modificación no tiene un .pab adjunto para exportar"
+    },
+    "wanted_modal": {
+      "title": "Presets para descargar",
+      "remove_class": "Quitar todos los presets de {class}",
+      "empty": "No hay presets en cola.",
+      "skip_this": "Omitir este preset",
+      "select_hint": "Haz clic en un preset para seleccionarlo para la descarga automática",
+      "queued_badge": "En cola",
+      "error_badge": "Falló",
+      "cancel": "Cancelar",
+      "open_in_browser": "Abrir {count} en el navegador",
+      "send_to_auto_download": "Enviar {count} a descarga automática"
+    },
+    "upload_modification": {
+      "title": "Subir modificación",
+      "slot_1_required": "Imagen 1 (obligatoria)",
+      "slot_2_optional": "Imagen 2 (opcional)",
+      "paste_hint": "Copia una imagen y luego presiona Ctrl+V para pegarla en la ranura seleccionada.",
+      "cancel": "Cancelar",
+      "submit": "Subir",
+      "uploading": "Subiendo...",
+      "queued_message": "En cola — aparecerá aquí en aproximadamente un minuto.",
+      "close": "Cerrar"
+    }
+  },
+  "face_grid": {
+    "account_tabs": {
+      "account_n": "Cuenta {id}",
+      "reset": "Reiniciar",
+      "save_preset": "Guardar preset"
+    },
+    "dialog": {
+      "confirm": "Confirmar"
+    },
+    "sidebar": {
+      "presets": "Presets",
+      "creating_preset": "Creando preset... {pct}%",
+      "no_presets": "No hay presets guardados",
+      "apply": "Aplicar",
+      "apply_title": "Aplicar preset",
+      "delete_title": "Eliminar preset",
+      "default": "Predeterminado",
+      "apply_grid_title": "Aplicar cuadrícula",
+      "apply_grid_msg": "Las imágenes de FaceTexture se sobrescribirán. ¿Continuar?",
+      "delete_grid_title": "Eliminar cuadrícula",
+      "delete_grid_msg": "¿Estás seguro? Esta acción no se puede deshacer.",
+      "apply_confirm": "Aplicar",
+      "delete_confirm": "Eliminar"
+    },
+    "view": {
+      "reading_config": "Leyendo configuración de BDO…",
+      "no_accounts": "No se encontraron cuentas de BDO",
+      "no_accounts_hint": "Asegúrate de que BDO esté instalado y hayas iniciado sesión al menos una vez",
+      "accounts": "Cuentas",
+      "presets": "Presets",
+      "reload_title": "Recargar desde el disco",
+      "save_preset": "Guardar preset"
+    },
+    "account_picker": {
+      "title": "Seleccionar cuenta",
+      "subtitle": "Elige tu cuenta de BDO",
+      "account_n": "Cuenta {id}"
+    },
+    "preset_picker": {
+      "save_title": "Guardar preset",
+      "saved_title": "Presets guardados",
+      "save_as_new": "Guardar como nuevo",
+      "empty": "Aún no hay presets guardados",
+      "apply": "Aplicar",
+      "cancel": "Cancelar",
+      "select_a_preset": "Selecciona un preset",
+      "overwrite": "Sobrescribir \"{name}\"",
+      "overwrite_title": "Sobrescribir preset",
+      "overwrite_msg": "¿Sobrescribir \"{name}\" con la cuadrícula actual?",
+      "overwrite_confirm": "Sobrescribir"
+    }
+  },
+  "ui": {
+    "remove": "Quitar"
+  },
   "errors": {
     "db": {
       "docker_not_running": "No se pudo conectar a la base de datos. ¿Está Docker corriendo? (docker compose up -d)",

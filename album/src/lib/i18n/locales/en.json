@@ -24,7 +24,14 @@
     "accent_amber": "Amber",
     "accent_violet": "Violet",
     "accent_coral": "Coral",
-    "accent_teal": "Champagne Teal"
+    "accent_teal": "Champagne Teal",
+    "accent_sage": "Sage",
+    "accent_azure": "Azure",
+    "accent_rose": "Rose",
+    "accent_slate": "Slate",
+    "language": "Language",
+    "language_en": "English",
+    "language_es": "Spanish"
   },
   "beauty": {
     "class_list": {

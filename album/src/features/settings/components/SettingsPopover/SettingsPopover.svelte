@@ -1,14 +1,23 @@
 <script lang="ts">
   import { Popover } from 'bits-ui';
   import { _ } from 'svelte-i18n';
-  import { settings, setTheme, setAccent } from '../../state/settings.svelte';
-  import type { AccentChoice } from '../../state/settings.svelte';
+  import { settings, setTheme, setAccent, setLanguage } from '../../state/settings.svelte';
+  import type { AccentChoice, LanguageChoice } from '../../state/settings.svelte';
 
   const ACCENTS: { key: AccentChoice; swatch: string; labelKey: string }[] = [
     { key: 'amber',  swatch: '#f2a94e', labelKey: 'settings.accent_amber' },
     { key: 'violet', swatch: '#8b7bf0', labelKey: 'settings.accent_violet' },
     { key: 'coral',  swatch: '#f2735e', labelKey: 'settings.accent_coral' },
     { key: 'teal',   swatch: '#d8b98a', labelKey: 'settings.accent_teal' },
+    { key: 'sage',   swatch: '#7cb87a', labelKey: 'settings.accent_sage' },
+    { key: 'azure',  swatch: '#5b9bd9', labelKey: 'settings.accent_azure' },
+    { key: 'rose',   swatch: '#e8829f', labelKey: 'settings.accent_rose' },
+    { key: 'slate',  swatch: '#93a1b5', labelKey: 'settings.accent_slate' },
+  ];
+
+  const LANGUAGES: { key: LanguageChoice; labelKey: string }[] = [
+    { key: 'en', labelKey: 'settings.language_en' },
+    { key: 'es', labelKey: 'settings.language_es' },
   ];
 </script>
 
@@ -25,6 +34,19 @@
       <div class="head">
         <span class="title">{$_('settings.title')}</span>
         <Popover.Close class="settings-close" aria-label={$_('ui.remove')}>✕</Popover.Close>
+      </div>
+
+      <div class="section">
+        <div class="label">{$_('settings.language')}</div>
+        <div class="seg">
+          {#each LANGUAGES as l (l.key)}
+            <button
+              class="seg-btn"
+              class:active={settings.language === l.key}
+              onclick={() => setLanguage(l.key)}
+            >{$_(l.labelKey)}</button>
+          {/each}
+        </div>
       </div>
 
       <div class="section">
