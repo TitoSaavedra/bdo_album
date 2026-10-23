@@ -415,3 +415,62 @@
     color: rgb(205, 165, 255);
   }
 }
+
+// ── PAB drop zone ─────────────────────────────────────────────
+
+.pab-drop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 14px 0;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  border: 1px dashed var(--color-border-deep);
+  border-radius: 6px;
+  background: var(--color-bg-surface);
+  transition: border-color 0.15s, background 0.15s;
+
+  &.dragging {
+    border-color: rgba(150, 90, 220, 0.85);
+    background: rgba(150, 90, 220, 0.12);
+  }
+
+  &.busy {
+    opacity: 0.6;
+  }
+}
+
+.pab-drop-icon {
+  font-size: 12px;
+  color: rgb(180, 130, 250);
+  flex-shrink: 0;
+}
+
+.pab-drop-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pab-drop-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pab-drop-hint {
+  font-size: 9px;
+  color: var(--color-text-secondary);
+}
+
+.pab-drop-result {
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+
+  &.ok   { color: rgb(110, 210, 150); }
+  &.fail { color: rgb(230, 110, 110); }
+}

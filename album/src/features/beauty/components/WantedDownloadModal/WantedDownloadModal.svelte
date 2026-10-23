@@ -1,8 +1,9 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { _ } from 'svelte-i18n';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import type { PresetEntry } from '../../../../lib/album';
-  import { openUrl, queueAutoDownload } from '../../../../lib/album';
+  import { openUrl, queueAutoDownload, queuePabUploads } from '../../../../lib/album';
   import { beauty } from '../../state/beauty.svelte';
 
   interface Props {
@@ -18,6 +19,65 @@
   let page     = $state(0);
   let selected = $state(new Set<string>());
   let sending  = $state(false);
+
+  // .pab drag-and-drop staging — the scraper validates and uploads them.
+  let isDragging = $state(false);
+  let uploading  = $state(false);
+  let pabSent    = $state<number | null>(null);
+  let pabFailed  = $state(false);
+
+  // Window-level Tauri drag events; only registered while this modal is mounted.
+  $effect(() => {
+    let unlisteners: UnlistenFn[] = [];
+    let disposed = false;
+    Promise.all([
+      listen<{ paths: string[] }>('tauri://drag-enter', () => { isDragging = true; }),
+      listen<{ paths: string[] }>('tauri://drag-drop',  (e) => { isDragging = false; uploadPabPaths(e.payload.paths); }),
+      listen<void>('tauri://drag-leave',                 () => { isDragging = false; }),
+    ]).then(fns => {
+      if (disposed) fns.forEach(fn => fn());
+      else unlisteners = fns;
+    });
+    return () => {
+      disposed = true;
+      unlisteners.forEach(fn => fn());
+      unlisteners = [];
+      isDragging = false;
+    };
+  });
+
+  // A preset leaves the wanted list once its PAB lands: preset_uploaded
+  // (bus.ts) patches the fresh copy into beauty.livePresets with has_pab set.
+  $effect(() => {
+    const uploaded = new Set<string>();
+    for (const list of Object.values(beauty.livePresets)) {
+      for (const p of list) if (p.has_pab) uploaded.add(p.preset_id);
+    }
+    if (uploaded.size === 0) return;
+    untrack(() => {
+      if (!items.some(p => uploaded.has(p.preset_id))) return;
+      items = items.filter(p => !uploaded.has(p.preset_id));
+      selected = new Set([...selected].filter(id => !uploaded.has(id)));
+      clampPage();
+    });
+  });
+
+  async function uploadPabPaths(paths: string[]) {
+    const pabs = paths.filter(p => p.toLowerCase().endsWith('.pab'));
+    if (pabs.length === 0 || uploading) return;
+    uploading = true;
+    pabSent   = null;
+    pabFailed = false;
+    try {
+      const count = await queuePabUploads(pabs);
+      if (count > 0) pabSent = count;
+      else pabFailed = true;
+    } catch (_) {
+      pabFailed = true;
+    } finally {
+      uploading = false;
+    }
+  }
 
   const totalPages = $derived(Math.max(1, Math.ceil(items.length / PAGE_SIZE)));
   const pageItems  = $derived(items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
@@ -128,6 +188,19 @@
         {/each}
       </div>
     {/if}
+
+    <div class="pab-drop" class:dragging={isDragging} class:busy={uploading}>
+      <span class="pab-drop-icon">⬇</span>
+      <span class="pab-drop-text">
+        <span class="pab-drop-title">{$_('beauty.wanted_modal.pab_drop_title')}</span>
+        <span class="pab-drop-hint">{$_('beauty.wanted_modal.pab_drop_hint')}</span>
+      </span>
+      {#if pabSent !== null}
+        <span class="pab-drop-result ok">{$_('beauty.wanted_modal.pab_sent', { values: { count: pabSent } })}</span>
+      {:else if pabFailed}
+        <span class="pab-drop-result fail">{$_('beauty.wanted_modal.pab_failed')}</span>
+      {/if}
+    </div>
 
     {#if items.length === 0}
       <div class="empty">{$_('beauty.wanted_modal.empty')}</div>

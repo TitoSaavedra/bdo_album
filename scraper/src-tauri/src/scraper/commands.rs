@@ -201,14 +201,6 @@ pub struct ImportPabResult {
     pub zip_base64:      Option<String>,
 }
 
-fn extract_preset_id(filename: &str) -> Option<i64> {
-    let pos = filename.find("ID")?;
-    let after = &filename[pos + 2..];
-    let end = after.find(|c: char| !c.is_ascii_digit()).unwrap_or(after.len());
-    if end == 0 { return None; }
-    after[..end].parse().ok()
-}
-
 #[tauri::command]
 pub async fn import_pab_files(
     app:   AppHandle,
@@ -260,7 +252,7 @@ pub async fn import_pab_files(
             }
         };
 
-        let Some(preset_id) = extract_preset_id(&filename) else {
+        let Some(preset_id) = bdo_scraper_core::scraper::pab_uploads::extract_preset_id(&filename) else {
             LogRepository::insert_coded(&sink, pool, None, "WARN", "pab_import",
                 &format!("{}: no preset ID in filename", filename),
                 Some(LogCode::ImportNoPresetId { filename: filename.clone() }),

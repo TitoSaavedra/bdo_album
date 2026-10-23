@@ -42,6 +42,10 @@ tables.
 - **Given** the wishlist has queued presets **when** the user opens "auto-download" **then**
   those presets can be sent to the scraper's auto-download queue
   (`album_user_prefs.auto_download_requested_at`), picked up by `scraper`'s worker.
+- **Given** the "Presets to download" modal is open **when** the user drags .pab files from
+  Explorer onto it **then** album stages only the raw filename + bytes in
+  `album_pending_pab_uploads` (no validation, no R2 access) and reports how many were sent;
+  once the scraper uploads one, that preset leaves the list live (`preset_uploaded` → has_pab).
 
 ## Notes
 - Backing tables: `scraper_presets`/`scraper_classes` (read-only from album's side),

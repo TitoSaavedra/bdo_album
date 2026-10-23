@@ -143,6 +143,11 @@ export const getWantedPresets = (): Promise<PresetEntry[]> =>
 export const queueAutoDownload = (presetIds: string[]): Promise<void> =>
   invoke('queue_auto_download', { presetIds });
 
+// Stages dropped .pab files for the scraper to validate and upload.
+// Resolves with how many files were staged (unreadable files are skipped).
+export const queuePabUploads = (paths: string[]): Promise<number> =>
+  invoke('queue_pab_uploads', { paths });
+
 export const exportToBdo = (pabUrl: string): Promise<void> =>
   invoke('export_to_bdo', { pabUrl });
 

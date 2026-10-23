@@ -25,6 +25,7 @@ truth — read them before changing anything, and keep them in sync with the cod
 - Work in small, reviewable steps; don't dump large unreviewable diffs.
 - Ask the human for key product and architecture decisions; capture omissions in the spec rather
   than silently inventing them.
+- The before/after Product Owner report flow (`X:\Reports`) does NOT apply to this repo — don't ask.
 
 > Portability: this file follows the open AGENTS.md convention so any compliant coding agent can
 > adopt the workflow. For Claude Code, the root `CLAUDE.md` imports this file via a single line,

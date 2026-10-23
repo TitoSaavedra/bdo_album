@@ -268,3 +268,15 @@ pub async fn upload_preset_modification(
         .await
         .map_err(|e| e.to_string())
 }
+
+// ── PAB drag-and-drop upload ─────────────────────────────────
+
+/// Stages dragged-in .pab files for the scraper daemon to validate and upload.
+/// Returns how many files were staged.
+#[tauri::command]
+pub async fn queue_pab_uploads(
+    paths: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    BeautyService::queue_pab_uploads(&state.pool, &paths).await.map_err(|e| e.to_string())
+}

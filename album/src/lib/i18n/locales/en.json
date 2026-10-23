@@ -141,7 +141,11 @@
       "error_badge": "Failed",
       "cancel": "Cancel",
       "open_in_browser": "Open {count} in browser",
-      "send_to_auto_download": "Send {count} to auto-download"
+      "send_to_auto_download": "Send {count} to auto-download",
+      "pab_drop_title": "Drop .pab files here to upload them",
+      "pab_drop_hint": "Matched to a preset by the ID in the filename",
+      "pab_sent": "{count} file(s) sent",
+      "pab_failed": "Could not send the files"
     },
     "upload_modification": {
       "title": "Upload Modification",

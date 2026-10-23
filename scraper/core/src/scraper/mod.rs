@@ -2,6 +2,7 @@ pub mod auto_download;
 pub mod browser;
 pub mod defaults;
 pub mod garmoth;
+pub mod pab_uploads;
 pub mod pg_notify_loop;
 pub mod preset_modifications;
 pub mod r2;

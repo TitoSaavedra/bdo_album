@@ -3,5 +3,6 @@ pub mod class_repo;
 pub mod log_repo;
 pub mod modification_repo;
 pub mod pab_repo;
+pub mod pending_pab_repo;
 pub mod preset_repo;
 pub mod session_repo;

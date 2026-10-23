@@ -67,12 +67,19 @@ async fn main() -> ExitCode {
     };
 
     let sink: Arc<dyn Sink> = CliSink::new();
-    tracing::info!("download_daemon started — listening for auto_download + preset_modifications NOTIFYs (5min fallback poll)");
+    tracing::info!("download_daemon started — listening for auto_download + preset_modifications + pab_uploads NOTIFYs (5min fallback poll)");
 
     // Drains the staged preset-modification images (pasted in album, uploaded
     // to R2 here) in this same long-running process — no separate
     // service/container needed for it.
     tokio::spawn(bdo_scraper_core::scraper::preset_modifications::run_loop(
+        Arc::clone(&sink),
+        pool.clone(),
+    ));
+
+    // Drains .pab files dropped into album's "Presets to download" modal
+    // (staged in album_pending_pab_uploads) and uploads them to R2 here.
+    tokio::spawn(bdo_scraper_core::scraper::pab_uploads::run_loop(
         Arc::clone(&sink),
         pool.clone(),
     ));

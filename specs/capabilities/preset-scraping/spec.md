@@ -32,6 +32,11 @@ Dashboard UI and a live feed to any open Album instance.
   auto-download worker picks up `album_user_prefs.auto_download_requested_at` **then** it
   downloads and repairs the PAB, clears the request, and records an error instead if the
   attempt fails (so it can be retried from the Album side).
+- **Given** the Album staged dropped .pab files in `album_pending_pab_uploads` **when** the
+  `pab_uploads` worker wakes (`NOTIFY pab_upload_queued`, 5-min fallback poll; runs in the
+  GUI and `download_daemon`) **then** it validates each file like the PAB import (preset id
+  from `ID<digits>` in the filename, preset exists, no PAB yet), uploads via `upload_pab`
+  and purges the row; duplicates are purged, invalid/failed rows keep an `error`.
 - **Given** a first-run install **when** the app needs the Playwright browser driver
   **then** `browser.rs::bootstrap_driver` shells out to a bundled CLI and blocks until it
   finishes, with no progress surfaced to the UI yet (tracked in the roadmap, Phase 2).

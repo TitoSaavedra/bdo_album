@@ -5,8 +5,10 @@ use crate::db::repositories::{
     class_repo::{ClassRepository, ClassRow},
     creator_repo::CreatorRepository,
     modification_repo::{ModificationRepository, ModificationRow, PendingModificationRepository},
+    pending_pab_repo::PendingPabUploadRepository,
     preset_repo::{PresetRepository, PresetRow},
 };
+use std::path::Path;
 
 fn days_to_cutoff(days: Option<&str>) -> Option<i64> {
     match days {
@@ -151,5 +153,24 @@ impl BeautyService {
         pab:       Option<Vec<u8>>,
     ) -> Result<()> {
         PendingModificationRepository::insert(pool, preset_id, &image_1, image_2.as_deref(), pab.as_deref()).await
+    }
+
+    /// Stages every readable .pab file among `paths` for the scraper's
+    /// `pab_uploads` worker, which validates them (preset id, existence, PAB
+    /// already present) — album does no checks of its own. A file that can't
+    /// be read is skipped rather than failing the whole drop. Returns how many
+    /// files were staged.
+    pub async fn queue_pab_uploads(pool: &PgPool, paths: &[String]) -> Result<usize> {
+        let mut queued = 0;
+        for path in paths {
+            let Ok(bytes) = tokio::fs::read(path).await else { continue };
+            let filename = Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.clone());
+            PendingPabUploadRepository::insert(pool, &filename, &bytes).await?;
+            queued += 1;
+        }
+        Ok(queued)
     }
 }
