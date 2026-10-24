@@ -142,13 +142,14 @@
       "cancel": "Cancelar",
       "open_in_browser": "Abrir {count} en el navegador",
       "send_to_auto_download": "Enviar {count} a descarga automática",
-      "pab_drop_title": "Suelta archivos .pab aquí para subirlos",
+      "pab_drop_title": "Suelta archivos PAB aquí para subirlos",
       "pab_drop_hint": "Se asocian al preset por el ID del nombre del archivo",
       "pab_sending": "Enviando…",
       "pab_processing": "Procesando en el servidor ({done}/{total})…",
       "pab_done": "{count} listo(s)",
       "pab_rejected": "{count} rechazado(s)",
-      "pab_failed": "No se pudieron enviar los archivos"
+      "pab_failed": "No se pudieron enviar los archivos",
+      "pab_ignored": "Ninguno de esos archivos es un PAB"
     },
     "upload_modification": {
       "title": "Subir modificación",

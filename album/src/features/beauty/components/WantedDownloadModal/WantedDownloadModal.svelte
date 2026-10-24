@@ -26,7 +26,8 @@
   let isDragging  = $state(false);
   let uploading   = $state(false);
   let pabFailed   = $state(false);
-  let tracked     = $state<number[]>([]);
+  let pabIgnored  = $state(false);
+  let tracked    = $state<number[]>([]);
   let pabTotal    = $state(0);
   let pabDone     = $state(0);
   let pabRejected = $state<string[]>([]);
@@ -99,9 +100,19 @@
     });
   });
 
+  // Garmoth's PAB downloads carry no extension (`Dark Knight__ID1051979_U7tEYefsjt`),
+  // so accept extensionless files as well as `.pab`; the scraper does the real validation.
+  function isPabCandidate(path: string): boolean {
+    const name = path.split(/[\\/]/).pop() ?? '';
+    const dot  = name.lastIndexOf('.');
+    return dot === -1 || name.slice(dot + 1).toLowerCase() === 'pab';
+  }
+
   async function uploadPabPaths(paths: string[]) {
-    const pabs = paths.filter(p => p.toLowerCase().endsWith('.pab'));
-    if (pabs.length === 0 || uploading) return;
+    if (uploading) return;
+    const pabs = paths.filter(isPabCandidate);
+    pabIgnored = pabs.length === 0;
+    if (pabIgnored) return;
     uploading = true;
     pabFailed = false;
     if (!processing) {
@@ -252,6 +263,8 @@
         </span>
       {:else if pabFailed}
         <span class="pab-drop-result fail">{$_('beauty.wanted_modal.pab_failed')}</span>
+      {:else if pabIgnored}
+        <span class="pab-drop-result fail">{$_('beauty.wanted_modal.pab_ignored')}</span>
       {:else if pabTotal > 0}
         {#if pabDone > 0}
           <span class="pab-drop-result ok">{$_('beauty.wanted_modal.pab_done', { values: { count: pabDone } })}</span>

@@ -142,13 +142,14 @@
       "cancel": "Cancel",
       "open_in_browser": "Open {count} in browser",
       "send_to_auto_download": "Send {count} to auto-download",
-      "pab_drop_title": "Drop .pab files here to upload them",
+      "pab_drop_title": "Drop PAB files here to upload them",
       "pab_drop_hint": "Matched to a preset by the ID in the filename",
       "pab_sending": "Sending…",
       "pab_processing": "Processing on the server ({done}/{total})…",
       "pab_done": "{count} ready",
       "pab_rejected": "{count} rejected",
-      "pab_failed": "Could not send the files"
+      "pab_failed": "Could not send the files",
+      "pab_ignored": "None of those files is a PAB"
     },
     "upload_modification": {
       "title": "Upload Modification",
