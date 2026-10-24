@@ -144,9 +144,14 @@ export const queueAutoDownload = (presetIds: string[]): Promise<void> =>
   invoke('queue_auto_download', { presetIds });
 
 // Stages dropped .pab files for the scraper to validate and upload.
-// Resolves with how many files were staged (unreadable files are skipped).
-export const queuePabUploads = (paths: string[]): Promise<number> =>
+// Resolves with the staged row ids (unreadable files are skipped).
+export const queuePabUploads = (paths: string[]): Promise<number[]> =>
   invoke('queue_pab_uploads', { paths });
+
+// Staged rows among `ids` still in the queue; missing ids were processed.
+export interface PabUploadStatus { id: number; error: string | null; }
+export const pabUploadStatus = (ids: number[]): Promise<PabUploadStatus[]> =>
+  invoke('pab_upload_status', { ids });
 
 export const exportToBdo = (pabUrl: string): Promise<void> =>
   invoke('export_to_bdo', { pabUrl });

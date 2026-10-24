@@ -3,7 +3,7 @@
   import { _ } from 'svelte-i18n';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import type { PresetEntry } from '../../../../lib/album';
-  import { openUrl, queueAutoDownload, queuePabUploads } from '../../../../lib/album';
+  import { openUrl, queueAutoDownload, queuePabUploads, pabUploadStatus } from '../../../../lib/album';
   import { beauty } from '../../state/beauty.svelte';
 
   interface Props {
@@ -21,10 +21,47 @@
   let sending  = $state(false);
 
   // .pab drag-and-drop staging — the scraper validates and uploads them.
-  let isDragging = $state(false);
-  let uploading  = $state(false);
-  let pabSent    = $state<number | null>(null);
-  let pabFailed  = $state(false);
+  // `uploading` covers reading + staging the files; after that the staged row
+  // ids stay in `tracked` until the scraper purges them (done) or sets `error`.
+  let isDragging  = $state(false);
+  let uploading   = $state(false);
+  let pabFailed   = $state(false);
+  let tracked     = $state<number[]>([]);
+  let pabTotal    = $state(0);
+  let pabDone     = $state(0);
+  let pabRejected = $state<string[]>([]);
+
+  const processing = $derived(tracked.length > 0);
+
+  const POLL_MS = 1500;
+
+  // Follow staged rows while any are pending; restarts only on the
+  // processing on/off transition, not on every poll.
+  $effect(() => {
+    if (!processing) return;
+    let inFlight = false;
+    const timer = setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
+      const snapshot = [...tracked];
+      try {
+        const rows = await pabUploadStatus(snapshot);
+        const still  = new Set(rows.filter(r => r.error == null).map(r => r.id));
+        const failed = rows.filter(r => r.error != null);
+        const gone   = snapshot.filter(id => !still.has(id) && !failed.some(r => r.id === id));
+        if (gone.length === 0 && failed.length === 0) return;
+        const resolved = new Set([...gone, ...failed.map(r => r.id)]);
+        pabDone    += gone.length;
+        pabRejected = [...pabRejected, ...failed.map(r => r.error as string)];
+        tracked     = tracked.filter(id => !resolved.has(id));
+      } catch (_) {
+        // transient DB hiccup — next tick retries
+      } finally {
+        inFlight = false;
+      }
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  });
 
   // Window-level Tauri drag events; only registered while this modal is mounted.
   $effect(() => {
@@ -66,12 +103,20 @@
     const pabs = paths.filter(p => p.toLowerCase().endsWith('.pab'));
     if (pabs.length === 0 || uploading) return;
     uploading = true;
-    pabSent   = null;
     pabFailed = false;
+    if (!processing) {
+      pabTotal    = 0;
+      pabDone     = 0;
+      pabRejected = [];
+    }
     try {
-      const count = await queuePabUploads(pabs);
-      if (count > 0) pabSent = count;
-      else pabFailed = true;
+      const ids = await queuePabUploads(pabs);
+      if (ids.length > 0) {
+        pabTotal += ids.length;
+        tracked   = [...tracked, ...ids];
+      } else {
+        pabFailed = true;
+      }
     } catch (_) {
       pabFailed = true;
     } finally {
@@ -189,16 +234,34 @@
       </div>
     {/if}
 
-    <div class="pab-drop" class:dragging={isDragging} class:busy={uploading}>
-      <span class="pab-drop-icon">⬇</span>
+    <div class="pab-drop" class:dragging={isDragging} class:busy={uploading || processing}>
+      {#if uploading || processing}
+        <span class="pab-drop-spinner" aria-hidden="true"></span>
+      {:else}
+        <span class="pab-drop-icon">⬇</span>
+      {/if}
       <span class="pab-drop-text">
         <span class="pab-drop-title">{$_('beauty.wanted_modal.pab_drop_title')}</span>
         <span class="pab-drop-hint">{$_('beauty.wanted_modal.pab_drop_hint')}</span>
       </span>
-      {#if pabSent !== null}
-        <span class="pab-drop-result ok">{$_('beauty.wanted_modal.pab_sent', { values: { count: pabSent } })}</span>
+      {#if uploading}
+        <span class="pab-drop-result busy">{$_('beauty.wanted_modal.pab_sending')}</span>
+      {:else if processing}
+        <span class="pab-drop-result busy">
+          {$_('beauty.wanted_modal.pab_processing', { values: { done: pabDone + pabRejected.length, total: pabTotal } })}
+        </span>
       {:else if pabFailed}
         <span class="pab-drop-result fail">{$_('beauty.wanted_modal.pab_failed')}</span>
+      {:else if pabTotal > 0}
+        {#if pabDone > 0}
+          <span class="pab-drop-result ok">{$_('beauty.wanted_modal.pab_done', { values: { count: pabDone } })}</span>
+        {/if}
+        {#if pabRejected.length > 0}
+          <span class="pab-drop-result fail" title={pabRejected.join('
+')}>
+            {$_('beauty.wanted_modal.pab_rejected', { values: { count: pabRejected.length } })}
+          </span>
+        {/if}
       {/if}
     </div>
 

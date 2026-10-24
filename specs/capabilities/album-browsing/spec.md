@@ -44,7 +44,9 @@ tables.
   (`album_user_prefs.auto_download_requested_at`), picked up by `scraper`'s worker.
 - **Given** the "Presets to download" modal is open **when** the user drags .pab files from
   Explorer onto it **then** album stages only the raw filename + bytes in
-  `album_pending_pab_uploads` (no validation, no R2 access) and reports how many were sent;
+  `album_pending_pab_uploads` (no validation, no R2 access) showing a spinner while sending and then
+  "processing (done/total)" while it polls those staged rows (`pab_upload_status`) until the
+  scraper purges them (ready) or marks them failed (rejected, reason on hover);
   once the scraper uploads one, that preset leaves the list live (`preset_uploaded` → has_pab).
 
 ## Notes

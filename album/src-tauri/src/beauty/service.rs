@@ -5,7 +5,7 @@ use crate::db::repositories::{
     class_repo::{ClassRepository, ClassRow},
     creator_repo::CreatorRepository,
     modification_repo::{ModificationRepository, ModificationRow, PendingModificationRepository},
-    pending_pab_repo::PendingPabUploadRepository,
+    pending_pab_repo::{PendingPabStatus, PendingPabUploadRepository},
     preset_repo::{PresetRepository, PresetRow},
 };
 use std::path::Path;
@@ -158,19 +158,22 @@ impl BeautyService {
     /// Stages every readable .pab file among `paths` for the scraper's
     /// `pab_uploads` worker, which validates them (preset id, existence, PAB
     /// already present) — album does no checks of its own. A file that can't
-    /// be read is skipped rather than failing the whole drop. Returns how many
-    /// files were staged.
-    pub async fn queue_pab_uploads(pool: &PgPool, paths: &[String]) -> Result<usize> {
-        let mut queued = 0;
+    /// be read is skipped rather than failing the whole drop. Returns the staged
+    /// row ids so the UI can follow them with `pab_upload_status`.
+    pub async fn queue_pab_uploads(pool: &PgPool, paths: &[String]) -> Result<Vec<i64>> {
+        let mut queued = Vec::new();
         for path in paths {
             let Ok(bytes) = tokio::fs::read(path).await else { continue };
             let filename = Path::new(path)
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path.clone());
-            PendingPabUploadRepository::insert(pool, &filename, &bytes).await?;
-            queued += 1;
+            queued.push(PendingPabUploadRepository::insert(pool, &filename, &bytes).await?);
         }
         Ok(queued)
+    }
+
+    pub async fn pab_upload_status(pool: &PgPool, ids: &[i64]) -> Result<Vec<PendingPabStatus>> {
+        PendingPabUploadRepository::status(pool, ids).await
     }
 }

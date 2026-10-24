@@ -6,6 +6,7 @@ use crate::core::state::AppState;
 use crate::beauty::service::BeautyService;
 use crate::db::repositories::class_repo::ClassRow;
 use crate::db::repositories::modification_repo::ModificationRow;
+use crate::db::repositories::pending_pab_repo::PendingPabStatus;
 use crate::db::repositories::preset_repo::PresetRow;
 
 #[derive(Serialize)]
@@ -272,11 +273,21 @@ pub async fn upload_preset_modification(
 // ── PAB drag-and-drop upload ─────────────────────────────────
 
 /// Stages dragged-in .pab files for the scraper daemon to validate and upload.
-/// Returns how many files were staged.
+/// Returns the staged row ids.
 #[tauri::command]
 pub async fn queue_pab_uploads(
     paths: Vec<String>,
     state: State<'_, AppState>,
-) -> Result<usize, String> {
+) -> Result<Vec<i64>, String> {
     BeautyService::queue_pab_uploads(&state.pool, &paths).await.map_err(|e| e.to_string())
+}
+
+/// Staged rows among `ids` that still exist (pending, or failed with `error`);
+/// missing ids were processed and purged by the scraper.
+#[tauri::command]
+pub async fn pab_upload_status(
+    ids: Vec<i64>,
+    state: State<'_, AppState>,
+) -> Result<Vec<PendingPabStatus>, String> {
+    BeautyService::pab_upload_status(&state.pool, &ids).await.map_err(|e| e.to_string())
 }

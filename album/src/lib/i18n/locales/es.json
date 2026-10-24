@@ -144,7 +144,10 @@
       "send_to_auto_download": "Enviar {count} a descarga automática",
       "pab_drop_title": "Suelta archivos .pab aquí para subirlos",
       "pab_drop_hint": "Se asocian al preset por el ID del nombre del archivo",
-      "pab_sent": "{count} archivo(s) enviado(s)",
+      "pab_sending": "Enviando…",
+      "pab_processing": "Procesando en el servidor ({done}/{total})…",
+      "pab_done": "{count} listo(s)",
+      "pab_rejected": "{count} rechazado(s)",
       "pab_failed": "No se pudieron enviar los archivos"
     },
     "upload_modification": {

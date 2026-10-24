@@ -437,8 +437,29 @@
   }
 
   &.busy {
-    opacity: 0.6;
+    border-style: solid;
+    border-color: rgba(150, 90, 220, 0.6);
+    animation: pab-drop-pulse 1.6s ease-in-out infinite;
   }
+}
+
+.pab-drop-spinner {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 2px solid rgba(180, 130, 250, 0.25);
+  border-top-color: rgb(180, 130, 250);
+  border-radius: 50%;
+  animation: pab-drop-spin 0.8s linear infinite;
+}
+
+@keyframes pab-drop-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pab-drop-pulse {
+  0%, 100% { background: var(--color-bg-surface); }
+  50%      { background: rgba(150, 90, 220, 0.08); }
 }
 
 .pab-drop-icon {
@@ -472,5 +493,6 @@
   flex-shrink: 0;
 
   &.ok   { color: rgb(110, 210, 150); }
-  &.fail { color: rgb(230, 110, 110); }
+  &.fail { color: rgb(230, 110, 110); cursor: help; }
+  &.busy { color: rgb(180, 130, 250); }
 }

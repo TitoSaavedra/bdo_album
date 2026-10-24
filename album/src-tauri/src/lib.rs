@@ -138,6 +138,7 @@ pub fn run() {
             beauty::commands::list_preset_modifications,
             beauty::commands::upload_preset_modification,
             beauty::commands::queue_pab_uploads,
+            beauty::commands::pab_upload_status,
             beauty::commands::get_regions,
             beauty::commands::discard_preset,
             beauty::commands::toggle_wanted,
