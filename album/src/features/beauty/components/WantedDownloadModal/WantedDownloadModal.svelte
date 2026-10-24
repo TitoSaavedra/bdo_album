@@ -257,8 +257,7 @@
           <span class="pab-drop-result ok">{$_('beauty.wanted_modal.pab_done', { values: { count: pabDone } })}</span>
         {/if}
         {#if pabRejected.length > 0}
-          <span class="pab-drop-result fail" title={pabRejected.join('
-')}>
+          <span class="pab-drop-result fail" title={pabRejected.join('\n')}>
             {$_('beauty.wanted_modal.pab_rejected', { values: { count: pabRejected.length } })}
           </span>
         {/if}
